@@ -8,6 +8,23 @@ import App from "./App";
 import { getLoginUrl } from "./const";
 import "./index.css";
 
+// Capacitor imports
+import { Capacitor } from '@capacitor/core';
+import { StatusBar, Style } from '@capacitor/status-bar';
+import { Network } from '@capacitor/network';
+
+// Initialize Capacitor plugins
+if (Capacitor.isNativePlatform()) {
+  // Set status bar style
+  StatusBar.setStyle({ style: Style.Dark }).catch(console.error);
+  StatusBar.setBackgroundColor({ color: '#000000' }).catch(console.error);
+  
+  // Monitor network status
+  Network.addListener('networkStatusChange', status => {
+    console.log('Network status changed', status);
+  });
+}
+
 const queryClient = new QueryClient();
 
 const redirectToLoginIfUnauthorized = (error: unknown) => {
@@ -52,10 +69,19 @@ const trpcClient = trpc.createClient({
   ],
 });
 
-createRoot(document.getElementById("root")!).render(
-  <trpc.Provider client={trpcClient} queryClient={queryClient}>
-    <QueryClientProvider client={queryClient}>
-      <App />
-    </QueryClientProvider>
-  </trpc.Provider>
-);
+// Wait for device ready on native platforms
+const initApp = () => {
+  createRoot(document.getElementById("root")!).render(
+    <trpc.Provider client={trpcClient} queryClient={queryClient}>
+      <QueryClientProvider client={queryClient}>
+        <App />
+      </QueryClientProvider>
+    </trpc.Provider>
+  );
+};
+
+if (Capacitor.isNativePlatform()) {
+  document.addEventListener('deviceready', initApp);
+} else {
+  initApp();
+}
