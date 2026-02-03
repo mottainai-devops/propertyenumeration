@@ -49,3 +49,13 @@
 - [x] Verify APK signature and alignment
 - [x] Create distribution package with guide
 - [x] Test release APK installation
+
+## Phase 8: Fix Routing to Dashboard
+- [x] Analyze current App.tsx routing structure
+- [x] Add automatic redirect to /dashboard for authenticated users
+- [x] Update Home page with "Go to Dashboard" button
+- [x] Test routing flow (Home → Login → Dashboard)
+- [x] Rebuild production web assets
+- [x] Sync to Android platform
+- [x] Generate new signed release APK
+- [x] Test new APK installation and navigation

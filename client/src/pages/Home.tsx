@@ -52,17 +52,27 @@ export default function Home() {
           </div>
           <div className="flex items-center gap-4">
             <div className="text-right hidden md:block">
-              <div className="text-sm font-bold">v3.2.4 (Build 24)</div>
-              <div className="text-xs text-muted-foreground">Jan 10, 2026</div>
+              <div className="text-sm font-bold">v1.0.0</div>
+              <div className="text-xs text-muted-foreground">Feb 3, 2026</div>
             </div>
-            <Button 
-              size="lg" 
-              className="rounded-none border-2 border-border shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] active:translate-x-[2px] active:translate-y-[2px] active:shadow-none transition-all hover:bg-primary hover:text-primary-foreground font-bold"
-              onClick={() => window.location.href = '/mottainai-survey-app-v3.2.4-fat.apk'}
-            >
-              <Download className="mr-2 h-5 w-5" />
-              DOWNLOAD APK
-            </Button>
+            {isAuthenticated ? (
+              <Button 
+                size="lg" 
+                className="rounded-none border-2 border-border shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] active:translate-x-[2px] active:translate-y-[2px] active:shadow-none transition-all hover:bg-primary hover:text-primary-foreground font-bold"
+                onClick={() => window.location.href = '/dashboard'}
+              >
+                GO TO DASHBOARD
+              </Button>
+            ) : (
+              <Button 
+                size="lg" 
+                className="rounded-none border-2 border-border shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] active:translate-x-[2px] active:translate-y-[2px] active:shadow-none transition-all hover:bg-primary hover:text-primary-foreground font-bold"
+                onClick={() => window.location.href = '/mottainai-admin-app-v1.0-release.apk'}
+              >
+                <Download className="mr-2 h-5 w-5" />
+                DOWNLOAD APK
+              </Button>
+            )}
           </div>
         </div>
       </header>
