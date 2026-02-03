@@ -72,3 +72,11 @@
 - [x] Rebuild production assets
 - [x] Sync to Android platform
 - [x] Generate APK v1.3 with working redirect
+
+## Phase 11: Make Dashboard Default Landing Page
+- [x] Update App.tsx to route "/" to Dashboard instead of Home
+- [x] Remove Home route entirely
+- [x] Test that app opens directly to Dashboard
+- [x] Rebuild production assets
+- [x] Sync to Android platform
+- [x] Generate APK v1.4 with Dashboard as default

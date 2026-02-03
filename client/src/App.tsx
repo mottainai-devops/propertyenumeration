@@ -4,36 +4,18 @@ import NotFound from "@/pages/NotFound";
 import { Route, Switch, Redirect } from "wouter";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
-import Home from "./pages/Home";
 import Dashboard from "./pages/Dashboard";
 import Customers from "./pages/Customers";
 import Properties from "./pages/Properties";
 import ValidationQueue from "./pages/ValidationQueue";
 import CustomerImport from "./pages/CustomerImport";
-import { useAuth } from "./_core/hooks/useAuth";
-import { useEffect } from "react";
-import { useLocation } from "wouter";
 
-function AuthRedirect() {
-  const { isAuthenticated, loading } = useAuth();
-  const [location, setLocation] = useLocation();
-
-  useEffect(() => {
-    // If user is authenticated and on home page, redirect to dashboard
-    if (isAuthenticated && location === "/") {
-      setLocation("/dashboard");
-    }
-  }, [isAuthenticated, location, setLocation]);
-
-  return null;
-}
 
 function Router() {
   return (
     <>
-      <AuthRedirect />
       <Switch>
-        <Route path={"/"} component={Home} />
+        <Route path={"/"} component={Dashboard} />
         <Route path={"/dashboard"} component={Dashboard} />
         <Route path={"/customers"} component={Customers} />
         <Route path={"/properties"} component={Properties} />
