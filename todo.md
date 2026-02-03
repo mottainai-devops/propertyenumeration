@@ -80,3 +80,25 @@
 - [x] Rebuild production assets
 - [x] Sync to Android platform
 - [x] Generate APK v1.4 with Dashboard as default
+
+## Phase 12: Custom Authentication System
+- [x] Design authentication schema (use existing users table)
+- [x] Implement backend login endpoint (email/password authentication)
+- [x] Implement backend session management (cookie-based sessions)
+- [x] Implement backend logout endpoint
+- [x] Implement backend "check session" endpoint (me)
+- [ ] Create custom Login page UI
+- [ ] Update useAuth hook to use custom authentication
+- [ ] Remove Manus OAuth dependencies
+- [ ] Test login/logout flow in development
+- [ ] Rebuild production assets
+- [ ] Sync to Android platform
+- [ ] Generate APK v1.5 with custom authentication
+- [x] Create custom Login page UI
+- [x] Update useAuth hook to use custom authentication
+- [x] Update App.tsx routing with /login route
+- [x] Update getLoginUrl to return /login path
+- [x] Update DashboardLayout to use wouter navigation
+- [x] Test login flow with test credentials
+- [x] Verify successful authentication and redirect to dashboard
+- [x] Confirm user information displays correctly in sidebar

@@ -4,20 +4,13 @@ import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, protectedProcedure, router } from "./_core/trpc";
 import * as db from "./db";
 import { z } from "zod";
+import { customAuthRouter } from "./customAuth";
 
 export const appRouter = router({
   system: systemRouter,
   
-  auth: router({
-    me: publicProcedure.query(opts => opts.ctx.user),
-    logout: protectedProcedure.mutation(({ ctx }) => {
-      const cookieOptions = getSessionCookieOptions(ctx.req);
-      ctx.res.clearCookie(COOKIE_NAME, { ...cookieOptions, maxAge: -1 });
-      return {
-        success: true,
-      } as const;
-    }),
-  }),
+  // Use custom authentication instead of Manus OAuth
+  auth: customAuthRouter,
 
   // ============================================================================
   // BUILDINGS ROUTER (Replaces polygons)

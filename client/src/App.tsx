@@ -9,12 +9,14 @@ import Customers from "./pages/Customers";
 import Properties from "./pages/Properties";
 import ValidationQueue from "./pages/ValidationQueue";
 import CustomerImport from "./pages/CustomerImport";
+import Login from "./pages/Login";
 
 
 function Router() {
   return (
     <>
       <Switch>
+        <Route path={"/login"} component={Login} />
         <Route path={"/"} component={Dashboard} />
         <Route path={"/dashboard"} component={Dashboard} />
         <Route path={"/customers"} component={Customers} />
