@@ -65,3 +65,10 @@
 - [x] Rebuild production assets
 - [x] Sync to Android platform
 - [x] Generate updated APK v1.2
+
+## Phase 10: Fix Auto-Redirect to Dashboard
+- [x] Add useEffect redirect logic to Home page for authenticated users
+- [x] Test redirect behavior in development
+- [x] Rebuild production assets
+- [x] Sync to Android platform
+- [x] Generate APK v1.3 with working redirect

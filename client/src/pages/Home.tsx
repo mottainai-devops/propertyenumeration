@@ -14,6 +14,13 @@ export default function Home() {
   const [progress, setProgress] = useState(0);
   const [checkedItems, setCheckedItems] = useState<Record<string, boolean>>({});
 
+  // Auto-redirect authenticated users to dashboard
+  useEffect(() => {
+    if (!loading && isAuthenticated) {
+      window.location.href = '/dashboard';
+    }
+  }, [loading, isAuthenticated]);
+
   useEffect(() => {
     const saved = localStorage.getItem('mottainai_testing_progress');
     if (saved) {
