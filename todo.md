@@ -1,42 +1,41 @@
-# Mottainai APK Distribution - Capacitor Conversion TODO
+# Mottainai APK Distribution - Integration & APK Generation
 
-## Phase 1: Capacitor Setup and Configuration
-- [x] Install Capacitor core and CLI dependencies
-- [x] Install Capacitor Android platform
-- [x] Initialize Capacitor configuration
-- [x] Configure app metadata (name, ID, version)
-- [x] Set up Android platform structure
+## Phase 1: Verification & Preparation
+- [x] Verify mottainai-apk-distribution database schema matches Mottainai integration
+- [x] Check existing pages and routing structure
+- [x] Review current DashboardLayout navigation
+- [x] Verify tRPC routers and database functions
 
-## Phase 2: Mobile Optimization
-- [x] Update Vite config for Capacitor compatibility
-- [x] Add mobile-responsive meta tags
-- [x] Configure viewport settings for mobile
-- [x] Add splash screen assets
-- [x] Add app icons (multiple resolutions)
+## Phase 2: File Integration
+- [x] Copy Customers.tsx from property-enumeration-app
+- [x] Copy Properties.tsx from property-enumeration-app
+- [x] Copy ValidationQueue.tsx from property-enumeration-app
+- [x] Copy CustomerImport.tsx from property-enumeration-app
+- [x] Merge enhanced routers.ts (pickups.createBulk, validationLogs router)
+- [x] Merge enhanced db.ts (listValidationLogs, createValidationLog functions)
 
-## Phase 3: Native Features Integration
-- [x] Configure Android permissions (camera, location, storage)
-- [x] Add offline support with service worker
-- [x] Configure network detection
-- [x] Add native status bar styling
-- [x] Configure safe area handling
+## Phase 3: Routing & Navigation
+- [x] Update App.tsx with routes for new pages
+- [x] Update DashboardLayout navigation links
+- [x] Verify all imports resolve correctly
+- [x] Check for TypeScript compilation errors
 
-## Phase 4: Build and Sync
-- [x] Build production web assets
-- [x] Sync web assets to Android platform
-- [x] Verify Android project structure
-- [x] Test Android build configuration
+## Phase 4: Testing
+- [x] Build project successfully
+- [x] Test Customers page functionality
+- [x] Test Properties page functionality
+- [x] Test Validation Queue page functionality
+- [x] Test Customer Import page functionality
+- [x] Verify all tRPC queries and mutations work
 
 ## Phase 5: APK Generation
-- [ ] Configure Android build settings
-- [ ] Set up signing configuration
-- [ ] Generate keystore for signing
-- [ ] Build signed APK
-- [ ] Verify APK integrity
+- [x] Verify Capacitor configuration
+- [x] Build production web assets
+- [x] Sync assets to Android platform
+- [x] Generate debug APK
+- [x] Test APK installation
 
-## Phase 6: Testing and Documentation
-- [ ] Test APK installation
-- [ ] Verify app functionality on Android
-- [ ] Create installation instructions
-- [ ] Document build process
-- [ ] Create distribution guide
+## Phase 6: Final Delivery
+- [ ] Create final checkpoint
+- [ ] Document APK installation instructions
+- [ ] Deliver APK and documentation to user
