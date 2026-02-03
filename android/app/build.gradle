@@ -3,6 +3,16 @@ apply plugin: 'com.android.application'
 android {
     namespace = "com.mottainai.survey.admin"
     compileSdk = rootProject.ext.compileSdkVersion
+    
+    signingConfigs {
+        release {
+            storeFile file("../../mottainai-release-key.jks")
+            storePassword "mottainai2026"
+            keyAlias "mottainai-key"
+            keyPassword "mottainai2026"
+        }
+    }
+    
     defaultConfig {
         applicationId "com.mottainai.survey.admin"
         minSdkVersion rootProject.ext.minSdkVersion
@@ -18,8 +28,14 @@ android {
     }
     buildTypes {
         release {
-            minifyEnabled false
-            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            signingConfig signingConfigs.release
+            minifyEnabled true
+            shrinkResources true
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+            // Optimize APK size
+            ndk {
+                abiFilters 'armeabi-v7a', 'arm64-v8a', 'x86', 'x86_64'
+            }
         }
     }
 }
