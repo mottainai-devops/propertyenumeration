@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Progress } from "@/components/ui/progress";
-import { Download, Smartphone, CheckCircle2, AlertTriangle, ShieldCheck, Info } from "lucide-react";
+import { Smartphone, CheckCircle2, AlertTriangle, ShieldCheck, Info } from "lucide-react";
 import { useState, useEffect } from "react";
 
 export default function Home() {
@@ -55,22 +55,13 @@ export default function Home() {
               <div className="text-sm font-bold">v1.0.0</div>
               <div className="text-xs text-muted-foreground">Feb 3, 2026</div>
             </div>
-            {isAuthenticated ? (
+            {isAuthenticated && (
               <Button 
                 size="lg" 
                 className="rounded-none border-2 border-border shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] active:translate-x-[2px] active:translate-y-[2px] active:shadow-none transition-all hover:bg-primary hover:text-primary-foreground font-bold"
                 onClick={() => window.location.href = '/dashboard'}
               >
                 GO TO DASHBOARD
-              </Button>
-            ) : (
-              <Button 
-                size="lg" 
-                className="rounded-none border-2 border-border shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] active:translate-x-[2px] active:translate-y-[2px] active:shadow-none transition-all hover:bg-primary hover:text-primary-foreground font-bold"
-                onClick={() => window.location.href = '/mottainai-admin-app-v1.0-release.apk'}
-              >
-                <Download className="mr-2 h-5 w-5" />
-                DOWNLOAD APK
               </Button>
             )}
           </div>
