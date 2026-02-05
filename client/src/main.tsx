@@ -54,10 +54,20 @@ queryClient.getMutationCache().subscribe(event => {
   }
 });
 
+// Determine API URL based on platform
+const getApiUrl = () => {
+  if (Capacitor.isNativePlatform()) {
+    // For native mobile app, use production server
+    return 'https://dashboard.kowope.xyz/api/trpc';
+  }
+  // For web, use relative URL
+  return '/api/trpc';
+};
+
 const trpcClient = trpc.createClient({
   links: [
     httpBatchLink({
-      url: "/api/trpc",
+      url: getApiUrl(),
       transformer: superjson,
       fetch(input, init) {
         return globalThis.fetch(input, {

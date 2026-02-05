@@ -5,7 +5,6 @@ const config: CapacitorConfig = {
   appName: 'Mottainai Survey Admin',
   webDir: 'dist/public',
   server: {
-    url: 'https://dashboard.kowope.xyz',
     androidScheme: 'https',
     cleartext: true
   },
