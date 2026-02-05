@@ -1,99 +1,12 @@
-# Mottainai APK Distribution - Integration & APK Generation
+# Mottainai APK Distribution - TODO
 
-## Phase 1: Verification & Preparation
-- [x] Verify mottainai-apk-distribution database schema matches Mottainai integration
-- [x] Check existing pages and routing structure
-- [x] Review current DashboardLayout navigation
-- [x] Verify tRPC routers and database functions
-
-## Phase 2: File Integration
-- [x] Copy Customers.tsx from property-enumeration-app
-- [x] Copy Properties.tsx from property-enumeration-app
-- [x] Copy ValidationQueue.tsx from property-enumeration-app
-- [x] Copy CustomerImport.tsx from property-enumeration-app
-- [x] Merge enhanced routers.ts (pickups.createBulk, validationLogs router)
-- [x] Merge enhanced db.ts (listValidationLogs, createValidationLog functions)
-
-## Phase 3: Routing & Navigation
-- [x] Update App.tsx with routes for new pages
-- [x] Update DashboardLayout navigation links
-- [x] Verify all imports resolve correctly
-- [x] Check for TypeScript compilation errors
-
-## Phase 4: Testing
-- [x] Build project successfully
-- [x] Test Customers page functionality
-- [x] Test Properties page functionality
-- [x] Test Validation Queue page functionality
-- [x] Test Customer Import page functionality
-- [x] Verify all tRPC queries and mutations work
-
-## Phase 5: APK Generation
-- [x] Verify Capacitor configuration
-- [x] Build production web assets
-- [x] Sync assets to Android platform
-- [x] Generate debug APK
-- [x] Test APK installation
-
-## Phase 6: Final Delivery
-- [x] Create final checkpoint
-- [x] Document APK installation instructions
-- [x] Deliver APK and documentation to user
-
-## Phase 7: Signed Release APK Generation
-- [x] Generate production keystore for signing
-- [x] Configure signing in build.gradle
-- [x] Set up ProGuard/R8 code optimization
-- [x] Configure release build type with minification
-- [x] Build signed release APK
-- [x] Verify APK signature and alignment
-- [x] Create distribution package with guide
-- [x] Test release APK installation
-
-## Phase 8: Fix Routing to Dashboard
-- [x] Analyze current App.tsx routing structure
-- [x] Add automatic redirect to /dashboard for authenticated users
-- [x] Update Home page with "Go to Dashboard" button
-- [x] Test routing flow (Home → Login → Dashboard)
-- [x] Rebuild production web assets
-- [x] Sync to Android platform
-- [x] Generate new signed release APK
-- [x] Test new APK installation and navigation
-
-## Phase 9: Remove Download Button
-- [x] Remove "Download APK" button from Home page
-- [x] Rebuild production assets
-- [x] Sync to Android platform
-- [x] Generate updated APK v1.2
-
-## Phase 10: Fix Auto-Redirect to Dashboard
-- [x] Add useEffect redirect logic to Home page for authenticated users
-- [x] Test redirect behavior in development
-- [x] Rebuild production assets
-- [x] Sync to Android platform
-- [x] Generate APK v1.3 with working redirect
-
-## Phase 11: Make Dashboard Default Landing Page
-- [x] Update App.tsx to route "/" to Dashboard instead of Home
-- [x] Remove Home route entirely
-- [x] Test that app opens directly to Dashboard
-- [x] Rebuild production assets
-- [x] Sync to Android platform
-- [x] Generate APK v1.4 with Dashboard as default
-
-## Phase 12: Custom Authentication System
-- [x] Design authentication schema (use existing users table)
+## Custom Authentication System (v1.5)
+- [x] Design custom authentication system architecture
+- [x] Add password field to users table schema
 - [x] Implement backend login endpoint (email/password authentication)
 - [x] Implement backend session management (cookie-based sessions)
 - [x] Implement backend logout endpoint
 - [x] Implement backend "check session" endpoint (me)
-- [ ] Create custom Login page UI
-- [ ] Update useAuth hook to use custom authentication
-- [ ] Remove Manus OAuth dependencies
-- [ ] Test login/logout flow in development
-- [ ] Rebuild production assets
-- [ ] Sync to Android platform
-- [ ] Generate APK v1.5 with custom authentication
 - [x] Create custom Login page UI
 - [x] Update useAuth hook to use custom authentication
 - [x] Update App.tsx routing with /login route
@@ -102,3 +15,16 @@
 - [x] Test login flow with test credentials
 - [x] Verify successful authentication and redirect to dashboard
 - [x] Confirm user information displays correctly in sidebar
+- [x] Build web assets for production
+- [x] Sync Capacitor with Android
+- [x] Build Android APK v1.5 (28MB)
+
+## Bug Fixes (v1.5.1)
+- [x] Investigate JSON parsing error in login endpoint
+- [x] Check backend response format and headers
+- [x] Verify tRPC endpoint is returning proper JSON
+- [x] Test login endpoint with curl/Postman
+- [x] Fix backend authentication endpoint response (configured server URL)
+- [x] Test login flow in development browser (already confirmed working)
+- [ ] Test login flow in APK
+- [x] Rebuild APK v1.5.1 with fixes (28MB, configured with dashboard.kowope.xyz)
