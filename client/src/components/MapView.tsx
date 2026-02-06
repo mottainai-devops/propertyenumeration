@@ -17,7 +17,7 @@ export default function MapView({ onLocationSelect }: MapViewProps) {
   // Initialize Google Maps
   useEffect(() => {
     const loader = new Loader({
-      apiKey: 'AIzaSyBBOaIJGdJQ7xyQQW-OqQpC9YW6xZ8Zy2U', // This will be replaced with Manus proxy
+      apiKey: 'AIzaSyDT6p1kGrmkpYsk5Zwtjc6zo43FwTP4veA',
       version: 'weekly',
       libraries: ['places', 'geocoding'],
     });
