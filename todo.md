@@ -38,3 +38,14 @@
 - [x] Test API connectivity with production server (configured for dashboard.kowope.xyz)
 - [x] Rebuild APK v1.5.2 with hybrid configuration (28MB)
 - [ ] Verify APK loads UI and can connect to backend (user testing required)
+
+## API Endpoint Fixes (v1.0.0 - Property Enumeration)
+- [x] Fix auth login endpoint from /auth/login to /users/login
+- [x] Update API response parsing to match backend specification
+- [x] Verify building creation API matches backend format
+- [x] Test GPS coordinates format (gpsCoordinates object vs separate fields)
+- [x] Update property type values to lowercase (residential vs Residential)
+- [x] Update form fields to match backend (contactName, contactPhone instead of buildingName, numberOfUnits, notes)
+- [x] Rebuild APK with corrected API endpoints (v1.0.1 - 4.1MB)
+- [ ] Test login flow with test credentials (test.supervisor@mottainai.com)
+- [ ] Test building registration with backend

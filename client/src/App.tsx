@@ -1,54 +1,101 @@
-import { Toaster } from "@/components/ui/sonner";
-import { TooltipProvider } from "@/components/ui/tooltip";
-import NotFound from "@/pages/NotFound";
-import { Route, Switch, Redirect } from "wouter";
-import ErrorBoundary from "./components/ErrorBoundary";
-import { ThemeProvider } from "./contexts/ThemeContext";
-import Dashboard from "./pages/Dashboard";
-import Customers from "./pages/Customers";
-import Properties from "./pages/Properties";
-import ValidationQueue from "./pages/ValidationQueue";
-import CustomerImport from "./pages/CustomerImport";
-import Login from "./pages/Login";
+import { useState, useEffect } from 'react';
+import Login from './components/Login';
+import MapView from './components/MapView';
+import BuildingForm from './components/BuildingForm';
 
-
-function Router() {
-  return (
-    <>
-      <Switch>
-        <Route path={"/login"} component={Login} />
-        <Route path={"/"} component={Dashboard} />
-        <Route path={"/dashboard"} component={Dashboard} />
-        <Route path={"/customers"} component={Customers} />
-        <Route path={"/properties"} component={Properties} />
-        <Route path={"/validation-queue"} component={ValidationQueue} />
-        <Route path={"/customer-import"} component={CustomerImport} />
-        <Route path={"/404"} component={NotFound} />
-        {/* Final fallback route */}
-        <Route component={NotFound} />
-      </Switch>
-    </>
-  );
+interface SelectedLocation {
+  lat: number;
+  lng: number;
+  address: string;
 }
 
-// NOTE: About Theme
-// - First choose a default theme according to your design style (dark or light bg), than change color palette in index.css
-//   to keep consistent foreground/background color across components
-// - If you want to make theme switchable, pass `switchable` ThemeProvider and use `useTheme` hook
-
 function App() {
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [selectedLocation, setSelectedLocation] = useState<SelectedLocation | null>(null);
+  const [showForm, setShowForm] = useState(false);
+  const [userData, setUserData] = useState<any>(null);
+
+  useEffect(() => {
+    // Check if user is already logged in
+    const token = localStorage.getItem('jwt_token');
+    const user = localStorage.getItem('user_data');
+    
+    if (token && user) {
+      setIsAuthenticated(true);
+      setUserData(JSON.parse(user));
+    }
+  }, []);
+
+  const handleLoginSuccess = () => {
+    const user = localStorage.getItem('user_data');
+    if (user) {
+      setUserData(JSON.parse(user));
+    }
+    setIsAuthenticated(true);
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem('jwt_token');
+    localStorage.removeItem('user_data');
+    setIsAuthenticated(false);
+    setUserData(null);
+  };
+
+  const handleLocationSelect = (lat: number, lng: number, address: string) => {
+    setSelectedLocation({ lat, lng, address });
+    setShowForm(true);
+  };
+
+  const handleFormSuccess = () => {
+    setShowForm(false);
+    setSelectedLocation(null);
+    // Show success message
+    alert('Building registered successfully!');
+  };
+
+  const handleFormCancel = () => {
+    setShowForm(false);
+    setSelectedLocation(null);
+  };
+
+  if (!isAuthenticated) {
+    return <Login onLoginSuccess={handleLoginSuccess} />;
+  }
+
   return (
-    <ErrorBoundary>
-      <ThemeProvider
-        defaultTheme="light"
-        // switchable
-      >
-        <TooltipProvider>
-          <Toaster />
-          <Router />
-        </TooltipProvider>
-      </ThemeProvider>
-    </ErrorBoundary>
+    <div className="w-full h-screen flex flex-col">
+      {/* Header */}
+      <div className="bg-green-600 text-white px-4 py-3 flex items-center justify-between shadow-lg z-20">
+        <div>
+          <h1 className="text-lg font-bold">Property Enumeration</h1>
+          {userData && (
+            <p className="text-xs text-green-100">{userData.name} • {userData.companyName}</p>
+          )}
+        </div>
+        <button
+          onClick={handleLogout}
+          className="bg-green-700 hover:bg-green-800 px-4 py-2 rounded-lg text-sm font-medium transition"
+        >
+          Logout
+        </button>
+      </div>
+
+      {/* Map View */}
+      <div className="flex-1 relative">
+        <MapView onLocationSelect={handleLocationSelect} />
+      </div>
+
+      {/* Building Form Modal */}
+      {showForm && selectedLocation && (
+        <BuildingForm
+          latitude={selectedLocation.lat}
+          longitude={selectedLocation.lng}
+          address={selectedLocation.address}
+          onSuccess={handleFormSuccess}
+          onCancel={handleFormCancel}
+        />
+      )}
+    </div>
   );
 }
 
