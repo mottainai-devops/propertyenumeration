@@ -66,3 +66,17 @@
 - [x] Sync to Android platform
 - [x] Build APK v1.0.3 (4.4 MB)
 - [ ] Test map interface loads after login
+
+## Fallback UI Implementation (v1.0.4)
+- [x] Create SimpleLocationPicker component without Google Maps dependency
+- [x] Use device GPS directly via Capacitor Geolocation
+- [x] Add manual coordinate input fields
+- [x] Add manual address input field
+- [x] Show current GPS coordinates on screen
+- [x] Add comprehensive error handling and display
+- [x] Add location accuracy indicator
+- [x] Update App.tsx to use SimpleLocationPicker
+- [x] Build web assets (474.98 kB)
+- [x] Sync to Android
+- [x] Build APK with fallback UI (v1.0.4 - 4.4 MB)
+- [ ] Test location capture and building registration

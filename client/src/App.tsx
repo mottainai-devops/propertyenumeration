@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import Login from './components/Login';
-import MapView from './components/MapView';
+import SimpleLocationPicker from './components/SimpleLocationPicker';
 import BuildingForm from './components/BuildingForm';
 
 interface SelectedLocation {
@@ -80,9 +80,9 @@ function App() {
         </button>
       </div>
 
-      {/* Map View */}
-      <div className="flex-1 relative">
-        <MapView onLocationSelect={handleLocationSelect} />
+      {/* Location Picker */}
+      <div className="flex-1 overflow-y-auto">
+        <SimpleLocationPicker onLocationSelect={handleLocationSelect} />
       </div>
 
       {/* Building Form Modal */}
