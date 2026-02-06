@@ -141,6 +141,85 @@ export interface LoginResponse {
   };
 }
 
+// Customer API Types
+export interface Customer {
+  _id: string;
+  customerId: string;
+  customerName: string;
+  address: string;
+  phoneNumber?: string;
+  lotCode: string;
+  buildingId?: string;
+  isDigitalized: boolean;
+  companyId: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface SearchCustomersParams {
+  q: string;
+  lotCode?: string;
+  limit?: number;
+}
+
+export interface ListCustomersParams {
+  page?: number;
+  limit?: number;
+  lotCode?: string;
+  isDigitalized?: boolean;
+  buildingId?: string;
+  search?: string;
+}
+
+export interface LinkCustomerRequest {
+  buildingId: string;
+}
+
+// Customer API Functions
+export const customerApi = {
+  search: async (params: SearchCustomersParams): Promise<Customer[]> => {
+    const response = await apiClient.get('/property-enumeration/customers/search', { params });
+    return response.data.data.customers;
+  },
+
+  list: async (params?: ListCustomersParams): Promise<{ customers: Customer[]; total: number; page: number; limit: number }> => {
+    const response = await apiClient.get('/property-enumeration/customers', { params });
+    return response.data.data;
+  },
+
+  getById: async (customerId: string): Promise<Customer> => {
+    const response = await apiClient.get(`/property-enumeration/customers/${customerId}`);
+    return response.data.data.customer;
+  },
+
+  link: async (customerId: string, data: LinkCustomerRequest): Promise<{ customer: Customer; building: Building }> => {
+    const response = await apiClient.post(`/property-enumeration/customers/${customerId}/link`, data);
+    return response.data.data;
+  },
+
+  unlink: async (customerId: string): Promise<Customer> => {
+    const response = await apiClient.delete(`/property-enumeration/customers/${customerId}/unlink`);
+    return response.data.data.customer;
+  },
+};
+
+// Photo Upload API
+export const photoApi = {
+  uploadAdditional: async (buildingId: string, photos: File[]): Promise<Building> => {
+    const formData = new FormData();
+    photos.forEach((photo) => {
+      formData.append('photos', photo);
+    });
+
+    const response = await apiClient.post(`/property-enumeration/buildings/${buildingId}/photos`, formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+    return response.data.data.building;
+  },
+};
+
 export const authApi = {
   login: async (credentials: LoginRequest): Promise<LoginResponse> => {
     const response = await apiClient.post('/users/login', credentials);

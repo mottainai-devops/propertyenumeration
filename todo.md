@@ -113,7 +113,17 @@
 - [x] Rebuild with proper gradient styling (CSS grew from 6.48kB to 31.98kB)
 - [x] Build APK v1.0.6 (7.7 MB)
 - [ ] Test gradient UI on actual device
-- [ ] Integrate Week 2 backend APIs (customer linking, photo upload, bulk import)
-- [ ] Update BuildingForm with customer linking functionality
-- [ ] Add customer search and autocomplete
-- [ ] Test complete workflow (building + customer linking)
+- [x] Update API client with Week 2 customer endpoints (search, list, link, unlink)
+- [x] Add photo upload API endpoint
+- [x] Implement customer search/autocomplete component (CustomerSearch.tsx)
+- [x] Add customer linking to BuildingForm
+- [x] Implement photo upload component (up to 4 photos) - already in BuildingForm
+- [x] Update BuildingForm to handle multiple photos - already implemented
+- [x] Add photo preview and delete functionality - already implemented
+- [x] Build web assets with Week 2 features (502.60 kB)
+- [x] Sync to Android platform
+- [x] Build APK v1.1.0 with Week 2 features (7.7 MB)
+- [ ] Test customer search functionality
+- [ ] Test customer linking workflow
+- [ ] Test photo upload with multiple images
+- [ ] Test complete end-to-end workflow

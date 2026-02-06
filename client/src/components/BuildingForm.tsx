@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Camera, CameraResultType, CameraSource } from '@capacitor/camera';
-import { buildingApi, type CreateBuildingRequest } from '../api/client';
+import { buildingApi, customerApi, type CreateBuildingRequest, type Customer } from '../api/client';
+import CustomerSearch from './CustomerSearch';
 
 interface BuildingFormProps {
   latitude: number;
@@ -20,8 +21,11 @@ export default function BuildingForm({ latitude, longitude, address, onSuccess, 
   });
   const [photos, setPhotos] = useState<File[]>([]);
   const [photoPreviewUrls, setPhotoPreviewUrls] = useState<string[]>([]);
+  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
+  const [linkingCustomer, setLinkingCustomer] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [successMessage, setSuccessMessage] = useState('');
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
@@ -79,8 +83,24 @@ export default function BuildingForm({ latitude, longitude, address, onSuccess, 
         photos,
       };
 
-      await buildingApi.create(request);
-      onSuccess();
+      const building = await buildingApi.create(request);
+      
+      // If customer is selected, link them to the building
+      if (selectedCustomer) {
+        setLinkingCustomer(true);
+        try {
+          await customerApi.link(selectedCustomer._id, { buildingId: building._id });
+          setSuccessMessage('Building registered and customer linked successfully!');
+        } catch (linkErr: any) {
+          setError(linkErr.response?.data?.message || 'Building registered but failed to link customer.');
+        } finally {
+          setLinkingCustomer(false);
+        }
+      }
+      
+      setTimeout(() => {
+        onSuccess();
+      }, 1500);
     } catch (err: any) {
       setError(err.response?.data?.message || 'Failed to create building. Please try again.');
     } finally {
@@ -107,6 +127,12 @@ export default function BuildingForm({ latitude, longitude, address, onSuccess, 
           {error && (
             <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
               {error}
+            </div>
+          )}
+          
+          {successMessage && (
+            <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-lg">
+              {successMessage}
             </div>
           )}
 
@@ -198,6 +224,52 @@ export default function BuildingForm({ latitude, longitude, address, onSuccess, 
             />
           </div>
 
+          {/* Customer Linking */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Link Customer (Optional)
+            </label>
+            
+            {selectedCustomer ? (
+              <div className="bg-green-50 border-2 border-green-300 rounded-lg p-4">
+                <div className="flex items-start justify-between">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-1">
+                      <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                      </svg>
+                      <span className="font-semibold text-gray-900">{selectedCustomer.customerName}</span>
+                    </div>
+                    <p className="text-sm text-gray-600">{selectedCustomer.address}</p>
+                    {selectedCustomer.phoneNumber && (
+                      <p className="text-sm text-gray-500 mt-1">{selectedCustomer.phoneNumber}</p>
+                    )}
+                    <p className="text-xs font-mono text-gray-500 mt-2">ID: {selectedCustomer.customerId}</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedCustomer(null)}
+                    className="ml-4 text-red-500 hover:text-red-700"
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <CustomerSearch
+                onSelect={setSelectedCustomer}
+                lotCode={formData.lotCode || undefined}
+                placeholder="Search customer by name, address, or phone..."
+              />
+            )}
+            
+            <p className="text-xs text-gray-500 mt-2">
+              Link this building to an existing customer for better tracking
+            </p>
+          </div>
+
           {/* Photos */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -251,10 +323,10 @@ export default function BuildingForm({ latitude, longitude, address, onSuccess, 
             </button>
             <button
               type="submit"
-              disabled={loading}
+              disabled={loading || linkingCustomer}
               className="flex-1 bg-green-600 hover:bg-green-700 text-white font-semibold py-3 px-4 rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {loading ? 'Saving...' : 'Register Building'}
+              {loading ? 'Saving...' : linkingCustomer ? 'Linking...' : 'Register Building'}
             </button>
           </div>
         </form>
