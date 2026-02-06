@@ -5,8 +5,9 @@ const config: CapacitorConfig = {
   appName: 'Property Enumeration',
   webDir: 'client/dist',
   server: {
-    androidScheme: 'https',
-    cleartext: true
+    androidScheme: 'http',
+    cleartext: true,
+    allowNavigation: ['*']
   },
   android: {
     buildOptions: {

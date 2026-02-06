@@ -49,3 +49,11 @@
 - [x] Rebuild APK with corrected API endpoints (v1.0.1 - 4.1MB)
 - [ ] Test login flow with test credentials (test.supervisor@mottainai.com)
 - [ ] Test building registration with backend
+
+## HTTP/HTTPS Mixed Content Fix (v1.0.2)
+- [x] Change androidScheme from 'https' to 'http' in capacitor.config.ts
+- [x] Create network_security_config.xml to allow cleartext HTTP traffic
+- [x] Update AndroidManifest.xml to reference network security config
+- [x] Rebuild APK with HTTP support (v1.0.2 - 4.4MB)
+- [ ] Test login with new APK
+- [ ] Verify building registration works
