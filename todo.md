@@ -103,3 +103,17 @@
 - [ ] Test GPS functionality on actual device
 - [ ] Test UI on actual device
 - [ ] Verify professional appearance matches Survey App quality
+
+
+## v1.0.6 - Gradient Design Fix & Week 2 API Integration
+- [x] Investigate why gradient design didn't show in v1.0.5 (Tailwind v4 config issue)
+- [x] Check if SimpleLocationPicker.tsx changes were included in build (component was correct)
+- [x] Verify Tailwind CSS configuration for gradients (v4 requires @theme block)
+- [x] Updated index.css to use Tailwind v4 syntax with color definitions
+- [x] Rebuild with proper gradient styling (CSS grew from 6.48kB to 31.98kB)
+- [x] Build APK v1.0.6 (7.7 MB)
+- [ ] Test gradient UI on actual device
+- [ ] Integrate Week 2 backend APIs (customer linking, photo upload, bulk import)
+- [ ] Update BuildingForm with customer linking functionality
+- [ ] Add customer search and autocomplete
+- [ ] Test complete workflow (building + customer linking)
