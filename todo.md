@@ -123,7 +123,59 @@
 - [x] Build web assets with Week 2 features (502.60 kB)
 - [x] Sync to Android platform
 - [x] Build APK v1.1.0 with Week 2 features (7.7 MB)
+- [x] Build APK v1.2.0 with offline support and enhanced search (7.7 MB)
 - [ ] Test customer search functionality
 - [ ] Test customer linking workflow
 - [ ] Test photo upload with multiple images
 - [ ] Test complete end-to-end workflow
+- [ ] Test offline mode and automatic sync
+- [ ] Test customer filters (digitalization status, property type)
+- [ ] Test recent customers functionality
+
+
+## v1.2.0 - Offline Support & Enhanced Customer Search
+
+### Offline Storage System
+- [x] Install @capacitor/preferences plugin for local storage (v8.0.0)
+- [x] Create offline storage service module (offlineStorage.ts)
+- [x] Implement building queue storage (pending uploads)
+- [x] Add timestamp and sync status tracking
+- [x] Create sync queue management functions (save, get, update, remove)
+- [x] Add recent customers storage (last 10)
+
+### Network Detection & Auto Sync
+- [x] Install @capacitor/network plugin (already installed v8.0.0)
+- [x] Create network status monitoring service (syncService.ts)
+- [x] Implement automatic sync on network restore
+- [x] Handle sync conflicts and errors (retry logic, error tracking)
+- [ ] Add manual sync button in UI
+- [ ] Show sync status indicator (online/offline/syncing)
+- [ ] Update BuildingForm to save offline when network unavailable
+
+### Enhanced Customer Search
+- [x] Add digitalization status filter (digitalized/not_digitalized/all)
+- [x] Add property type filter (residential/commercial/mixed/all)
+- [x] Add "Recent Customers" section (last 10 linked)
+- [x] Store recent customers in local storage
+- [x] Add filter UI with dropdown/chips
+- [x] Update search API to include filter parameters
+- [x] Add filter toggle button with active indicator
+- [x] Add "Recent" badge for recent customers
+- [x] Add clear filters functionality
+### UI Improvements
+- [x] Add offline indicator banner (amber banner when offline)
+- [x] Show pending uploads count badge (in offline banner)
+- [x] Add sync status in header (online/offline indicator)
+- [x] Add syncing banner when online with pending uploads
+- [ ] Add manual sync button customer search
+- [ ] Show "Recent" badge for recent customers
+- [ ] Add clear filters button
+
+### Testing
+- [ ] Test offline building registration
+- [ ] Test automatic sync on network restore
+- [ ] Test manual sync functionality
+- [ ] Test customer search filters
+- [ ] Test recent customers display
+- [ ] Test sync conflict handling
+- [ ] Build APK v1.2.0

@@ -37,6 +37,9 @@ importers:
       '@capacitor/network':
         specifier: ^8.0.0
         version: 8.0.0(@capacitor/core@8.0.1)
+      '@capacitor/preferences':
+        specifier: ^8.0.0
+        version: 8.0.0(@capacitor/core@8.0.1)
       '@capacitor/status-bar':
         specifier: ^8.0.0
         version: 8.0.0(@capacitor/core@8.0.1)
@@ -620,6 +623,11 @@ packages:
 
   '@capacitor/network@8.0.0':
     resolution: {integrity: sha512-fgvB7pNKn8pKavuzys218j4YuA5euNfavp7nS3NuwWKWNupZAlbucfnl75lazxCyVF/ZRjzYVTb4vtTEfFrK1A==}
+    peerDependencies:
+      '@capacitor/core': '>=8.0.0'
+
+  '@capacitor/preferences@8.0.0':
+    resolution: {integrity: sha512-NsE7Srk9Zr0SxiVelHGiAJR7M238eyCD6dI/sDhu3ckKwFrXn8/GRyGr+SZcnGLlQKy948li8Pfcfr0dqxNf1g==}
     peerDependencies:
       '@capacitor/core': '>=8.0.0'
 
@@ -5464,6 +5472,10 @@ snapshots:
       '@capacitor/synapse': 1.0.4
 
   '@capacitor/network@8.0.0(@capacitor/core@8.0.1)':
+    dependencies:
+      '@capacitor/core': 8.0.1
+
+  '@capacitor/preferences@8.0.0(@capacitor/core@8.0.1)':
     dependencies:
       '@capacitor/core': 8.0.1
 

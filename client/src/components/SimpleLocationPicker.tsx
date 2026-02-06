@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Geolocation } from '@capacitor/geolocation';
+import { Network } from '@capacitor/network';
+import { getPendingBuildings } from '../services/offlineStorage';
 
 interface SimpleLocationPickerProps {
   onLocationSelect: (lat: number, lng: number, address: string) => void;
@@ -13,6 +15,48 @@ export default function SimpleLocationPicker({ onLocationSelect }: SimpleLocatio
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [locationAccuracy, setLocationAccuracy] = useState<number | null>(null);
+  const [isOnline, setIsOnline] = useState(true);
+  const [pendingCount, setPendingCount] = useState(0);
+
+  // Monitor network status
+  useEffect(() => {
+    checkNetworkStatus();
+    
+    const networkListener = Network.addListener('networkStatusChange', (status) => {
+      setIsOnline(status.connected);
+    });
+
+    return () => {
+      networkListener.then(listener => listener.remove());
+    };
+  }, []);
+
+  // Load pending uploads count
+  useEffect(() => {
+    loadPendingCount();
+    
+    // Refresh pending count every 5 seconds
+    const interval = setInterval(loadPendingCount, 5000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const checkNetworkStatus = async () => {
+    try {
+      const status = await Network.getStatus();
+      setIsOnline(status.connected);
+    } catch (error) {
+      console.error('Failed to check network status:', error);
+    }
+  };
+
+  const loadPendingCount = async () => {
+    try {
+      const pending = await getPendingBuildings();
+      setPendingCount(pending.length);
+    } catch (error) {
+      console.error('Failed to load pending count:', error);
+    }
+  };
 
   // Get current location on component mount
   useEffect(() => {
@@ -98,17 +142,70 @@ export default function SimpleLocationPicker({ onLocationSelect }: SimpleLocatio
             <h1 className="text-2xl font-bold">Property Enumeration</h1>
             <p className="text-blue-100 text-sm mt-1">Building Location</p>
           </div>
-          <button
-            onClick={() => {
-              localStorage.removeItem('token');
-              window.location.reload();
-            }}
-            className="px-4 py-2 bg-white/20 hover:bg-white/30 rounded-lg text-sm font-medium transition-all duration-200 backdrop-blur-sm"
-          >
-            Logout
-          </button>
+          <div className="flex items-center gap-3">
+            {/* Network Status Indicator */}
+            <div className={`flex items-center px-3 py-1.5 rounded-full text-xs font-medium ${
+              isOnline 
+                ? 'bg-green-500/20 text-green-100' 
+                : 'bg-red-500/20 text-red-100'
+            }`}>
+              <div className={`w-2 h-2 rounded-full mr-2 ${
+                isOnline ? 'bg-green-300' : 'bg-red-300 animate-pulse'
+              }`}></div>
+              {isOnline ? 'Online' : 'Offline'}
+            </div>
+            
+            <button
+              onClick={() => {
+                localStorage.removeItem('token');
+                window.location.reload();
+              }}
+              className="px-4 py-2 bg-white/20 hover:bg-white/30 rounded-lg text-sm font-medium transition-all duration-200 backdrop-blur-sm"
+            >
+              Logout
+            </button>
+          </div>
         </div>
       </div>
+
+      {/* Offline Banner */}
+      {!isOnline && (
+        <div className="bg-amber-500 text-white px-6 py-3 shadow-md">
+          <div className="flex items-center justify-between max-w-2xl mx-auto">
+            <div className="flex items-center">
+              <svg className="w-5 h-5 mr-3" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+              </svg>
+              <div>
+                <p className="font-semibold text-sm">You're offline</p>
+                <p className="text-xs text-amber-100">Buildings will be saved locally and synced when online</p>
+              </div>
+            </div>
+            {pendingCount > 0 && (
+              <div className="bg-white/20 px-3 py-1 rounded-full">
+                <p className="text-xs font-bold">{pendingCount} pending</p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Pending Uploads Banner (when online) */}
+      {isOnline && pendingCount > 0 && (
+        <div className="bg-blue-500 text-white px-6 py-3 shadow-md">
+          <div className="flex items-center justify-between max-w-2xl mx-auto">
+            <div className="flex items-center">
+              <svg className="w-5 h-5 mr-3 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+              <div>
+                <p className="font-semibold text-sm">Syncing {pendingCount} building{pendingCount > 1 ? 's' : ''}...</p>
+                <p className="text-xs text-blue-100">Please wait while we upload your data</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Main Content */}
       <div className="p-4 space-y-4 max-w-2xl mx-auto">

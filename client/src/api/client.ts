@@ -159,6 +159,8 @@ export interface Customer {
 export interface SearchCustomersParams {
   q: string;
   lotCode?: string;
+  digitalizationStatus?: string;
+  propertyType?: string;
   limit?: number;
 }
 
