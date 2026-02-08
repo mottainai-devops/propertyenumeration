@@ -17,6 +17,24 @@ export default function SimpleLocationPicker({ onLocationSelect }: SimpleLocatio
   const [locationAccuracy, setLocationAccuracy] = useState<number | null>(null);
   const [isOnline, setIsOnline] = useState(true);
   const [pendingCount, setPendingCount] = useState(0);
+  const [sessionContext, setSessionContext] = useState<{
+    sessionId: string;
+    lotCode: string;
+    buildingsCount: number;
+  } | null>(null);
+
+  // Load session context on mount
+  useEffect(() => {
+    const activeSession = localStorage.getItem('activeSession');
+    if (activeSession) {
+      const session = JSON.parse(activeSession);
+      setSessionContext({
+        sessionId: session.sessionId,
+        lotCode: session.lotCode,
+        buildingsCount: session.buildingsEnumerated,
+      });
+    }
+  }, []);
 
   // Monitor network status
   useEffect(() => {
@@ -201,6 +219,28 @@ export default function SimpleLocationPicker({ onLocationSelect }: SimpleLocatio
               <div>
                 <p className="font-semibold text-sm">Syncing {pendingCount} building{pendingCount > 1 ? 's' : ''}...</p>
                 <p className="text-xs text-blue-100">Please wait while we upload your data</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Session Context Banner */}
+      {sessionContext && (
+        <div className="bg-gradient-to-r from-purple-500 to-blue-500 text-white px-6 py-3 shadow-md">
+          <div className="flex items-center justify-between max-w-2xl mx-auto">
+            <div className="flex items-center gap-4">
+              <div>
+                <p className="text-xs text-purple-100">Session</p>
+                <p className="font-mono text-sm font-semibold">{sessionContext.sessionId}</p>
+              </div>
+              <div>
+                <p className="text-xs text-purple-100">Lot</p>
+                <p className="font-semibold">{sessionContext.lotCode}</p>
+              </div>
+              <div>
+                <p className="text-xs text-purple-100">Buildings</p>
+                <p className="font-bold text-lg">{sessionContext.buildingsCount}</p>
               </div>
             </div>
           </div>

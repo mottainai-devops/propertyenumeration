@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Camera, CameraResultType, CameraSource } from '@capacitor/camera';
 import { buildingApi, customerApi, type CreateBuildingRequest, type Customer } from '../api/client';
 import CustomerSearch from './CustomerSearch';
@@ -26,6 +26,29 @@ export default function BuildingForm({ latitude, longitude, address, onSuccess, 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
+  const [sessionContext, setSessionContext] = useState<{
+    sessionId: string;
+    lotCode: string;
+    buildingsCount: number;
+  } | null>(null);
+
+  // Load session context and pre-fill lot code
+  useEffect(() => {
+    const activeSession = localStorage.getItem('activeSession');
+    if (activeSession) {
+      const session = JSON.parse(activeSession);
+      setSessionContext({
+        sessionId: session.sessionId,
+        lotCode: session.lotCode,
+        buildingsCount: session.buildingsEnumerated,
+      });
+      // Pre-fill lot code from session
+      setFormData(prev => ({
+        ...prev,
+        lotCode: session.lotCode,
+      }));
+    }
+  }, []);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
@@ -81,9 +104,20 @@ export default function BuildingForm({ latitude, longitude, address, onSuccess, 
           longitude,
         },
         photos,
+        sessionId: sessionContext?.sessionId, // Include session ID if active
       };
 
       const building = await buildingApi.create(request);
+      
+      // Update local session building count
+      if (sessionContext) {
+        const activeSession = localStorage.getItem('activeSession');
+        if (activeSession) {
+          const session = JSON.parse(activeSession);
+          session.buildingsEnumerated++;
+          localStorage.setItem('activeSession', JSON.stringify(session));
+        }
+      }
       
       // If customer is selected, link them to the building
       if (selectedCustomer) {
@@ -124,6 +158,27 @@ export default function BuildingForm({ latitude, longitude, address, onSuccess, 
         </div>
 
         <form onSubmit={handleSubmit} className="p-6 space-y-6">
+          {/* Session Context Header */}
+          {sessionContext && (
+            <div className="bg-gradient-to-r from-purple-500 to-blue-500 text-white rounded-xl p-4 shadow-md">
+              <p className="text-xs opacity-90 mb-2">Session Context</p>
+              <div className="flex items-center gap-4">
+                <div>
+                  <p className="text-xs opacity-75">Session</p>
+                  <p className="font-mono text-sm font-semibold">{sessionContext.sessionId}</p>
+                </div>
+                <div>
+                  <p className="text-xs opacity-75">Lot</p>
+                  <p className="font-semibold">{sessionContext.lotCode}</p>
+                </div>
+                <div>
+                  <p className="text-xs opacity-75">Building #</p>
+                  <p className="font-bold text-lg">{sessionContext.buildingsCount + 1}</p>
+                </div>
+              </div>
+            </div>
+          )}
+
           {error && (
             <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
               {error}

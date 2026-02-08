@@ -72,6 +72,7 @@ export interface CreateBuildingRequest {
   contactName?: string;
   contactPhone?: string;
   photos?: File[];
+  sessionId?: string; // v1.3.0: Link building to session
 }
 
 export interface ListBuildingsParams {
@@ -102,6 +103,9 @@ export const buildingApi = {
       data.photos.forEach((photo) => {
         formData.append('photos', photo);
       });
+    }
+    if (data.sessionId) {
+      formData.append('sessionId', data.sessionId);
     }
 
     const response = await apiClient.post('/property-enumeration/buildings', formData, {
@@ -238,5 +242,111 @@ export const authApi = {
   login: async (credentials: LoginRequest): Promise<LoginResponse> => {
     const response = await apiClient.post('/users/login', credentials);
     return response.data;
+  },
+};
+
+// Session API Types (v1.3.0)
+export interface Session {
+  _id: string;
+  sessionId: string;
+  userId: string;
+  companyId: string;
+  lotCode: string;
+  startLocation: {
+    latitude: number;
+    longitude: number;
+  };
+  endLocation?: {
+    latitude: number;
+    longitude: number;
+  };
+  startTime: string;
+  endTime?: string;
+  status: 'active' | 'completed' | 'cancelled';
+  buildingsEnumerated: number;
+  notes?: string;
+  duration?: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface StartSessionRequest {
+  lotCode: string;
+  startLocation: {
+    latitude: number;
+    longitude: number;
+  };
+  notes?: string;
+}
+
+export interface EndSessionRequest {
+  endLocation: {
+    latitude: number;
+    longitude: number;
+  };
+}
+
+export interface ListSessionsParams {
+  page?: number;
+  limit?: number;
+  lotCode?: string;
+  status?: 'active' | 'completed' | 'cancelled';
+}
+
+export interface SessionStatistics {
+  totalSessions: number;
+  activeSessions: number;
+  completedSessions: number;
+  cancelledSessions: number;
+  totalBuildingsEnumerated: number;
+  averageBuildingsPerSession: number;
+  averageSessionDuration: number;
+  totalDuration: number;
+  byLotCode: {
+    [lotCode: string]: {
+      sessions: number;
+      buildings: number;
+    };
+  };
+  recentSessions: Array<{
+    sessionId: string;
+    lotCode: string;
+    buildingsEnumerated: number;
+    duration: number;
+    startTime: string;
+  }>;
+}
+
+export interface SessionStatisticsParams {
+  lotCode?: string;
+  startDate?: string;
+  endDate?: string;
+}
+
+// Session API Functions (v1.3.0)
+export const sessionApi = {
+  start: async (data: StartSessionRequest): Promise<Session> => {
+    const response = await apiClient.post('/property-enumeration/sessions/start', data);
+    return response.data.data.session;
+  },
+
+  end: async (sessionId: string, data: EndSessionRequest): Promise<Session> => {
+    const response = await apiClient.post(`/property-enumeration/sessions/${sessionId}/end`, data);
+    return response.data.data.session;
+  },
+
+  list: async (params?: ListSessionsParams): Promise<{ sessions: Session[]; pagination: { total: number; page: number; limit: number; pages: number } }> => {
+    const response = await apiClient.get('/property-enumeration/sessions', { params });
+    return response.data.data;
+  },
+
+  getById: async (sessionId: string): Promise<Session> => {
+    const response = await apiClient.get(`/property-enumeration/sessions/${sessionId}`);
+    return response.data.data.session;
+  },
+
+  getStatistics: async (params?: SessionStatisticsParams): Promise<SessionStatistics> => {
+    const response = await apiClient.get('/property-enumeration/sessions/statistics', { params });
+    return response.data.data.statistics;
   },
 };

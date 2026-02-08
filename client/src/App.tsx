@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
 import Login from './components/Login';
+import SessionManagement from './components/SessionManagement';
+import SessionStatistics from './components/SessionStatistics';
 import SimpleLocationPicker from './components/SimpleLocationPicker';
 import BuildingForm from './components/BuildingForm';
 
@@ -9,8 +11,11 @@ interface SelectedLocation {
   address: string;
 }
 
+type Screen = 'login' | 'session-management' | 'location-picker' | 'session-statistics';
+
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [currentScreen, setCurrentScreen] = useState<Screen>('login');
   const [selectedLocation, setSelectedLocation] = useState<SelectedLocation | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [userData, setUserData] = useState<any>(null);
@@ -23,6 +28,7 @@ function App() {
     if (token && user) {
       setIsAuthenticated(true);
       setUserData(JSON.parse(user));
+      setCurrentScreen('session-management'); // Navigate to session management after login
     }
   }, []);
 
@@ -32,13 +38,16 @@ function App() {
       setUserData(JSON.parse(user));
     }
     setIsAuthenticated(true);
+    setCurrentScreen('session-management'); // Navigate to session management after login
   };
 
   const handleLogout = () => {
     localStorage.removeItem('jwt_token');
     localStorage.removeItem('user_data');
+    localStorage.removeItem('activeSession'); // Clear active session on logout
     setIsAuthenticated(false);
     setUserData(null);
+    setCurrentScreen('login');
   };
 
   const handleLocationSelect = (lat: number, lng: number, address: string) => {
@@ -51,6 +60,7 @@ function App() {
     setSelectedLocation(null);
     // Show success message
     alert('Building registered successfully!');
+    // Stay on location picker to register more buildings
   };
 
   const handleFormCancel = () => {
@@ -62,24 +72,29 @@ function App() {
     return <Login onLoginSuccess={handleLoginSuccess} />;
   }
 
+  // Session Management Screen
+  if (currentScreen === 'session-management') {
+    return (
+      <SessionManagement
+        onLogout={handleLogout}
+        onNavigateToLocationPicker={() => setCurrentScreen('location-picker')}
+        onNavigateToStatistics={() => setCurrentScreen('session-statistics')}
+      />
+    );
+  }
+
+  // Session Statistics Screen
+  if (currentScreen === 'session-statistics') {
+    return (
+      <SessionStatistics
+        onBack={() => setCurrentScreen('session-management')}
+      />
+    );
+  }
+
+  // Location Picker Screen (with Building Form)
   return (
     <div className="w-full h-screen flex flex-col">
-      {/* Header */}
-      <div className="bg-green-600 text-white px-4 py-3 flex items-center justify-between shadow-lg z-20">
-        <div>
-          <h1 className="text-lg font-bold">Property Enumeration</h1>
-          {userData && (
-            <p className="text-xs text-green-100">{userData.name} • {userData.companyName}</p>
-          )}
-        </div>
-        <button
-          onClick={handleLogout}
-          className="bg-green-700 hover:bg-green-800 px-4 py-2 rounded-lg text-sm font-medium transition"
-        >
-          Logout
-        </button>
-      </div>
-
       {/* Location Picker */}
       <div className="flex-1 overflow-y-auto">
         <SimpleLocationPicker onLocationSelect={handleLocationSelect} />
