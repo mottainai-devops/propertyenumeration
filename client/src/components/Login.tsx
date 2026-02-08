@@ -10,44 +10,6 @@ export default function Login({ onLoginSuccess }: LoginProps) {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [testResult, setTestResult] = useState('');
-
-  // Test button to verify alerts are working
-  const handleTestAlert = () => {
-    alert('Alert test successful! Alerts are working.');
-    setTestResult('Alert test completed');
-  };
-
-  // Direct fetch() test to bypass axios
-  const handleFetchTest = async () => {
-    setTestResult('Testing with fetch()...');
-    try {
-      const response = await fetch('https://upwork.kowope.xyz/users/login', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ email, password }),
-      });
-      
-      const data = await response.json();
-      
-      if (response.ok) {
-        alert('Fetch SUCCESS! Token: ' + data.token.substring(0, 20) + '...');
-        setTestResult('Fetch test successful!');
-        // Store token and proceed
-        localStorage.setItem('jwt_token', data.token);
-        localStorage.setItem('user_data', JSON.stringify(data.user));
-        onLoginSuccess();
-      } else {
-        alert('Fetch FAILED: ' + response.status + ' - ' + JSON.stringify(data));
-        setTestResult('Fetch failed: ' + response.status);
-      }
-    } catch (err: any) {
-      alert('Fetch ERROR: ' + err.message);
-      setTestResult('Fetch error: ' + err.message);
-    }
-  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -55,49 +17,17 @@ export default function Login({ onLoginSuccess }: LoginProps) {
     setLoading(true);
 
     try {
-      console.log('[Login] Attempting login with:', { email, passwordLength: password.length });
-      console.log('[Login] API Base URL:', 'https://upwork.kowope.xyz');
-      
       const response = await authApi.login({ email, password });
-      console.log('[Login] Login successful:', response);
       
       // Store token and user data
       localStorage.setItem('jwt_token', response.token);
       localStorage.setItem('user_data', JSON.stringify(response.user));
+      localStorage.setItem('company_data', JSON.stringify(response.company));
       
-      alert('Login successful! Token: ' + response.token.substring(0, 20) + '...');
       onLoginSuccess();
     } catch (err: any) {
       console.error('[Login] Login failed:', err);
-      console.error('[Login] Error details:', {
-        message: err.message,
-        response: err.response,
-        request: err.request,
-        config: err.config,
-        code: err.code,
-        stack: err.stack
-      });
-      
-      // Detailed error message for debugging
-      let errorMessage = 'Login failed. ';
-      
-      if (err.response) {
-        // Server responded with error
-        errorMessage += `Server error: ${err.response.status} - ${JSON.stringify(err.response.data)}`;
-        console.error('[Login] Server response:', err.response);
-      } else if (err.request) {
-        // Request made but no response
-        errorMessage += 'No response from server. Check network connection.';
-        console.error('[Login] No response received:', err.request);
-      } else {
-        // Error in request setup
-        errorMessage += `Request error: ${err.message}`;
-      }
-      
-      // Show alert for debugging on device
-      alert('Login Error: ' + errorMessage);
-      
-      setError(errorMessage);
+      setError('Login failed. Please check your credentials.');
     } finally {
       setLoading(false);
     }
@@ -158,40 +88,15 @@ export default function Login({ onLoginSuccess }: LoginProps) {
             disabled={loading}
             className="w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-3 px-4 rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {loading ? 'Signing in...' : 'Sign In (Axios)'}
+            {loading ? 'Signing in...' : 'Sign In'}
           </button>
-          
-          <div className="mt-4 space-y-2">
-            <button
-              type="button"
-              onClick={handleFetchTest}
-              disabled={loading}
-              className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-4 rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              Test Login (Fetch)
-            </button>
-            
-            <button
-              type="button"
-              onClick={handleTestAlert}
-              className="w-full bg-gray-600 hover:bg-gray-700 text-white font-semibold py-2 px-4 rounded-lg transition"
-            >
-              Test Alert
-            </button>
-            
-            {testResult && (
-              <div className="bg-blue-50 border border-blue-200 text-blue-700 px-4 py-2 rounded-lg text-sm">
-                {testResult}
-              </div>
-            )}
-          </div>
         </form>
 
         <p className="text-center text-sm text-gray-600 mt-6">
           For field supervisors only
         </p>
         <p className="text-center text-xs text-gray-400 mt-2">
-          Version 1.3.5 (Build 135)
+          Version 1.4.0 (Build 140)
         </p>
       </div>
     </div>

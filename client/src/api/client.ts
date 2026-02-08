@@ -1,46 +1,46 @@
-import axios, { type AxiosInstance } from 'axios';
-
 // Backend API base URL
 const API_BASE_URL = 'https://upwork.kowope.xyz';
 
-// Create axios instance
-const apiClient: AxiosInstance = axios.create({
-  baseURL: API_BASE_URL,
-  timeout: 30000,
-  headers: {
-    'Content-Type': 'application/json',
-  },
-});
-
-// Request interceptor to add JWT token
-apiClient.interceptors.request.use(
-  (config) => {
-    const token = localStorage.getItem('jwt_token');
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
-    }
-    return config;
-  },
-  (error) => {
-    return Promise.reject(error);
+// Fetch wrapper with JWT token and error handling
+async function apiFetch(endpoint: string, options: RequestInit = {}): Promise<any> {
+  const token = localStorage.getItem('jwt_token');
+  
+  const headers: Record<string, string> = {
+    ...(options.headers as Record<string, string> || {}),
+  };
+  
+  // Add Authorization header if token exists
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
   }
-);
-
-// Response interceptor for error handling
-apiClient.interceptors.response.use(
-  (response) => response,
-  (error) => {
-    if (error.response?.status === 401) {
-      // Token expired or invalid
-      localStorage.removeItem('jwt_token');
-      localStorage.removeItem('user_data');
-      window.location.href = '/login';
-    }
-    return Promise.reject(error);
+  
+  // Add Content-Type for JSON requests (unless it's FormData)
+  if (!(options.body instanceof FormData) && !headers['Content-Type']) {
+    headers['Content-Type'] = 'application/json';
   }
-);
-
-export default apiClient;
+  
+  const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+    ...options,
+    headers,
+  });
+  
+  // Handle 401 Unauthorized
+  if (response.status === 401) {
+    localStorage.removeItem('jwt_token');
+    localStorage.removeItem('user_data');
+    window.location.href = '/login';
+    throw new Error('Unauthorized');
+  }
+  
+  // Parse response
+  const data = await response.json();
+  
+  if (!response.ok) {
+    throw new Error(data.message || `HTTP error! status: ${response.status}`);
+  }
+  
+  return data;
+}
 
 // API Types
 export interface Building {
@@ -106,22 +106,22 @@ export const buildingApi = {
     }
     // sessionId removed - backend automatically finds active session
 
-    const response = await apiClient.post('/property-enumeration/buildings', formData, {
-      headers: {
-        'Content-Type': 'multipart/form-data',
-      },
+    const responseData = await apiFetch('/property-enumeration/buildings', {
+      method: 'POST',
+      body: formData,
     });
-    return response.data.data;
+    return responseData.data;
   },
 
   list: async (params?: ListBuildingsParams): Promise<{ buildings: Building[]; total: number; page: number; limit: number }> => {
-    const response = await apiClient.get('/property-enumeration/buildings', { params });
-    return response.data.data;
+    const queryString = params ? '?' + new URLSearchParams(params as any).toString() : '';
+    const responseData = await apiFetch(`/property-enumeration/buildings${queryString}`);
+    return responseData.data;
   },
 
   getById: async (buildingId: string): Promise<Building> => {
-    const response = await apiClient.get(`/property-enumeration/buildings/${buildingId}`);
-    return response.data.data.building;
+    const responseData = await apiFetch(`/property-enumeration/buildings/${buildingId}`);
+    return responseData.data.building;
   },
 };
 
@@ -194,28 +194,35 @@ export interface LinkCustomerRequest {
 // Customer API Functions
 export const customerApi = {
   search: async (params: SearchCustomersParams): Promise<Customer[]> => {
-    const response = await apiClient.get('/property-enumeration/customers/search', { params });
-    return response.data.data.customers;
+    const queryString = '?' + new URLSearchParams(params as any).toString();
+    const responseData = await apiFetch(`/property-enumeration/customers/search${queryString}`);
+    return responseData.data.customers;
   },
 
   list: async (params?: ListCustomersParams): Promise<{ customers: Customer[]; total: number; page: number; limit: number }> => {
-    const response = await apiClient.get('/property-enumeration/customers', { params });
-    return response.data.data;
+    const queryString = params ? '?' + new URLSearchParams(params as any).toString() : '';
+    const responseData = await apiFetch(`/property-enumeration/customers${queryString}`);
+    return responseData.data;
   },
 
   getById: async (customerId: string): Promise<Customer> => {
-    const response = await apiClient.get(`/property-enumeration/customers/${customerId}`);
-    return response.data.data.customer;
+    const responseData = await apiFetch(`/property-enumeration/customers/${customerId}`);
+    return responseData.data.customer;
   },
 
   link: async (customerId: string, data: LinkCustomerRequest): Promise<{ customer: Customer; building: Building }> => {
-    const response = await apiClient.post(`/property-enumeration/customers/${customerId}/link`, data);
-    return response.data.data;
+    const responseData = await apiFetch(`/property-enumeration/customers/${customerId}/link`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+    return responseData.data;
   },
 
   unlink: async (customerId: string): Promise<Customer> => {
-    const response = await apiClient.delete(`/property-enumeration/customers/${customerId}/unlink`);
-    return response.data.data.customer;
+    const responseData = await apiFetch(`/property-enumeration/customers/${customerId}/unlink`, {
+      method: 'DELETE',
+    });
+    return responseData.data.customer;
   },
 };
 
@@ -227,19 +234,21 @@ export const photoApi = {
       formData.append('photos', photo);
     });
 
-    const response = await apiClient.post(`/property-enumeration/buildings/${buildingId}/photos`, formData, {
-      headers: {
-        'Content-Type': 'multipart/form-data',
-      },
+    const responseData = await apiFetch(`/property-enumeration/buildings/${buildingId}/photos`, {
+      method: 'POST',
+      body: formData,
     });
-    return response.data.data.building;
+    return responseData.data.building;
   },
 };
 
 export const authApi = {
   login: async (credentials: LoginRequest): Promise<LoginResponse> => {
-    const response = await apiClient.post('/users/login', credentials);
-    return response.data;
+    const responseData = await apiFetch('/users/login', {
+      method: 'POST',
+      body: JSON.stringify(credentials),
+    });
+    return responseData;
   },
 };
 
@@ -324,27 +333,35 @@ export interface SessionStatisticsParams {
 // Session API Functions (v1.3.0)
 export const sessionApi = {
   start: async (data: StartSessionRequest): Promise<Session> => {
-    const response = await apiClient.post('/property-enumeration/sessions/start', data);
-    return response.data.data.session;
+    const responseData = await apiFetch('/property-enumeration/sessions/start', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+    return responseData.data.session;
   },
 
   end: async (sessionId: string, data: EndSessionRequest): Promise<Session> => {
-    const response = await apiClient.post(`/property-enumeration/sessions/${sessionId}/end`, data);
-    return response.data.data.session;
+    const responseData = await apiFetch(`/property-enumeration/sessions/${sessionId}/end`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+    return responseData.data.session;
   },
 
   list: async (params?: ListSessionsParams): Promise<{ sessions: Session[]; pagination: { total: number; page: number; limit: number; pages: number } }> => {
-    const response = await apiClient.get('/property-enumeration/sessions', { params });
-    return response.data.data;
+    const queryString = params ? '?' + new URLSearchParams(params as any).toString() : '';
+    const responseData = await apiFetch(`/property-enumeration/sessions${queryString}`);
+    return responseData.data;
   },
 
   getById: async (sessionId: string): Promise<Session> => {
-    const response = await apiClient.get(`/property-enumeration/sessions/${sessionId}`);
-    return response.data.data.session;
+    const responseData = await apiFetch(`/property-enumeration/sessions/${sessionId}`);
+    return responseData.data.session;
   },
 
   getStatistics: async (params?: SessionStatisticsParams): Promise<SessionStatistics> => {
-    const response = await apiClient.get('/property-enumeration/sessions/statistics', { params });
-    return response.data.data.statistics;
+    const queryString = params ? '?' + new URLSearchParams(params as any).toString() : '';
+    const responseData = await apiFetch(`/property-enumeration/sessions/statistics${queryString}`);
+    return responseData.data.statistics;
   },
 };

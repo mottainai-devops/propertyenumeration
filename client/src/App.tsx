@@ -18,8 +18,6 @@ function App() {
   const [currentScreen, setCurrentScreen] = useState<Screen>('login');
   const [selectedLocation, setSelectedLocation] = useState<SelectedLocation | null>(null);
   const [showForm, setShowForm] = useState(false);
-  const [userData, setUserData] = useState<any>(null);
-
   useEffect(() => {
     // Check if user is already logged in
     const token = localStorage.getItem('jwt_token');
@@ -27,16 +25,11 @@ function App() {
     
     if (token && user) {
       setIsAuthenticated(true);
-      setUserData(JSON.parse(user));
       setCurrentScreen('session-management'); // Navigate to session management after login
     }
   }, []);
 
   const handleLoginSuccess = () => {
-    const user = localStorage.getItem('user_data');
-    if (user) {
-      setUserData(JSON.parse(user));
-    }
     setIsAuthenticated(true);
     setCurrentScreen('session-management'); // Navigate to session management after login
   };
@@ -46,7 +39,6 @@ function App() {
     localStorage.removeItem('user_data');
     localStorage.removeItem('activeSession'); // Clear active session on logout
     setIsAuthenticated(false);
-    setUserData(null);
     setCurrentScreen('login');
   };
 
