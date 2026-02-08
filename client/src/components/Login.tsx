@@ -17,15 +17,49 @@ export default function Login({ onLoginSuccess }: LoginProps) {
     setLoading(true);
 
     try {
+      console.log('[Login] Attempting login with:', { email, passwordLength: password.length });
+      console.log('[Login] API Base URL:', 'https://upwork.kowope.xyz');
+      
       const response = await authApi.login({ email, password });
+      console.log('[Login] Login successful:', response);
       
       // Store token and user data
       localStorage.setItem('jwt_token', response.token);
       localStorage.setItem('user_data', JSON.stringify(response.user));
       
+      alert('Login successful! Token: ' + response.token.substring(0, 20) + '...');
       onLoginSuccess();
     } catch (err: any) {
-      setError(err.response?.data?.message || 'Login failed. Please check your credentials.');
+      console.error('[Login] Login failed:', err);
+      console.error('[Login] Error details:', {
+        message: err.message,
+        response: err.response,
+        request: err.request,
+        config: err.config,
+        code: err.code,
+        stack: err.stack
+      });
+      
+      // Detailed error message for debugging
+      let errorMessage = 'Login failed. ';
+      
+      if (err.response) {
+        // Server responded with error
+        errorMessage += `Server error: ${err.response.status} - ${JSON.stringify(err.response.data)}`;
+        console.error('[Login] Server response:', err.response);
+      } else if (err.request) {
+        // Request made but no response
+        errorMessage += 'No response from server. Check network connection.';
+        console.error('[Login] No response received:', err.request);
+      } else {
+        // Error in request setup
+        errorMessage += `Request error: ${err.message}`;
+      }
+      
+      // Show alert for debugging on device
+      alert('Login Error: ' + errorMessage);
+      
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }
