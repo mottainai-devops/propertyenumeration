@@ -1,23 +1,35 @@
 # Property Enumeration Mobile App - TODO
 
-**Current Version:** v1.3.3 (Login Debugging)  
+**Current Version:** v1.3.4 (Direct Fetch Test)  
 **Baseline:** v1.2.0 (LOCKED)  
 **Status:** URGENT - Login Still Failing  
 **Date:** February 8, 2026
 
 ---
 
-## 🚨 v1.3.3 - Login Debugging (URGENT - IN PROGRESS)
+## 🚨 v1.3.4 - Direct Fetch Test (URGENT - IN PROGRESS)
 
-### Issue: Login Still Failing After Network Security Config Fix
-- [x] Add comprehensive error logging to Login component
-- [x] Log full error object, response data, and request details
-- [x] Add alert() to show actual error message on device
-- [x] Check axios configuration (appears correct)
-- [x] Verify Content-Type headers (set to application/json)
-- [x] Build v1.3.3 APK with enhanced logging (7.7 MB)
-- [ ] Test on device to see actual error message
+### Issue: Alert Not Showing, Need to Test Without Axios
+- [x] Add test button to verify alerts are working
+- [x] Add direct fetch() login test (bypass axios)
+- [x] Add test result display in UI
+- [x] Build v1.3.4 APK with direct fetch test (7.7 MB)
+- [ ] Test on device: try all 3 buttons (Test Alert, Test Login Fetch, Sign In Axios)
 - [ ] Create checkpoint
+
+---
+
+## ✅ v1.3.3 - Login Debugging (COMPLETED BUT ALERT NOT SHOWING)
+
+### What Was Added
+- [x] Added comprehensive error logging to Login component
+- [x] Added alert() to show error messages
+- [x] Build v1.3.3 APK with enhanced logging (7.7 MB)
+- [x] Create checkpoint (version: a754f10f)
+
+### Result
+- ❌ Alert dialog not showing on device
+- ❌ Still showing generic error message
 
 ---
 
