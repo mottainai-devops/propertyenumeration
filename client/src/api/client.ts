@@ -1,7 +1,7 @@
 import axios, { type AxiosInstance } from 'axios';
 
 // Backend API base URL
-const API_BASE_URL = 'http://172.232.24.180:3003';
+const API_BASE_URL = 'https://upwork.kowope.xyz';
 
 // Create axios instance
 const apiClient: AxiosInstance = axios.create({
@@ -72,7 +72,7 @@ export interface CreateBuildingRequest {
   contactName?: string;
   contactPhone?: string;
   photos?: File[];
-  sessionId?: string; // v1.3.0: Link building to session
+  // sessionId removed - backend automatically finds active session
 }
 
 export interface ListBuildingsParams {
@@ -104,9 +104,7 @@ export const buildingApi = {
         formData.append('photos', photo);
       });
     }
-    if (data.sessionId) {
-      formData.append('sessionId', data.sessionId);
-    }
+    // sessionId removed - backend automatically finds active session
 
     const response = await apiClient.post('/property-enumeration/buildings', formData, {
       headers: {

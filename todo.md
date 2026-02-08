@@ -1,9 +1,38 @@
 # Property Enumeration Mobile App - TODO
 
-**Current Version:** v1.3.0 (In Development)  
+**Current Version:** v1.3.1 (Critical Fixes)  
 **Baseline:** v1.2.0 (LOCKED)  
-**Status:** Implementation Phase - Plan APPROVED & LOCKED  
+**Status:** URGENT - Critical Fixes Required  
 **Date:** February 8, 2026
+
+---
+
+## 🚨 v1.3.1 - Critical Fixes (URGENT - IN PROGRESS)
+
+### Issue #1: Wrong API Base URL (BLOCKER)
+- [x] Change API base URL from `http://172.232.24.180:3003` to `https://upwork.kowope.xyz`
+- [x] Verify HTTPS protocol (not HTTP)
+- [x] Remove port number (use default HTTPS port 443)
+
+### Issue #2: Remove sessionId Parameter (HIGH PRIORITY)
+- [x] Remove `sessionId` from building creation request body
+- [x] Backend automatically finds active session
+- [x] Backend automatically increments buildingsEnumerated counter
+
+### Testing Checklist
+- [x] Test 1: Connectivity check (✅ Backend accessible at https://upwork.kowope.xyz)
+- [x] Test 2: Login flow (✅ Login successful, JWT token received)
+- [ ] Test 3: Start session (lot code: TEST01)
+- [ ] Test 4: Register building (verify submission works)
+- [ ] Test 5: Verify auto-increment (counter updates automatically)
+- [ ] Test 6: View statistics (session metrics display correctly)
+- [ ] Test 7: End session (GPS capture and completion)
+
+### Build & Deployment
+- [x] Build v1.3.1 APK with fixes (7.7 MB)
+- [ ] Test APK on device
+- [ ] Create checkpoint
+- [ ] Update release notes
 
 ---
 

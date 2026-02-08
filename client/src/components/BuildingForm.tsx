@@ -104,7 +104,7 @@ export default function BuildingForm({ latitude, longitude, address, onSuccess, 
           longitude,
         },
         photos,
-        sessionId: sessionContext?.sessionId, // Include session ID if active
+        // sessionId removed - backend automatically finds active session
       };
 
       const building = await buildingApi.create(request);
