@@ -134,10 +134,22 @@ export interface LoginResponse {
   user: {
     id: string;
     email: string;
-    name: string;
+    fullName: string;
+    phone: string;
     role: string;
     companyId: string;
+  };
+  company: {
+    companyId: string;
     companyName: string;
+    operationalLots: Array<{
+      lotCode: string;
+      lotName: string;
+      paytWebhook: string;
+      monthlyWebhook: string;
+    }>;
+    pin: string;
+    active: boolean;
   };
 }
 

@@ -179,3 +179,10 @@
 - [ ] Test recent customers display
 - [ ] Test sync conflict handling
 - [ ] Build APK v1.2.0
+
+
+## v1.2.0 Restoration - Login Fix
+- [x] Fix login API response structure mismatch (backend returns fullName, frontend expects name)
+- [x] Update LoginResponse interface to match backend response
+- [x] Build APK v1.2.0 with login fix (7.7 MB)
+- [ ] Test login with v1.2.0 restored APK
