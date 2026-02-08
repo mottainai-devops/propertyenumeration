@@ -1,21 +1,34 @@
 # Property Enumeration Mobile App - TODO
 
-**Current Version:** v1.3.4 (Direct Fetch Test)  
+**Current Version:** v1.3.5 (Cache Fix)  
 **Baseline:** v1.2.0 (LOCKED)  
-**Status:** URGENT - Login Still Failing  
+**Status:** URGENT - APK Caching Issue  
 **Date:** February 8, 2026
 
 ---
 
-## 🚨 v1.3.4 - Direct Fetch Test (URGENT - IN PROGRESS)
+## 🚨 v1.3.5 - Cache Fix (URGENT - IN PROGRESS)
 
-### Issue: Alert Not Showing, Need to Test Without Axios
-- [x] Add test button to verify alerts are working
-- [x] Add direct fetch() login test (bypass axios)
-- [x] Add test result display in UI
-- [x] Build v1.3.4 APK with direct fetch test (7.7 MB)
-- [ ] Test on device: try all 3 buttons (Test Alert, Test Login Fetch, Sign In Axios)
+### Issue: APK Not Showing New UI (Caching Problem)
+- [x] Increment app version number (package.json: 1.3.5, build.gradle: versionCode 135)
+- [x] Add version display to login screen ("Version 1.3.5 (Build 135)")
+- [x] Clear Capacitor cache and android build directory
+- [x] Rebuild APK with fresh assets (4.9 MB - clean build)
+- [ ] Verify version number displays on login screen (requires device test)
 - [ ] Create checkpoint
+
+---
+
+## ❌ v1.3.4 - Direct Fetch Test (FAILED - APK CACHING ISSUE)
+
+### What Was Added
+- [x] Added 3 diagnostic buttons to Login component
+- [x] Build v1.3.4 APK (7.7 MB)
+- [x] Create checkpoint (version: 206225c3)
+
+### Result
+- ❌ APK installed but showing old UI (only 1 button instead of 3)
+- ❌ Capacitor/Android caching the old WebView assets
 
 ---
 

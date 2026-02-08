@@ -190,6 +190,9 @@ export default function Login({ onLoginSuccess }: LoginProps) {
         <p className="text-center text-sm text-gray-600 mt-6">
           For field supervisors only
         </p>
+        <p className="text-center text-xs text-gray-400 mt-2">
+          Version 1.3.5 (Build 135)
+        </p>
       </div>
     </div>
   );
