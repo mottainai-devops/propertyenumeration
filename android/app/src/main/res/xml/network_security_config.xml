@@ -1,12 +1,20 @@
 <?xml version="1.0" encoding="utf-8"?>
 <network-security-config>
-    <base-config cleartextTrafficPermitted="true">
+    <!-- Allow HTTPS connections to production backend -->
+    <base-config cleartextTrafficPermitted="false">
         <trust-anchors>
             <certificates src="system" />
         </trust-anchors>
     </base-config>
+    
+    <!-- Allow cleartext (HTTP) for localhost development only -->
     <domain-config cleartextTrafficPermitted="true">
-        <domain includeSubdomains="true">172.232.24.180</domain>
         <domain includeSubdomains="true">localhost</domain>
+        <domain includeSubdomains="true">10.0.2.2</domain>
+    </domain-config>
+    
+    <!-- Production domain (HTTPS only) -->
+    <domain-config cleartextTrafficPermitted="false">
+        <domain includeSubdomains="true">upwork.kowope.xyz</domain>
     </domain-config>
 </network-security-config>
