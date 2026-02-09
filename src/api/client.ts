@@ -147,7 +147,10 @@ export const buildingApi = {
 // Customer API
 export const customerApi = {
   search: async (params: CustomerSearchParams): Promise<Customer[]> => {
-    const response = await apiClient.get('/property-enumeration/customers/search', { params });
+    // Use /customers endpoint with search query parameter (not /customers/search)
+    const response = await apiClient.get('/property-enumeration/customers', { 
+      params: { search: params.query, ...params } 
+    });
     return response.data.data.customers;
   },
 
