@@ -1,0 +1,94 @@
+@import "tailwindcss";
+
+@theme {
+  /* Red shades */
+  --color-red-500: oklch(0.6 0.24 25);
+  --color-red-600: oklch(0.55 0.26 25);
+  
+  /* Orange shades */
+  --color-orange-50: oklch(98% 0.016 73.684);
+  --color-orange-100: oklch(90.1% 0.076 70.697);
+  --color-orange-500: oklch(0.63 0.2 50);
+  --color-orange-600: oklch(47% 0.157 37.304);
+  
+  /* Yellow shades */
+  --color-yellow-50: oklch(98.7% 0.022 95.277);
+  --color-yellow-100: oklch(82.8% 0.189 84.429);
+  --color-yellow-500: oklch(0.7 0.17 90);
+  --color-yellow-600: oklch(47.6% 0.114 61.907);
+  
+  /* Green shades */
+  --color-green-50: oklch(98.2% 0.018 155.826);
+  --color-green-100: oklch(96.2% 0.044 156.743);
+  --color-green-200: oklch(92.5% 0.084 155.995);
+  --color-green-500: oklch(0.6 0.18 140);
+  --color-green-600: oklch(0.55 0.2 140);
+  
+  /* Emerald shades */
+  --color-emerald-500: oklch(0.57 0.19 160);
+  --color-emerald-600: oklch(50.8% 0.118 165.612);
+  
+  /* Teal shades */
+  --color-teal-50: oklch(98.4% 0.014 180.72);
+  --color-teal-100: oklch(95.3% 0.051 180.801);
+  --color-teal-500: oklch(0.65 0.15 180);
+  --color-teal-600: oklch(0.6 0.17 180);
+  
+  /* Cyan shades */
+  --color-cyan-50: oklch(98.5% 0.012 195.096);
+  --color-cyan-100: oklch(94.6% 0.048 196.331);
+  
+  /* Blue shades */
+  --color-blue-50: oklch(98.5% 0.012 240);
+  --color-blue-100: oklch(94.5% 0.048 240);
+  --color-blue-500: oklch(0.6 0.2 250);
+  --color-blue-600: oklch(0.55 0.22 250);
+  
+  /* Purple shades */
+  --color-purple-50: oklch(98.5% 0.012 300);
+  --color-purple-100: oklch(94.5% 0.048 300);
+  --color-purple-500: oklch(0.55 0.25 300);
+  --color-purple-600: oklch(0.5 0.27 300);
+  
+  /* Pink shades */
+  --color-pink-50: oklch(98.5% 0.012 350);
+  --color-pink-100: oklch(94.5% 0.048 350);
+  --color-pink-500: oklch(0.65 0.2 350);
+  --color-pink-600: oklch(0.6 0.22 350);
+  
+  /* Gray shades */
+  --color-gray-50: oklch(98% 0 0);
+  --color-gray-100: oklch(96% 0 0);
+  --color-gray-200: oklch(92% 0 0);
+  --color-gray-300: oklch(85% 0 0);
+  --color-gray-400: oklch(70% 0 0);
+  --color-gray-500: oklch(55% 0 0);
+  --color-gray-600: oklch(45% 0 0);
+  --color-gray-700: oklch(35% 0 0);
+  --color-gray-800: oklch(25% 0 0);
+  --color-gray-900: oklch(15% 0 0);
+  
+  /* Base colors */
+  --color-white: oklch(100% 0 0);
+  --color-black: oklch(0% 0 0);
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+#root {
+  width: 100%;
+  height: 100vh;
+  overflow: hidden;
+}
