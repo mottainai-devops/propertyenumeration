@@ -116,7 +116,9 @@ export const buildingApi = {
     formData.append('lotCode', data.lotCode);
     formData.append('propertyType', data.propertyType);
     formData.append('numberOfUnits', data.numberOfUnits.toString());
-    formData.append('gpsCoordinates', JSON.stringify(data.gpsCoordinates));
+    // Backend expects gpsLatitude and gpsLongitude, not gpsCoordinates object
+    formData.append('gpsLatitude', data.gpsCoordinates.latitude.toString());
+    formData.append('gpsLongitude', data.gpsCoordinates.longitude.toString());
     
     if (data.buildingName) {
       formData.append('buildingName', data.buildingName);
