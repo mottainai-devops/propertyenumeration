@@ -5,9 +5,14 @@ import SessionManagement from './components/SessionManagement';
 import SessionBanner from './components/SessionBanner';
 import SimpleLocationPicker from './components/SimpleLocationPicker';
 import BuildingForm from './components/BuildingForm';
+import OfflineQueue from './components/OfflineQueue';
+import SessionStatistics from './components/SessionStatistics';
+import ErrorBoundary from './components/ErrorBoundary';
+import { useToast } from './components/Toast';
 import { authApi, buildingApi, customerApi } from './api/client';
+import { getOperationErrorMessage, logError, retryOperation } from './utils/errorHandler';
 
-type AppScreen = 'login' | 'session' | 'location' | 'building' | 'success';
+type AppScreen = 'login' | 'session' | 'location' | 'building' | 'success' | 'offline-queue' | 'statistics';
 
 interface LocationData {
   latitude: number;
@@ -21,6 +26,7 @@ function App() {
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [pendingBuildings, setPendingBuildings] = useState<any[]>([]);
   const [isSyncing, setIsSyncing] = useState(false);
+  const { showToast, ToastContainer } = useToast();
 
   // Monitor network status
   useEffect(() => {
@@ -94,13 +100,24 @@ function App() {
 
   const handleLogin = async (email: string, password: string) => {
     try {
-      const response = await authApi.login({ email, password });
+      const response = await retryOperation(
+        () => authApi.login({ email, password }),
+        {
+          maxRetries: 2,
+          onRetry: (attempt) => {
+            showToast(`Connection failed. Retrying (${attempt}/2)...`, 'warning');
+          },
+        }
+      );
       localStorage.setItem('authToken', response.token);
       localStorage.setItem('user', JSON.stringify(response.user));
-      // Login successful - go to session management
+      showToast('Login successful!', 'success');
       setCurrentScreen('session');
     } catch (error: any) {
-      throw new Error(error.response?.data?.message || 'Login failed');
+      logError('Login', error, { email });
+      const errorMessage = getOperationErrorMessage('login', error);
+      showToast(errorMessage, 'error');
+      throw new Error(errorMessage);
     }
   };
 
@@ -128,31 +145,41 @@ function App() {
 
     if (isOnline) {
       try {
-        const building = await buildingApi.create(buildingWithLocation);
+        const building = await retryOperation(
+          () => buildingApi.create(buildingWithLocation),
+          {
+            maxRetries: 2,
+            onRetry: (attempt) => {
+              showToast(`Saving building... Retry ${attempt}/2`, 'warning');
+            },
+          }
+        );
         
         // Link customer if one was selected
         if (linkedCustomerId) {
           try {
             await customerApi.link(linkedCustomerId, building._id);
-            console.log('Customer linked successfully');
+            showToast('Building registered and customer linked!', 'success');
           } catch (error) {
-            console.error('Failed to link customer:', error);
-            alert('Building created but customer linking failed. You can link the customer later.');
+            logError('Customer Linking', error, { linkedCustomerId, buildingId: building._id });
+            showToast('Building registered but customer linking failed', 'warning');
           }
+        } else {
+          showToast('Building registered successfully!', 'success');
         }
         
         setCurrentScreen('success');
       } catch (error) {
-        console.error('Failed to create building:', error);
+        logError('Building Creation', error, buildingWithLocation);
         // Save to localStorage for later sync
         saveBuildingOffline(buildingWithLocation);
-        alert('Building saved offline. Will sync when connection is restored.');
+        showToast('Building saved offline. Will sync when online.', 'info');
         setCurrentScreen('success');
       }
     } else {
       // Save to localStorage
       saveBuildingOffline(buildingWithLocation);
-      alert('Building saved offline. Will sync when connection is restored.');
+      showToast('Building saved offline. Will sync when online.', 'info');
       setCurrentScreen('success');
     }
   };
@@ -167,13 +194,20 @@ function App() {
     if (pendingBuildings.length === 0 || isSyncing) return;
 
     setIsSyncing(true);
+    showToast(`Syncing ${pendingBuildings.length} building(s)...`, 'info');
+    
     const remaining: any[] = [];
+    let syncedCount = 0;
 
     for (const building of pendingBuildings) {
       try {
-        await buildingApi.create(building);
+        await retryOperation(
+          () => buildingApi.create(building),
+          { maxRetries: 1 }
+        );
+        syncedCount++;
       } catch (error) {
-        console.error('Failed to sync building:', error);
+        logError('Building Sync', error, building);
         remaining.push(building);
       }
     }
@@ -181,6 +215,22 @@ function App() {
     setPendingBuildings(remaining);
     localStorage.setItem('pendingBuildings', JSON.stringify(remaining));
     setIsSyncing(false);
+
+    // Show success message
+    if (syncedCount > 0) {
+      showToast(`Successfully synced ${syncedCount} building${syncedCount > 1 ? 's' : ''}!`, 'success');
+    }
+    if (remaining.length > 0) {
+      showToast(`${remaining.length} building${remaining.length > 1 ? 's' : ''} failed to sync`, 'error');
+    }
+  };
+
+  const handleRemovePendingBuilding = (index: number) => {
+    if (confirm('Are you sure you want to remove this building from the queue? This action cannot be undone.')) {
+      const updated = pendingBuildings.filter((_, i) => i !== index);
+      setPendingBuildings(updated);
+      localStorage.setItem('pendingBuildings', JSON.stringify(updated));
+    }
   };
 
 
@@ -191,7 +241,9 @@ function App() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-teal-50 to-green-50">
+    <ErrorBoundary>
+      <ToastContainer />
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-teal-50 to-green-50">
       {/* Network Status Banner */}
       {!isOnline && (
         <div className="bg-yellow-500 text-white px-4 pt-safe py-2 text-center font-medium">
@@ -204,8 +256,11 @@ function App() {
         </div>
       )}
       {isOnline && pendingBuildings.length > 0 && !isSyncing && (
-        <div className="bg-green-500 text-white px-4 pt-safe py-2 text-center font-medium">
-          ✅ Online - {pendingBuildings.length} building(s) waiting to sync
+        <div 
+          className="bg-green-500 text-white px-4 pt-safe py-2 text-center font-medium cursor-pointer hover:bg-green-600 transition"
+          onClick={() => setCurrentScreen('offline-queue')}
+        >
+          ✅ Online - {pendingBuildings.length} building(s) waiting to sync (Tap to view)
         </div>
       )}
 
@@ -223,6 +278,25 @@ function App() {
         <SessionManagement
           onStartEnumeration={() => setCurrentScreen('location')}
           onLogout={handleLogout}
+          pendingCount={pendingBuildings.length}
+          onViewQueue={() => setCurrentScreen('offline-queue')}
+          onViewStats={() => setCurrentScreen('statistics')}
+        />
+      )}
+
+      {currentScreen === 'offline-queue' && (
+        <OfflineQueue
+          pendingBuildings={pendingBuildings}
+          onSync={syncPendingBuildings}
+          onRemove={handleRemovePendingBuilding}
+          onClose={() => setCurrentScreen('session')}
+          isSyncing={isSyncing}
+        />
+      )}
+
+      {currentScreen === 'statistics' && (
+        <SessionStatistics
+          onClose={() => setCurrentScreen('session')}
         />
       )}
 
@@ -300,7 +374,8 @@ function App() {
           </div>
         </div>
       )}
-    </div>
+      </div>
+    </ErrorBoundary>
   );
 }
 
