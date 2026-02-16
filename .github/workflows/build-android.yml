@@ -18,23 +18,22 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '18'
+          node-version: '20'
       
       - name: Setup pnpm
-        uses: pnpm/action-setup@v2
+        uses: pnpm/action-setup@v3
         with:
           version: 8
       
       - name: Get pnpm store directory
-        id: pnpm-cache
         shell: bash
         run: |
-          echo "STORE_PATH=$(pnpm store path)" >> $GITHUB_OUTPUT
+          echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
       
       - name: Setup pnpm cache
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
-          path: ${{ steps.pnpm-cache.outputs.STORE_PATH }}
+          path: ${{ env.STORE_PATH }}
           key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
           restore-keys: |
             ${{ runner.os }}-pnpm-store-
@@ -45,31 +44,41 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
       
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+      
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
       
       - name: Build web assets
         run: pnpm run build
       
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
-      
-      - name: Install Capacitor CLI
-        run: pnpm add -g @capacitor/cli
+      - name: Verify Capacitor configuration
+        run: |
+          echo "Checking capacitor.config.ts..."
+          cat capacitor.config.ts
+          echo "Checking android directory..."
+          ls -la android/
       
       - name: Sync Capacitor
-        run: npx cap sync android
+        run: npx cap copy android
       
       - name: Grant execute permission for gradlew
         run: chmod +x android/gradlew
       
       - name: Build Android APK (Debug)
-        run: cd android && ./gradlew assembleDebug --stacktrace
+        working-directory: android
+        run: ./gradlew assembleDebug --stacktrace --info
+      
+      - name: List build outputs
+        run: |
+          echo "Build outputs:"
+          find android/app/build/outputs -type f -name "*.apk"
       
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: app-debug-v1.5.0
+          name: property-enumeration-v1.5.0-debug
           path: android/app/build/outputs/apk/debug/app-debug.apk
           retention-days: 30
       
@@ -78,5 +87,16 @@ jobs:
         uses: softprops/action-gh-release@v1
         with:
           files: android/app/build/outputs/apk/debug/app-debug.apk
+          name: Property Enumeration ${{ github.ref_name }}
+          body: |
+            ## Property Enumeration Mobile App
+            
+            **Version:** ${{ github.ref_name }}
+            **Build:** Debug APK
+            
+            ### Installation
+            1. Download the APK file
+            2. Enable "Install from Unknown Sources" on your Android device
+            3. Install the APK
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
