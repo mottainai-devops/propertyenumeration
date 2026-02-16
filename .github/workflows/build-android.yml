@@ -61,7 +61,7 @@ jobs:
           ls -la android/
       
       - name: Sync Capacitor
-        run: npx cap copy android
+        run: npx cap sync android
       
       - name: Grant execute permission for gradlew
         run: chmod +x android/gradlew
