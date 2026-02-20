@@ -150,18 +150,18 @@ export const buildingApi = {
 export const customerApi = {
   search: async (params: CustomerSearchParams): Promise<Customer[]> => {
     // Use /customers endpoint with search query parameter (not /customers/search)
-    const response = await apiClient.get('/property-enumeration/customers', { 
+    const response = await apiClient.get('/api/property-enumeration/customers', { 
       params: { search: params.query, ...params } 
     });
     return response.data.data.customers;
   },
 
   link: async (customerId: string, buildingId: string): Promise<void> => {
-    await apiClient.post(`/property-enumeration/customers/${customerId}/link`, { buildingId });
+    await apiClient.post(`/api/property-enumeration/customers/${customerId}/link`, { buildingId });
   },
 
   unlink: async (customerId: string): Promise<void> => {
-    await apiClient.delete(`/property-enumeration/customers/${customerId}/unlink`);
+    await apiClient.delete(`/api/property-enumeration/customers/${customerId}/unlink`);
   },
 };
 
