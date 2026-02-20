@@ -103,7 +103,12 @@ export interface LoginResponse {
 
 export const authApi = {
   login: async (credentials: LoginRequest): Promise<LoginResponse> => {
-    const response = await apiClient.post('/users/login', credentials);
+    // Base64-encode password as required by backend
+    const encodedPassword = btoa(credentials.password);
+    const response = await apiClient.post('/api/mobile/users/login', {
+      email: credentials.email,
+      password: encodedPassword
+    });
     return response.data;
   },
 };
