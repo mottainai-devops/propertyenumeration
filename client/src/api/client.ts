@@ -131,6 +131,12 @@ export interface LoginRequest {
   password: string;
 }
 
+export interface AssignedLot {
+  lotCode: string;
+  lotName: string;
+  companyName?: string; // Only for admins/cherry_pickers
+}
+
 export interface LoginResponse {
   token: string;
   user: {
@@ -140,6 +146,8 @@ export interface LoginResponse {
     phone: string;
     role: string;
     companyId: string;
+    defaultLotCode?: string; // NEW: Default lot for auto-fill
+    assignedLots: AssignedLot[]; // NEW: Array of accessible lots
   };
   company: {
     companyId: string;
