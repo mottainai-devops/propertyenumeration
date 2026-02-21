@@ -19,6 +19,7 @@ export default function BuildingForm({ latitude, longitude, address, onSuccess, 
     contactName: '',
     contactPhone: '',
   });
+  const [assignedLots, setAssignedLots] = useState<Array<{lotCode: string; lotName: string; companyName?: string}>>([]);
   const [photos, setPhotos] = useState<File[]>([]);
   const [photoPreviewUrls, setPhotoPreviewUrls] = useState<string[]>([]);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
@@ -32,8 +33,21 @@ export default function BuildingForm({ latitude, longitude, address, onSuccess, 
     buildingsCount: number;
   } | null>(null);
 
-  // Load session context and pre-fill lot code
+  // Load session context and lot data
   useEffect(() => {
+    // Load assigned lots from localStorage
+    const lotsData = localStorage.getItem('assigned_lots');
+    let loadedLots: Array<{lotCode: string; lotName: string; companyName?: string}> = [];
+    if (lotsData) {
+      try {
+        loadedLots = JSON.parse(lotsData);
+        setAssignedLots(loadedLots);
+      } catch (e) {
+        console.error('Failed to parse assigned lots:', e);
+      }
+    }
+    
+    // Load session context and pre-fill lot code
     const activeSession = localStorage.getItem('activeSession');
     if (activeSession) {
       const session = JSON.parse(activeSession);
@@ -47,6 +61,24 @@ export default function BuildingForm({ latitude, longitude, address, onSuccess, 
         ...prev,
         lotCode: session.lotCode,
       }));
+    } else {
+      // No active session, use default lot code or single lot
+      if (loadedLots.length === 1) {
+        // Single lot user - auto-fill
+        setFormData(prev => ({
+          ...prev,
+          lotCode: loadedLots[0].lotCode,
+        }));
+      } else {
+        // Multiple lots or no lots - use default
+        const defaultLot = localStorage.getItem('default_lot_code');
+        if (defaultLot) {
+          setFormData(prev => ({
+            ...prev,
+            lotCode: defaultLot,
+          }));
+        }
+      }
     }
   }, []);
 
@@ -157,7 +189,7 @@ export default function BuildingForm({ latitude, longitude, address, onSuccess, 
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-6">
+        <form onSubmit={handleSubmit} className="p-6 space-y-6 pb-24">
           {/* Session Context Header */}
           {sessionContext && (
             <div className="bg-gradient-to-r from-purple-500 to-blue-500 text-white rounded-xl p-4 shadow-md">
@@ -234,15 +266,53 @@ export default function BuildingForm({ latitude, longitude, address, onSuccess, 
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Lot Code *
             </label>
-            <input
-              type="text"
-              name="lotCode"
-              value={formData.lotCode}
-              onChange={handleInputChange}
-              required
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none"
-              placeholder="e.g., SW02"
-            />
+            {assignedLots.length === 0 ? (
+              <input
+                type="text"
+                name="lotCode"
+                value={formData.lotCode}
+                onChange={handleInputChange}
+                required
+                disabled
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg bg-gray-100 text-gray-500 cursor-not-allowed"
+                placeholder="No lots assigned"
+              />
+            ) : assignedLots.length === 1 ? (
+              <>
+                <input
+                  type="text"
+                  name="lotCode"
+                  value={assignedLots[0].lotCode}
+                  required
+                  disabled
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg bg-gray-50 text-gray-700 cursor-not-allowed"
+                  title={assignedLots[0].lotName}
+                />
+                <input type="hidden" name="lotCode" value={assignedLots[0].lotCode} />
+              </>
+            ) : (
+              <select
+                name="lotCode"
+                value={formData.lotCode}
+                onChange={handleInputChange}
+                required
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none"
+              >
+                <option value="">Select a lot...</option>
+                {assignedLots.map((lot) => (
+                  <option key={lot.lotCode} value={lot.lotCode}>
+                    {lot.lotCode} - {lot.lotName}{lot.companyName ? ` (${lot.companyName})` : ''}
+                  </option>
+                ))}
+              </select>
+            )}
+            {assignedLots.length > 0 && (
+              <p className="text-xs text-gray-500 mt-1">
+                {assignedLots.length === 1 
+                  ? `Auto-filled: ${assignedLots[0].lotName}` 
+                  : `${assignedLots.length} lots available`}
+              </p>
+            )}
           </div>
 
           {/* Property Type */}
@@ -368,7 +438,7 @@ export default function BuildingForm({ latitude, longitude, address, onSuccess, 
           </div>
 
           {/* Submit Button */}
-          <div className="flex gap-3">
+          <div className="flex gap-3 pb-safe">
             <button
               type="button"
               onClick={onCancel}

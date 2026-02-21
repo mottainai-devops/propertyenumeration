@@ -24,6 +24,14 @@ export default function Login({ onLoginSuccess }: LoginProps) {
       localStorage.setItem('user_data', JSON.stringify(response.user));
       localStorage.setItem('company_data', JSON.stringify(response.company));
       
+      // Store lot data for offline access
+      if (response.user.defaultLotCode) {
+        localStorage.setItem('default_lot_code', response.user.defaultLotCode);
+      }
+      if (response.user.assignedLots && response.user.assignedLots.length > 0) {
+        localStorage.setItem('assigned_lots', JSON.stringify(response.user.assignedLots));
+      }
+      
       onLoginSuccess();
     } catch (err: any) {
       console.error('[Login] Login failed:', err);
@@ -96,7 +104,7 @@ export default function Login({ onLoginSuccess }: LoginProps) {
           For field supervisors only
         </p>
         <p className="text-center text-xs text-gray-400 mt-2">
-          Version 1.4.0 (Build 140)
+          Version 1.5.0 (Build 150)
         </p>
       </div>
     </div>
