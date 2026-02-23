@@ -1,7 +1,7 @@
 import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
-  appId: 'com.mottainai.enumeration',
+  appId: 'com.mottainai.survey.admin',
   appName: 'Property Enumeration',
   webDir: 'client/dist',
   server: {
