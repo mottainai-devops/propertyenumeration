@@ -126,3 +126,25 @@
 2. Login endpoint uses different prefix (`/api/mobile`) than other endpoints (`/api/property-enumeration`)
 3. Always verify API endpoint specifications with Backend Developer before implementing
 4. Mobile apps should not include server-side dependencies
+
+---
+
+## ✅ v1.5.9 - Package Name Change to Bypass Android Cache (COMPLETED)
+
+### Issue Identified
+- [x] Android showing "Mottainai Survey Admin" with default Capacitor icon
+- [x] App size 12.33 MB (should be 7.6 MB)
+- [x] Login screen showing v1.5.0 despite APK being v1.5.8
+- [x] Android loading cached web app template instead of mobile build
+- [x] WebView cache tied to package name `com.mottainai.survey.admin`
+
+### Solution
+- [x] Change package name to `com.propertyenum.mobile.v2`
+- [x] Update capacitor.config.ts appId
+- [x] Update android/app/build.gradle applicationId
+- [x] Update AndroidManifest.xml package references
+- [x] Rebuild APK v1.5.9 with new package name
+- [ ] Test installation (should show "Property Enumeration" with green icon)
+- [ ] Verify version shows 1.5.9 on login screen
+- [ ] Test login functionality
+- [ ] Create checkpoint

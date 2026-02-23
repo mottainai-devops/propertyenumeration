@@ -1,7 +1,7 @@
 apply plugin: 'com.android.application'
 
 android {
-    namespace = "com.mottainai.survey.admin"
+    namespace = "com.propertyenum.mobile.v2"
     compileSdk = rootProject.ext.compileSdkVersion
     
     signingConfigs {
@@ -14,11 +14,11 @@ android {
     }
     
     defaultConfig {
-        applicationId "com.mottainai.survey.admin"
+        applicationId "com.propertyenum.mobile.v2"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 158
-        versionName "1.5.8"
+        versionCode 159
+        versionName "1.5.9"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
