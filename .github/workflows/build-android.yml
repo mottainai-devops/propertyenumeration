@@ -51,17 +51,13 @@ jobs:
 
       - name: Prepare Android assets directory
         run: |
-          rm -rf android/app/src/main/assets/public
           mkdir -p android/app/src/main/assets/public
           cp -r dist/public/* android/app/src/main/assets/public/
           echo "Web assets copied to Android assets directory"
           ls -la android/app/src/main/assets/public/
 
-      - name: Verify Capacitor configuration
-        run: npx cap doctor
-
-      - name: Sync Capacitor plugins
-        run: npx cap sync android
+      - name: Sync Capacitor plugins only
+        run: npx cap update android
 
       - name: Grant execute permission for gradlew
         run: chmod +x android/gradlew
