@@ -1,13 +1,65 @@
 # Property Enumeration Mobile App - TODO
 
-**Current Version:** v1.4.0 (Fetch API Implementation)  
+**Current Version:** v1.5.6 (API Base URL Fix)  
 **Baseline:** v1.2.0 (LOCKED)  
 **Status:** READY FOR TESTING  
-**Date:** February 8, 2026
+**Date:** February 23, 2026
 
 ---
 
-## 🎉 v1.4.0 - Fetch API Implementation (COMPLETED - READY FOR TESTING)
+## 🎉 v1.5.6 - API Base URL Fix (COMPLETED - READY FOR TESTING)
+
+### Root Cause Identified
+- [x] HTTP 403 error when starting enumeration sessions
+- [x] Operational lots dropdown working correctly (shows LOT-6)
+- [x] GPS permissions working correctly
+- [x] JWT token valid and fresh
+- [x] **Mobile app using wrong API base URL - missing /api/ prefix**
+
+### Solution Implemented
+- [x] Updated API_BASE_URL from `https://upwork.kowope.xyz` to `https://upwork.kowope.xyz/api`
+- [x] Reviewed backend API documentation (SessionManagementAPIDocumentation.docx)
+- [x] Confirmed correct endpoint: `/api/property-enumeration/sessions/start`
+- [x] Updated version to 1.5.6 (Build 156)
+- [ ] Build v1.5.6 APK with corrected API base URL
+- [ ] Test session start on device
+- [ ] Create checkpoint
+
+### What Changed
+**API Client (client/src/api/client.ts):**
+- Updated `API_BASE_URL` constant to include `/api` prefix
+- All session endpoints now use correct path:
+  - ✅ POST /api/property-enumeration/sessions/start
+  - ✅ POST /api/property-enumeration/sessions/end
+  - ✅ GET /api/property-enumeration/sessions/active
+  - ✅ GET /api/property-enumeration/sessions/history
+- All building endpoints now use correct path:
+  - ✅ POST /api/property-enumeration/buildings
+  - ✅ GET /api/property-enumeration/buildings
+- All customer endpoints now use correct path:
+  - ✅ GET /api/property-enumeration/customers/search
+  - ✅ POST /api/property-enumeration/customers/{id}/link
+
+**Build Configuration (android/app/build.gradle):**
+- Updated versionCode to 156
+- Updated versionName to "1.5.6"
+
+### Expected Result
+✅ Session start should work successfully:
+- User selects LOT-6 from dropdown
+- User taps "Start Session"
+- Backend returns HTTP 200 with session data
+- Session starts successfully
+- User can begin property enumeration
+
+### Test Credentials
+- Email: adeyadewuyi@gmail.com
+- Password: 123456
+- Assigned Lot: LOT-6 (G R A Ikeja)
+
+---
+
+## ✅ v1.4.0 - Fetch API Implementation (COMPLETED)
 
 ### Root Cause Identified
 - [x] Test Login (Fetch) button worked successfully in v1.3.5
@@ -22,8 +74,8 @@
 - [x] Restored clean login UI
 - [x] Updated version to 1.4.0 (Build 140)
 - [x] Build v1.4.0 APK with fetch() implementation (4.6 MB)
-- [ ] Test login on device
-- [ ] Create checkpoint
+- [x] Test login on device (✅ Login working)
+- [x] Create checkpoint (version: 4d13075e)
 
 ### What Changed
 **API Client (client/src/api/client.ts):**

@@ -1,5 +1,6 @@
 // Backend API base URL
-const API_BASE_URL = 'https://upwork.kowope.xyz';
+// Updated to include /api prefix as per backend documentation (Feb 23, 2026)
+const API_BASE_URL = 'https://upwork.kowope.xyz/api';
 
 // Fetch wrapper with JWT token and error handling
 async function apiFetch(endpoint: string, options: RequestInit = {}): Promise<any> {
