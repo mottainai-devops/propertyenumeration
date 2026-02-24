@@ -87,6 +87,12 @@ export interface LoginRequest {
   password: string;
 }
 
+export interface Lot {
+  lotCode: string;
+  lotName: string;
+  companyName?: string; // Optional, for admin/cherry_picker roles
+}
+
 export interface LoginResponse {
   token: string;
   user: {
@@ -98,6 +104,7 @@ export interface LoginResponse {
       _id: string;
       companyName: string;
     };
+    assignedLots: Lot[]; // Array of assigned operational lots
   };
 }
 

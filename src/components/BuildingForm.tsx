@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Camera, CameraResultType, CameraSource } from '@capacitor/camera';
 import CustomerSearch from './CustomerSearch';
+import LotDropdown from './LotDropdown';
 import type { Customer } from '../api/client';
 import { validateAndPreparePhoto, formatFileSize } from '../utils/photoUtils';
 
@@ -240,20 +241,12 @@ export default function BuildingForm({ onSubmit, location, onBack }: BuildingFor
             </div>
 
             {/* Lot Code */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Lot Code *
-              </label>
-              <input
-                type="text"
-                name="lotCode"
-                value={formData.lotCode}
-                onChange={handleInputChange}
-                required
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none"
-                placeholder="e.g., SW02"
-              />
-            </div>
+            <LotDropdown
+              value={formData.lotCode}
+              onChange={(lotCode) => setFormData(prev => ({ ...prev, lotCode }))}
+              label="Lot Code"
+              required={true}
+            />
 
             {/* Property Type */}
             <div>

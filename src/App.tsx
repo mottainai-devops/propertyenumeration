@@ -111,6 +111,8 @@ function App() {
       );
       localStorage.setItem('authToken', response.token);
       localStorage.setItem('user', JSON.stringify(response.user));
+      // Store assigned lots separately for easy access
+      localStorage.setItem('assignedLots', JSON.stringify(response.user.assignedLots || []));
       showToast('Login successful!', 'success');
       setCurrentScreen('session');
     } catch (error: any) {
