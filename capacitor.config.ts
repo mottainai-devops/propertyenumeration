@@ -4,11 +4,6 @@ const config: CapacitorConfig = {
   appId: 'com.mottainai.enumeration',
   appName: 'Property Enumeration',
   webDir: 'dist',
-  server: {
-    androidScheme: 'http',
-    cleartext: true,
-    allowNavigation: ['*']
-  },
   android: {
     buildOptions: {
       keystorePath: undefined,
