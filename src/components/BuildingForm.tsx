@@ -415,56 +415,45 @@ export default function BuildingForm({ onSubmit, location, onBack }: BuildingFor
           </form>
         )}
 
-        {/* Step 2: Customer Linking */}
+        {/* Step 2: Customer Linking - Complete Redesign */}
         {currentStep === 'customer-linking' && (
-          <div className="p-6 pb-24 space-y-6">
+          <div className="p-6 pb-32 space-y-6">
             {error && (
-              <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
+              <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl">
                 {error}
               </div>
             )}
 
-            {/* Info Banner */}
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-              <p className="text-sm text-blue-900 font-medium mb-1">Link Customer (Optional)</p>
-              <p className="text-xs text-blue-700">
-                Search for an existing customer to link to this building, or skip to continue without linking.
-              </p>
+            {/* Info Banner with Icon */}
+            <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 flex gap-3">
+              <svg className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <div>
+                <p className="text-sm text-gray-900 font-medium">Search for an existing customer to link to this building, or skip to continue without linking.</p>
+              </div>
             </div>
 
-            {/* Action Buttons - Moved above customer card */}
-            <div className="space-y-3">
-              {linkedCustomer ? (
-                <button
-                  onClick={handleSubmitWithCustomer}
-                  disabled={loading}
-                  className="w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-3 px-4 rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {loading ? 'Submitting...' : 'Submit with Customer'}
-                </button>
-              ) : (
-                <button
-                  onClick={handleSkipCustomerLinking}
-                  disabled={loading}
-                  className="w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-3 px-4 rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {loading ? 'Submitting...' : 'Skip & Submit Building'}
-                </button>
-              )}
-              
-              <button
-                onClick={handleBackToDetails}
-                disabled={loading}
-                className="w-full bg-gray-200 hover:bg-gray-300 text-gray-700 font-semibold py-3 px-4 rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                Back to Building Details
-              </button>
-            </div>
+            {/* Search Input - Only show when no customer linked */}
+            {!linkedCustomer && (
+              <div className="relative">
+                <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400">
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                  </svg>
+                </div>
+                <CustomerSearch
+                  onSelect={handleCustomerSelect}
+                  placeholder="Search by name, phone, or address"
+                />
+              </div>
+            )}
 
-            {/* Linked Customer Display - Moved below buttons */}
-            {linkedCustomer ? (
-              <div className="bg-green-50 border-2 border-green-500 rounded-lg p-4">
-                <div className="flex items-start justify-between mb-2">
+            {/* Linked Customer Card - Professional Design */}
+            {linkedCustomer && (
+              <div className="bg-green-50 border-2 border-green-500 rounded-xl p-4 shadow-sm">
+                {/* Header */}
+                <div className="flex items-center justify-between mb-4">
                   <div className="flex items-center gap-2">
                     <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -473,39 +462,79 @@ export default function BuildingForm({ onSubmit, location, onBack }: BuildingFor
                   </div>
                   <button
                     onClick={handleRemoveCustomer}
-                    className="text-red-600 hover:text-red-700 text-sm font-medium"
+                    className="flex items-center gap-1 text-red-600 hover:text-red-700 text-sm font-medium"
                   >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
                     Remove
                   </button>
                 </div>
-                <div className="ml-7 space-y-1">
-                  <p className="text-sm font-medium text-gray-900">{linkedCustomer.customerName}</p>
-                  {linkedCustomer.phoneNumber && (
-                    <p className="text-xs text-gray-600">📞 {linkedCustomer.phoneNumber}</p>
-                  )}
-                  {linkedCustomer.address && (
-                    <p className="text-xs text-gray-600">📍 {linkedCustomer.address}</p>
-                  )}
-                  {linkedCustomer.propertyType && (
-                    <p className="text-xs text-gray-600">🏢 {linkedCustomer.propertyType}</p>
-                  )}
+
+                {/* Customer Details with Avatar */}
+                <div className="flex gap-3">
+                  {/* Avatar */}
+                  <div className="w-12 h-12 rounded-full bg-green-200 flex items-center justify-center flex-shrink-0">
+                    <span className="text-green-800 font-semibold text-lg">
+                      {linkedCustomer.customerName.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
+                    </span>
+                  </div>
+
+                  {/* Details */}
+                  <div className="flex-1 space-y-2">
+                    <p className="text-base font-semibold text-gray-900">{linkedCustomer.customerName}</p>
+                    {linkedCustomer.phoneNumber && (
+                      <div className="flex items-center gap-2 text-sm text-gray-700">
+                        <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                        </svg>
+                        <span>{linkedCustomer.phoneNumber}</span>
+                      </div>
+                    )}
+                    {linkedCustomer.address && (
+                      <div className="flex items-center gap-2 text-sm text-gray-700">
+                        <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                        </svg>
+                        <span>{linkedCustomer.address}</span>
+                      </div>
+                    )}
+                    {linkedCustomer.propertyType && (
+                      <div className="inline-flex items-center gap-1 px-3 py-1 bg-white rounded-full text-xs font-medium text-gray-700 border border-gray-200">
+                        <svg className="w-3 h-3 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                        </svg>
+                        {linkedCustomer.propertyType}
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
-            ) : (
-              /* Customer Search */
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Search Customer
-                </label>
-                <CustomerSearch
-                  onSelect={handleCustomerSelect}
-                  placeholder="Search by name, phone, or address..."
-                />
-                <p className="text-xs text-gray-500 mt-2">
-                  Type at least 2 characters to search
-                </p>
-              </div>
             )}
+
+            {/* Bottom Action Buttons - Generous padding for safe area */}
+            <div className="space-y-3 pt-6">
+              <div className="flex gap-3">
+                <button
+                  onClick={handleBackToDetails}
+                  disabled={loading}
+                  className="flex-1 bg-white border-2 border-gray-300 hover:bg-gray-50 text-gray-700 font-semibold py-3.5 px-4 rounded-xl transition disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
+                >
+                  Skip for Now
+                </button>
+                <button
+                  onClick={linkedCustomer ? handleSubmitWithCustomer : handleSkipCustomerLinking}
+                  disabled={loading}
+                  className="flex-1 bg-green-600 hover:bg-green-700 text-white font-semibold py-3.5 px-4 rounded-xl transition disabled:opacity-50 disabled:cursor-not-allowed shadow-md flex items-center justify-center gap-2"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                  {loading ? 'Submitting...' : 'Submit with Customer'}
+                </button>
+              </div>
+            </div>
           </div>
         )}
       </div>
