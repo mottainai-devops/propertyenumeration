@@ -3,7 +3,7 @@ import type { CapacitorConfig } from '@capacitor/cli';
 const config: CapacitorConfig = {
   appId: 'com.mottainai.enumeration',
   appName: 'Property Enumeration',
-  webDir: 'dist',
+  webDir: 'dist/public',
   server: {
     androidScheme: 'http',
     cleartext: true,
