@@ -195,7 +195,7 @@ export default function BuildingForm({ onSubmit, location, onBack }: BuildingFor
 
         {/* Step 1: Building Details */}
         {currentStep === 'building-details' && (
-          <form onSubmit={handleNextStep} className="p-6 space-y-6">
+          <form onSubmit={handleNextStep} className="p-6 pb-24 space-y-6">
             {error && (
               <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
                 {error}
@@ -417,7 +417,7 @@ export default function BuildingForm({ onSubmit, location, onBack }: BuildingFor
 
         {/* Step 2: Customer Linking */}
         {currentStep === 'customer-linking' && (
-          <div className="p-6 space-y-6">
+          <div className="p-6 pb-24 space-y-6">
             {error && (
               <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
                 {error}
