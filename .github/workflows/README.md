@@ -104,7 +104,7 @@ git push github v2.0.2
 
 The workflow uses these versions:
 - **Node.js:** 22
-- **pnpm:** 9
+- **pnpm:** 10.4.1
 - **Java JDK:** 17 (Temurin distribution)
 
 To change versions, edit `.github/workflows/build-apk.yml`.
