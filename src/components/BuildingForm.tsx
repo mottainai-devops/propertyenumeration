@@ -157,7 +157,7 @@ export default function BuildingForm({ onSubmit, location, onBack }: BuildingFor
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-end">
-      <div className="bg-white rounded-t-3xl w-full max-h-[85vh] overflow-y-auto mb-16">
+      <div className="bg-white rounded-t-3xl w-full max-h-[85vh] overflow-y-auto mb-[calc(24px+var(--sab))]">
         {/* Header */}
         <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 z-10">
           <div className="flex items-center justify-between">
@@ -417,7 +417,7 @@ export default function BuildingForm({ onSubmit, location, onBack }: BuildingFor
 
         {/* Step 2: Customer Linking - Complete Redesign */}
         {currentStep === 'customer-linking' && (
-          <div className="p-6 pb-32 space-y-6">
+          <div className="p-6 pb-[calc(96px+var(--sab))] space-y-6">
             {error && (
               <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl">
                 {error}
@@ -513,8 +513,8 @@ export default function BuildingForm({ onSubmit, location, onBack }: BuildingFor
               </div>
             )}
 
-            {/* Bottom Action Buttons - Generous padding for safe area */}
-            <div className="space-y-3 pt-6">
+            {/* Bottom Action Buttons - Safe-area aware */}
+            <div className="space-y-3 pt-6 pb-[calc(16px+var(--sab))]">
               <div className="flex gap-3">
                 <button
                   onClick={handleBackToDetails}

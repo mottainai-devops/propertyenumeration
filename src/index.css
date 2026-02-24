@@ -1,5 +1,23 @@
 @import "tailwindcss";
 
+/* Fallback for browsers without env() support */
+:root {
+  --sat: 0px;
+  --sar: 0px;
+  --sab: 0px;
+  --sal: 0px;
+}
+
+/* iOS Safari + WebView safe-area support */
+@supports (padding: env(safe-area-inset-bottom)) {
+  :root {
+    --sat: env(safe-area-inset-top, 0px);
+    --sar: env(safe-area-inset-right, 0px);
+    --sab: env(safe-area-inset-bottom, 0px);
+    --sal: env(safe-area-inset-left, 0px);
+  }
+}
+
 @theme {
   /* Red shades */
   --color-red-500: oklch(0.6 0.24 25);
@@ -91,4 +109,21 @@ body {
   width: 100%;
   height: 100vh;
   overflow: hidden;
+}
+
+/* Safe-area utility classes */
+.safe-bottom {
+  padding-bottom: calc(16px + var(--sab));
+}
+
+.safe-bottom-lg {
+  padding-bottom: calc(24px + var(--sab));
+}
+
+.safe-bottom-xl {
+  padding-bottom: calc(32px + var(--sab));
+}
+
+.safe-margin-bottom {
+  margin-bottom: calc(16px + var(--sab));
 }
