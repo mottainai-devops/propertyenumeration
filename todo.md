@@ -1,13 +1,52 @@
 # Property Enumeration Mobile App - Development TODO
 
-**Current Version:** v1.5.8 (Backend Developer Approved Fixes)  
+**Current Version:** v2.0.0 (Complete App Identity Reset)  
 **Baseline:** v1.2.0 (LOCKED)  
-**Status:** READY FOR TESTING  
+**Status:** BUILDING v2.0.0  
 **Date:** February 23, 2026
 
 ---
 
-## 🎉 v1.5.8 - Backend Developer Approved Fixes (COMPLETED - READY FOR TESTING)
+## 🚀 v2.0.0 - Complete App Identity Reset (IN PROGRESS)
+
+### Issue: Persistent Android Caching
+- Android showing "Mottainai Survey Admin" even after ADB force install
+- App crashes immediately on launch
+- WebView cache persists despite:
+  - Changing package name (v1.5.9: com.propertyenum.mobile.v2)
+  - Clearing app storage/cache
+  - Clearing System WebView cache
+  - Uninstalling and reinstalling
+  - ADB force install with -r flag
+
+### Root Cause Analysis
+Android is associating new installations with old cached data based on:
+- App signing certificate
+- App name metadata
+- WebView cache tied to multiple identifiers beyond just package name
+
+### Solution: Complete App Identity Reset
+- [ ] Change package name to `io.propertyenum.field.app` (completely different format)
+- [ ] Change app name to "Field Enumeration" (completely different name)
+- [ ] Add programmatic WebView cache clearing on app startup
+- [ ] Add version check to detect and clear old cached data
+- [ ] Update version to 2.0.0 (Build 200)
+- [ ] Build APK and install via ADB
+- [ ] Verify app shows "Field Enumeration" (not "Mottainai Survey Admin")
+- [ ] Verify version shows 2.0.0 on login screen
+- [ ] Test complete workflow (login → session → building → customer)
+
+---
+
+## ✅ v1.5.9 - Package Name Change Attempt (COMPLETED - FAILED)
+- [x] Changed package name to `com.propertyenum.mobile.v2`
+- [x] Built APK v1.5.9 (Build 159)
+- [x] Installed via ADB force install
+- ❌ Result: Still shows "Mottainai Survey Admin" and crashes
+
+---
+
+## ✅ v1.5.8 - Backend Developer Approved Fixes (COMPLETED)
 
 ### Critical Fixes Implemented (Per Backend Developer - Source of Truth)
 - [x] **Fix #1:** Removed `vitePluginManusRuntime()` from vite.config.ts (was causing blank screen)
@@ -20,48 +59,6 @@
   - Removed tRPC, Express, Drizzle, MySQL, bcryptjs dependencies
   - Simplified package.json scripts for mobile-only deployment
   - Updated version to 1.5.8 (Build 158)
-- [x] Rebuilt web assets without Manus runtime plugin
-- [x] Synced to Android and built APK (7.6 MB)
-- [ ] Test login with corrected endpoint
-- [ ] Test session start/end functionality
-- [ ] Test customer search functionality
-- [ ] Create checkpoint after successful testing
-
-### What Changed
-**vite.config.ts:**
-- Removed `vitePluginManusRuntime()` plugin that was inlining 501KB of JavaScript into HTML
-
-**client/src/api/client.ts:**
-- Updated login endpoint to `/api/mobile/users/login`
-- Updated session end to `/sessions/end` (removed sessionId parameter)
-- Updated customer search to use `search` query parameter instead of `q`
-
-**Project Structure:**
-- Removed all server-side code (Express, tRPC, Drizzle ORM, database)
-- Removed 15+ unused dependencies (@trpc/*, express, drizzle-orm, mysql2, bcryptjs, jose, cookie, dotenv, superjson, streamdown)
-- Simplified to pure mobile Capacitor app architecture
-
-**package.json:**
-- Version updated from 1.5.0 to 1.5.8
-- Removed all server/database dependencies
-- Simplified scripts: `dev` (vite), `build` (vite build), `android` (cap sync + open)
-- Removed: `start`, `test`, `db:push` scripts
-
-### Expected Results
-✅ **No more blank screen** - App loads properly without inlined JavaScript  
-✅ **Login works** - Correct endpoint `/api/mobile/users/login`  
-✅ **Session management works** - Correct endpoints with proper parameters  
-✅ **Customer search works** - Correct query parameter format (`search=` not `q=`)  
-
-### Test Credentials
-- Email: adeyadewuyi@gmail.com
-- Password: 123456
-- Assigned Lot: LOT-6 (G R A Ikeja)
-
-### Coordination Flow
-- **Frontend Manus AI Developer:** Implements mobile app (this project)
-- **Backend Manus AI Developer:** Source of truth for API specifications
-- **Project Owner:** Coordinates between both developers
 
 ---
 
@@ -126,25 +123,20 @@
 2. Login endpoint uses different prefix (`/api/mobile`) than other endpoints (`/api/property-enumeration`)
 3. Always verify API endpoint specifications with Backend Developer before implementing
 4. Mobile apps should not include server-side dependencies
+5. Android WebView caching is extremely aggressive and tied to multiple identifiers
+6. Package name changes alone are insufficient to bypass Android cache
+7. Complete app identity reset (package name + app name + cache clearing) required
 
 ---
 
-## ✅ v1.5.9 - Package Name Change to Bypass Android Cache (COMPLETED)
+## Test Credentials
+- Email: adeyadewuyi@gmail.com
+- Password: 123456
+- Assigned Lot: LOT-6 (G R A Ikeja)
 
-### Issue Identified
-- [x] Android showing "Mottainai Survey Admin" with default Capacitor icon
-- [x] App size 12.33 MB (should be 7.6 MB)
-- [x] Login screen showing v1.5.0 despite APK being v1.5.8
-- [x] Android loading cached web app template instead of mobile build
-- [x] WebView cache tied to package name `com.mottainai.survey.admin`
+---
 
-### Solution
-- [x] Change package name to `com.propertyenum.mobile.v2`
-- [x] Update capacitor.config.ts appId
-- [x] Update android/app/build.gradle applicationId
-- [x] Update AndroidManifest.xml package references
-- [x] Rebuild APK v1.5.9 with new package name
-- [ ] Test installation (should show "Property Enumeration" with green icon)
-- [ ] Verify version shows 1.5.9 on login screen
-- [ ] Test login functionality
-- [ ] Create checkpoint
+## Coordination Flow
+- **Frontend Manus AI Developer:** Implements mobile app (this project)
+- **Backend Manus AI Developer:** Source of truth for API specifications
+- **Project Owner:** Coordinates between both developers

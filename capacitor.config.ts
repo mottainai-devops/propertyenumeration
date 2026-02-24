@@ -1,9 +1,9 @@
 import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
-  appId: 'com.propertyenum.mobile.v2',
+  appId: 'com.mottainai.enumeration',
   appName: 'Property Enumeration',
-  webDir: 'client/dist',
+  webDir: 'dist',
   server: {
     androidScheme: 'http',
     cleartext: true,

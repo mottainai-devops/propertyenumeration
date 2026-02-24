@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { authApi } from '../api/client';
 
 interface LoginProps {
@@ -10,6 +10,31 @@ export default function Login({ onLoginSuccess }: LoginProps) {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+
+  // Clear WebView cache on first launch to prevent old cached data
+  useEffect(() => {
+    const clearCache = async () => {
+      try {
+        // Clear localStorage except for essential data
+        const keysToKeep = ['jwt_token', 'user_data', 'company_data'];
+        const allKeys = Object.keys(localStorage);
+        allKeys.forEach(key => {
+          if (!keysToKeep.includes(key)) {
+            localStorage.removeItem(key);
+          }
+        });
+        
+        // Clear sessionStorage completely
+        sessionStorage.clear();
+        
+        console.log('[Cache] Cleared old cached data for v2.0.0');
+      } catch (err) {
+        console.error('[Cache] Failed to clear cache:', err);
+      }
+    };
+    
+    clearCache();
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -50,7 +75,7 @@ export default function Login({ onLoginSuccess }: LoginProps) {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
             </svg>
           </div>
-          <h1 className="text-3xl font-bold text-gray-900">Property Enumeration</h1>
+          <h1 className="text-3xl font-bold text-gray-900">Field Enumeration</h1>
           <p className="text-gray-600 mt-2">Sign in to start mapping buildings</p>
         </div>
 
@@ -104,7 +129,7 @@ export default function Login({ onLoginSuccess }: LoginProps) {
           For field supervisors only
         </p>
         <p className="text-center text-xs text-gray-400 mt-2">
-          Version 1.5.0 (Build 150)
+          Version 2.0.1 (Build 201)
         </p>
       </div>
     </div>

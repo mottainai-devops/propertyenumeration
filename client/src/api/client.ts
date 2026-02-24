@@ -255,9 +255,16 @@ export const photoApi = {
 
 export const authApi = {
   login: async (credentials: LoginRequest): Promise<LoginResponse> => {
+    // Base64 encode the password before sending (backend requirement)
+    // Backend expects base64-encoded passwords for security
+    const encodedPassword = btoa(credentials.password);
+    
     const responseData = await apiFetch('/api/mobile/users/login', {
       method: 'POST',
-      body: JSON.stringify(credentials),
+      body: JSON.stringify({
+        email: credentials.email,
+        password: encodedPassword, // Send base64-encoded password
+      }),
     });
     return responseData;
   },
