@@ -432,7 +432,36 @@ export default function BuildingForm({ onSubmit, location, onBack }: BuildingFor
               </p>
             </div>
 
-            {/* Linked Customer Display */}
+            {/* Action Buttons - Moved above customer card */}
+            <div className="space-y-3">
+              {linkedCustomer ? (
+                <button
+                  onClick={handleSubmitWithCustomer}
+                  disabled={loading}
+                  className="w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-3 px-4 rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {loading ? 'Submitting...' : 'Submit with Customer'}
+                </button>
+              ) : (
+                <button
+                  onClick={handleSkipCustomerLinking}
+                  disabled={loading}
+                  className="w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-3 px-4 rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {loading ? 'Submitting...' : 'Skip & Submit Building'}
+                </button>
+              )}
+              
+              <button
+                onClick={handleBackToDetails}
+                disabled={loading}
+                className="w-full bg-gray-200 hover:bg-gray-300 text-gray-700 font-semibold py-3 px-4 rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Back to Building Details
+              </button>
+            </div>
+
+            {/* Linked Customer Display - Moved below buttons */}
             {linkedCustomer ? (
               <div className="bg-green-50 border-2 border-green-500 rounded-lg p-4">
                 <div className="flex items-start justify-between mb-2">
@@ -477,35 +506,6 @@ export default function BuildingForm({ onSubmit, location, onBack }: BuildingFor
                 </p>
               </div>
             )}
-
-            {/* Action Buttons */}
-            <div className="space-y-3 pt-4">
-              {linkedCustomer ? (
-                <button
-                  onClick={handleSubmitWithCustomer}
-                  disabled={loading}
-                  className="w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-3 px-4 rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {loading ? 'Submitting...' : 'Submit with Customer'}
-                </button>
-              ) : (
-                <button
-                  onClick={handleSkipCustomerLinking}
-                  disabled={loading}
-                  className="w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-3 px-4 rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {loading ? 'Submitting...' : 'Skip & Submit Building'}
-                </button>
-              )}
-              
-              <button
-                onClick={handleBackToDetails}
-                disabled={loading}
-                className="w-full bg-gray-200 hover:bg-gray-300 text-gray-700 font-semibold py-3 px-4 rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                Back to Building Details
-              </button>
-            </div>
           </div>
         )}
       </div>
