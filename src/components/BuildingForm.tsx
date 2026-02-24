@@ -157,9 +157,9 @@ export default function BuildingForm({ onSubmit, location, onBack }: BuildingFor
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-end">
-      <div className="bg-white rounded-t-3xl w-full max-h-[85vh] overflow-y-auto mb-[calc(24px+var(--sab))]">
-        {/* Header */}
-        <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 z-10">
+      <div className="bg-white rounded-t-3xl w-full h-[90vh] flex flex-col">
+        {/* Header - Zone 1: Fixed height */}
+        <div className="shrink-0 bg-white border-b border-gray-200 px-6 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <button
@@ -195,7 +195,8 @@ export default function BuildingForm({ onSubmit, location, onBack }: BuildingFor
 
         {/* Step 1: Building Details */}
         {currentStep === 'building-details' && (
-          <form onSubmit={handleNextStep} className="p-6 pb-24 space-y-6">
+          <form onSubmit={handleNextStep} className="flex-1 overflow-y-auto flex flex-col">
+            <div className="p-6 space-y-6">
             {error && (
               <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
                 {error}
@@ -396,28 +397,34 @@ export default function BuildingForm({ onSubmit, location, onBack }: BuildingFor
               />
             </div>
 
-            {/* Action Buttons */}
-            <div className="space-y-3">
-              <button
-                type="submit"
-                className="w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-3 px-4 rounded-lg transition"
-              >
-                Next: Link Customer
-              </button>
-              <button
-                type="button"
-                onClick={() => window.history.back()}
-                className="w-full bg-gray-200 hover:bg-gray-300 text-gray-700 font-semibold py-3 px-4 rounded-lg transition"
-              >
-                Cancel
-              </button>
+            </div>
+
+            {/* Action Area - Zone 3: Outside scroll, safe-area aware */}
+            <div className="shrink-0 px-6 pt-3 pb-[calc(16px+var(--sab))] bg-white border-t border-gray-200">
+              <div className="space-y-3">
+                <button
+                  type="submit"
+                  className="w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-3 px-4 rounded-lg transition"
+                >
+                  Next: Link Customer
+                </button>
+                <button
+                  type="button"
+                  onClick={() => window.history.back()}
+                  className="w-full bg-gray-200 hover:bg-gray-300 text-gray-700 font-semibold py-3 px-4 rounded-lg transition"
+                >
+                  Cancel
+                </button>
+              </div>
             </div>
           </form>
         )}
 
         {/* Step 2: Customer Linking - Complete Redesign */}
         {currentStep === 'customer-linking' && (
-          <div className="p-6 pb-[calc(96px+var(--sab))] space-y-6">
+          <>
+            {/* Scrollable Content - Zone 2 */}
+            <div className="flex-1 overflow-y-auto p-6 space-y-6">
             {error && (
               <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl">
                 {error}
@@ -513,8 +520,10 @@ export default function BuildingForm({ onSubmit, location, onBack }: BuildingFor
               </div>
             )}
 
-            {/* Bottom Action Buttons - Safe-area aware */}
-            <div className="space-y-3 pt-6 pb-[calc(16px+var(--sab))]">
+            </div>
+
+            {/* Action Area - Zone 3: Outside scroll, safe-area aware */}
+            <div className="shrink-0 px-6 pt-3 pb-[calc(16px+var(--sab))] bg-white border-t border-gray-200">
               <div className="flex gap-3">
                 <button
                   onClick={handleBackToDetails}
@@ -535,7 +544,7 @@ export default function BuildingForm({ onSubmit, location, onBack }: BuildingFor
                 </button>
               </div>
             </div>
-          </div>
+          </>
         )}
       </div>
     </div>
