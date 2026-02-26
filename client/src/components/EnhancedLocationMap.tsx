@@ -16,6 +16,7 @@ import {
   formatCacheAge,
 } from '../services/polygonCacheService';
 import { findPolygonAtPoint } from '../utils/pointInPolygon';
+import PolygonLabel from './PolygonLabel';
 
 // Fix Leaflet default marker icon issue
 delete (L.Icon.Default.prototype as any)._getIconUrl;
@@ -355,32 +356,46 @@ export default function EnhancedLocationMap({
             );
 
             return (
-              <Polygon
-                key={polygon.buildingId}
-                positions={positions}
-                pathOptions={{
-                  color: isSelected ? '#2196F3' : color,
-                  fillColor: isSelected ? '#2196F3' : color,
-                  fillOpacity: isSelected ? 0.4 : 0.3,
-                  weight: isSelected ? 4 : 2.5,
-                }}
-                eventHandlers={{
-                  click: () => {
+              <React.Fragment key={polygon.buildingId}>
+                {/* Polygon */}
+                <Polygon
+                  positions={positions}
+                  pathOptions={{
+                    color: isSelected ? '#2196F3' : color,
+                    fillColor: isSelected ? '#2196F3' : color,
+                    fillOpacity: isSelected ? 0.4 : 0.3,
+                    weight: isSelected ? 4 : 2.5,
+                  }}
+                  eventHandlers={{
+                    click: () => {
+                      setSelectedPolygon(polygon);
+                      setSelectedLocation([polygon.centerLat, polygon.centerLon]);
+                      onLocationSelected(polygon.centerLat, polygon.centerLon);
+                      onBuildingSelected?.(polygon);
+                    },
+                  }}
+                >
+                  <Popup>
+                    <div className="text-sm">
+                      <p className="font-bold">{polygon.businessName || polygon.buildingId}</p>
+                      {polygon.address && <p className="text-gray-600">{polygon.address}</p>}
+                      {polygon.zone && <p className="text-gray-500 text-xs">Zone: {polygon.zone}</p>}
+                    </div>
+                  </Popup>
+                </Polygon>
+
+                {/* Polygon Label */}
+                <PolygonLabel
+                  polygon={polygon}
+                  isSelected={isSelected}
+                  onClick={() => {
                     setSelectedPolygon(polygon);
                     setSelectedLocation([polygon.centerLat, polygon.centerLon]);
                     onLocationSelected(polygon.centerLat, polygon.centerLon);
                     onBuildingSelected?.(polygon);
-                  },
-                }}
-              >
-                <Popup>
-                  <div className="text-sm">
-                    <p className="font-bold">{polygon.businessName || polygon.buildingId}</p>
-                    {polygon.address && <p className="text-gray-600">{polygon.address}</p>}
-                    {polygon.zone && <p className="text-gray-500 text-xs">Zone: {polygon.zone}</p>}
-                  </div>
-                </Popup>
-              </Polygon>
+                  }}
+                />
+              </React.Fragment>
             );
           })}
 

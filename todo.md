@@ -200,14 +200,14 @@
 - [x] Pass selected building to BuildingForm
 - [x] Auto-fill building data in BuildingForm (ID, address, zone, business name, phone)
 
-### Phase 7: Advanced Features (TODO)
-- [ ] Add building labels on polygons (showing building ID or business name)
-- [ ] Implement customer labels (e.g., "BuildingID-R1,R2,B1")
+### Phase 7: Advanced Features (IN PROGRESS)
+- [x] Add building labels on polygons (showing building ID or business name)
+- [x] Implement customer labels (e.g., "BuildingID-R1,R2,B1")
+- [x] Add polygon label tap interactions (clickable, same as polygon)
+- [x] Implement green labels for occupied buildings vs blue for empty
 - [ ] Add building info popup with duplicate detection
 - [ ] Fetch existing customers from backend API
 - [ ] Add reverse geocoding for address lookup
-- [ ] Add polygon label tap interactions (different from polygon tap)
-- [ ] Implement green labels for occupied buildings vs blue for empty
 
 ### Phase 8: Backend Integration (TODO)
 - [ ] Create backend endpoint: GET /api/property-enumeration/buildings/check?buildingId=B001
@@ -228,9 +228,10 @@
 - [ ] Optimize polygon rendering for large datasets
 - [ ] Add error handling for ArcGIS API failures
 
-### Phase 10: APK Build & Deployment (TODO)
-- [ ] Update version to 1.9.0 in package.json
-- [ ] Update version in android/app/build.gradle
+### Phase 10: APK Build & Deployment (IN PROGRESS)
+- [x] Update version to 1.9.0 in package.json
+- [x] Update version in android/app/build.gradle
+- [x] Create BUILD_INSTRUCTIONS.md with testing checklist
 - [ ] Build APK: npm run build && npx cap sync && cd android && ./gradlew assembleDebug
 - [ ] Test APK on physical device
 - [ ] Verify map loads correctly in WebView
