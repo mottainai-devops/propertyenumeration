@@ -148,3 +148,105 @@
 - [ ] Verify version shows 1.5.9 on login screen
 - [ ] Test login functionality
 - [ ] Create checkpoint
+
+
+---
+
+## 🗺️ v1.9.0 - Map Visualization with Building Polygons (IN PROGRESS)
+
+### Phase 1: Setup & Dependencies ✅
+- [x] Install Leaflet and react-leaflet
+- [x] Install localforage for IndexedDB caching
+- [x] Install @turf/turf for geospatial calculations
+- [x] Add Leaflet CSS to index.html
+
+### Phase 2: Core Models & Utilities ✅
+- [x] Create BuildingPolygon TypeScript interface
+- [x] Create coordinate conversion utilities (Web Mercator ↔ WGS84)
+- [x] Create point-in-polygon detection (ray casting algorithm)
+
+### Phase 3: ArcGIS Integration ✅
+- [x] Create arcgisService.ts for fetching building polygons
+- [x] Implement fetchPolygonsNearLocation function
+- [x] Implement fetchPolygonByBuildingId function
+- [x] Add ArcGIS API key and endpoint configuration
+
+### Phase 4: Polygon Caching ✅
+- [x] Create polygonCacheService.ts with IndexedDB
+- [x] Implement syncPolygonsForLocation function
+- [x] Implement getCachedPolygonsNearLocation function
+- [x] Add cache statistics and expiry logic (7 days)
+- [x] Add formatCacheAge helper function
+
+### Phase 5: Enhanced Location Map Component ✅
+- [x] Create EnhancedLocationMap.tsx with Leaflet
+- [x] Add ArcGIS satellite imagery tile layer
+- [x] Add ArcGIS labels overlay tile layer
+- [x] Implement GPS location initialization
+- [x] Add current location marker with accuracy display
+- [x] Add GPS accuracy warning (> 50m threshold)
+- [x] Implement polygon rendering with unique colors (15-color palette)
+- [x] Add polygon tap detection and selection
+- [x] Add selected location marker
+- [x] Add cache info display
+- [x] Add recenter button
+- [x] Add loading and error states
+
+### Phase 6: App Integration ✅
+- [x] Replace SimpleLocationPicker with EnhancedLocationMap in App.tsx
+- [x] Add three-zone layout (header/map/action area)
+- [x] Add Back button to return to session management
+- [x] Add Confirm Location button with safe-area padding
+- [x] Pass selected building to BuildingForm
+- [x] Auto-fill building data in BuildingForm (ID, address, zone, business name, phone)
+
+### Phase 7: Advanced Features (TODO)
+- [ ] Add building labels on polygons (showing building ID or business name)
+- [ ] Implement customer labels (e.g., "BuildingID-R1,R2,B1")
+- [ ] Add building info popup with duplicate detection
+- [ ] Fetch existing customers from backend API
+- [ ] Add reverse geocoding for address lookup
+- [ ] Add polygon label tap interactions (different from polygon tap)
+- [ ] Implement green labels for occupied buildings vs blue for empty
+
+### Phase 8: Backend Integration (TODO)
+- [ ] Create backend endpoint: GET /api/property-enumeration/buildings/check?buildingId=B001
+- [ ] Create backend endpoint: GET /api/property-enumeration/customers?buildingId=B001
+- [ ] Add polygon_geometry column to buildings table
+- [ ] Add label column to customers table (R1, R2, B1, etc.)
+- [ ] Update building creation to save polygon geometry
+- [ ] Update customer creation to generate and save labels
+
+### Phase 9: Testing & Polish (TODO)
+- [ ] Test map in browser (dev server)
+- [ ] Test on Android device with real GPS
+- [ ] Test polygon tap detection accuracy
+- [ ] Test offline caching functionality
+- [ ] Test with 1000+ polygons for performance
+- [ ] Test safe-area layout on devices with navigation bar
+- [ ] Add loading skeleton for polygon sync
+- [ ] Optimize polygon rendering for large datasets
+- [ ] Add error handling for ArcGIS API failures
+
+### Phase 10: APK Build & Deployment (TODO)
+- [ ] Update version to 1.9.0 in package.json
+- [ ] Update version in android/app/build.gradle
+- [ ] Build APK: npm run build && npx cap sync && cd android && ./gradlew assembleDebug
+- [ ] Test APK on physical device
+- [ ] Verify map loads correctly in WebView
+- [ ] Verify polygons render correctly
+- [ ] Verify GPS location works
+- [ ] Save checkpoint and create release notes
+
+### Known Issues
+- TypeScript library errors (lib.esnext.d.ts not found) - Does not affect runtime, app compiles successfully
+- Need to test polygon rendering performance with large datasets
+- Need to implement customer label fetching from backend
+
+### Next Steps
+1. Test map visualization in browser
+2. Implement building labels on polygons
+3. Add customer label fetching
+4. Create backend endpoints for duplicate detection
+5. Test on Android device
+6. Build and deploy APK v1.9.0

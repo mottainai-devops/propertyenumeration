@@ -2,7 +2,8 @@ import { useState, useEffect } from 'react';
 import Login from './components/Login';
 import SessionManagement from './components/SessionManagement';
 import SessionStatistics from './components/SessionStatistics';
-import SimpleLocationPicker from './components/SimpleLocationPicker';
+import EnhancedLocationMap from './components/EnhancedLocationMap';
+import type { BuildingPolygon } from './models/BuildingPolygon';
 import BuildingForm from './components/BuildingForm';
 
 interface SelectedLocation {
@@ -17,6 +18,7 @@ function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [currentScreen, setCurrentScreen] = useState<Screen>('login');
   const [selectedLocation, setSelectedLocation] = useState<SelectedLocation | null>(null);
+  const [selectedBuilding, setSelectedBuilding] = useState<BuildingPolygon | null>(null);
   const [showForm, setShowForm] = useState(false);
   useEffect(() => {
     // Check if user is already logged in
@@ -42,14 +44,30 @@ function App() {
     setCurrentScreen('login');
   };
 
-  const handleLocationSelect = (lat: number, lng: number, address: string) => {
-    setSelectedLocation({ lat, lng, address });
-    setShowForm(true);
+  const handleLocationSelect = (lat: number, lng: number) => {
+    setSelectedLocation({ lat, lng, address: 'Loading address...' });
+    // Don't auto-show form - wait for user to click Confirm button
+  };
+
+  const handleBuildingSelect = (building: BuildingPolygon) => {
+    setSelectedBuilding(building);
+    setSelectedLocation({
+      lat: building.centerLat,
+      lng: building.centerLon,
+      address: building.address || building.businessName || building.buildingId,
+    });
+  };
+
+  const handleConfirmLocation = () => {
+    if (selectedLocation) {
+      setShowForm(true);
+    }
   };
 
   const handleFormSuccess = () => {
     setShowForm(false);
     setSelectedLocation(null);
+    setSelectedBuilding(null);
     // Show success message
     alert('Building registered successfully!');
     // Stay on location picker to register more buildings
@@ -58,6 +76,7 @@ function App() {
   const handleFormCancel = () => {
     setShowForm(false);
     setSelectedLocation(null);
+    setSelectedBuilding(null);
   };
 
   if (!isAuthenticated) {
@@ -87,9 +106,40 @@ function App() {
   // Location Picker Screen (with Building Form)
   return (
     <div className="w-full h-screen flex flex-col">
+      {/* Header */}
+      <div className="bg-white border-b border-gray-200 p-4 flex items-center justify-between">
+        <button
+          onClick={() => setCurrentScreen('session-management')}
+          className="text-blue-600 font-medium"
+        >
+          ← Back
+        </button>
+        <h1 className="text-lg font-bold">Select Location</h1>
+        <div className="w-16"></div>
+      </div>
+
       {/* Location Picker */}
-      <div className="flex-1 overflow-y-auto">
-        <SimpleLocationPicker onLocationSelect={handleLocationSelect} />
+      <div className="flex-1 overflow-y-auto p-4">
+        <EnhancedLocationMap
+          onLocationSelected={handleLocationSelect}
+          onBuildingSelected={handleBuildingSelect}
+        />
+      </div>
+
+      {/* Action Area with Safe-Area Padding */}
+      <div className="bg-white border-t border-gray-200 p-4 pb-[calc(16px+var(--sab))]">
+        <button
+          onClick={handleConfirmLocation}
+          disabled={!selectedLocation}
+          className="w-full bg-blue-600 text-white py-3 rounded-lg font-medium disabled:bg-gray-300 disabled:cursor-not-allowed"
+        >
+          {selectedBuilding ? `Register Building: ${selectedBuilding.buildingId}` : 'Confirm Location'}
+        </button>
+        {selectedLocation && (
+          <p className="text-xs text-gray-600 mt-2 text-center">
+            {selectedLocation.lat.toFixed(6)}, {selectedLocation.lng.toFixed(6)}
+          </p>
+        )}
       </div>
 
       {/* Building Form Modal */}
@@ -98,6 +148,7 @@ function App() {
           latitude={selectedLocation.lat}
           longitude={selectedLocation.lng}
           address={selectedLocation.address}
+          selectedBuilding={selectedBuilding}
           onSuccess={handleFormSuccess}
           onCancel={handleFormCancel}
         />

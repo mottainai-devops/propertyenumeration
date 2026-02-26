@@ -2,22 +2,27 @@ import { useState, useEffect } from 'react';
 import { Camera, CameraResultType, CameraSource } from '@capacitor/camera';
 import { buildingApi, customerApi, type CreateBuildingRequest, type Customer } from '../api/client';
 import CustomerSearch from './CustomerSearch';
+import type { BuildingPolygon } from '../models/BuildingPolygon';
 
 interface BuildingFormProps {
   latitude: number;
   longitude: number;
   address: string;
+  selectedBuilding?: BuildingPolygon | null;
   onSuccess: () => void;
   onCancel: () => void;
 }
 
-export default function BuildingForm({ latitude, longitude, address, onSuccess, onCancel }: BuildingFormProps) {
+export default function BuildingForm({ latitude, longitude, address, selectedBuilding, onSuccess, onCancel }: BuildingFormProps) {
   const [formData, setFormData] = useState({
-    address,
+    address: selectedBuilding?.address || address,
     lotCode: '',
     propertyType: 'residential' as 'residential' | 'commercial' | 'industrial' | 'institutional',
-    contactName: '',
-    contactPhone: '',
+    contactName: selectedBuilding?.businessName || '',
+    contactPhone: selectedBuilding?.custPhone || '',
+    buildingId: selectedBuilding?.buildingId || '',
+    zone: selectedBuilding?.zone || '',
+    socioEconomicClass: selectedBuilding?.socioEconomicGroups || '',
   });
   const [assignedLots, setAssignedLots] = useState<Array<{lotCode: string; lotName: string; companyName?: string}>>([]);
   const [photos, setPhotos] = useState<File[]>([]);
