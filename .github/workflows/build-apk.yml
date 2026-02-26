@@ -37,9 +37,6 @@ jobs:
     - name: Build web assets
       run: npm run build
       
-    - name: Create public directory
-      run: mkdir -p public && cp -r client/dist/* public/
-      
     - name: Sync Capacitor
       run: npx cap sync android
       
