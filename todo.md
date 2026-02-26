@@ -260,8 +260,11 @@
 ### APK Build
 - [x] Run npm run build to compile web assets
 - [x] Run npx cap sync android to sync to Android project
-- [x] Run ./gradlew assembleDebug to build APK (in progress)
+- [x] Install Java 17 for Gradle compatibility
+- [x] Create LOCAL_BUILD_GUIDE.md with complete instructions
+- [ ] Build APK locally (sandbox lacks Android SDK)
 - [ ] Verify APK created at android/app/build/outputs/apk/debug/app-debug.apk
+- [ ] Test APK on physical Android device
 - [ ] Check APK size (target < 15MB)
 
 ### Backend Endpoints for Duplicate Detection
@@ -298,3 +301,13 @@
 - [ ] Test duplicate detection
 - [ ] Test performance with large datasets
 - [ ] Create final checkpoint
+
+
+### GitHub Actions CI/CD
+- [x] Create .github/workflows/build-apk.yml workflow file
+- [x] Configure workflow to build APK on push to main branch
+- [x] Set up artifact upload for built APK
+- [x] Create GITHUB_ACTIONS_GUIDE.md with complete instructions
+- [ ] Push code to GitHub repository (requires GitHub authentication)
+- [ ] Verify workflow runs successfully
+- [ ] Download APK from GitHub Actions artifacts
