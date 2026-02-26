@@ -3,7 +3,7 @@ import type { CapacitorConfig } from '@capacitor/cli';
 const config: CapacitorConfig = {
   appId: 'com.propertyenum.mobile.v2',
   appName: 'Property Enumeration',
-  webDir: 'client/dist',
+  webDir: 'dist/public',
   server: {
     androidScheme: 'http',
     cleartext: true,

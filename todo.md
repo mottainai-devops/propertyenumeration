@@ -251,3 +251,50 @@
 4. Create backend endpoints for duplicate detection
 5. Test on Android device
 6. Build and deploy APK v1.9.0
+
+
+---
+
+## 🚀 v1.9.0 Final - APK Build & Enhancements (IN PROGRESS)
+
+### APK Build
+- [x] Run npm run build to compile web assets
+- [x] Run npx cap sync android to sync to Android project
+- [x] Run ./gradlew assembleDebug to build APK (in progress)
+- [ ] Verify APK created at android/app/build/outputs/apk/debug/app-debug.apk
+- [ ] Check APK size (target < 15MB)
+
+### Backend Endpoints for Duplicate Detection
+- [x] Document API specification in BACKEND_API_SPEC.md
+- [x] Define request/response formats
+- [x] Specify database schema changes needed
+- [ ] Implement GET /api/property-enumeration/buildings/check endpoint (backend team)
+- [ ] Implement GET /api/property-enumeration/customers endpoint (backend team)
+- [ ] Test endpoints with sample building IDs
+- [ ] Replace mock data in duplicateDetectionService.ts with real API calls
+
+### Frontend Duplicate Detection
+- [x] Create duplicate detection service with backend API placeholder
+- [x] Add warning dialog when selecting building with existing customers
+- [x] Show customer labels in dialog (e.g., "R1, R2, B1")
+- [x] Add "Continue Anyway" and "Cancel" buttons to dialog
+- [x] Integrate duplicate check into location confirmation flow
+- [ ] Test duplicate detection flow with real backend API
+- [ ] Replace mock data with actual API calls
+
+### Performance Optimization
+- [ ] Implement label clustering for zoom levels < 16
+- [ ] Add zoom-level filtering for polygon rendering
+- [ ] Test with 1000+ polygons
+- [ ] Measure rendering performance (FPS)
+- [ ] Optimize if needed (virtual rendering, canvas labels)
+
+### Final Testing
+- [ ] Test APK on physical Android device
+- [ ] Verify map loads in WebView
+- [ ] Verify polygons and labels render correctly
+- [ ] Test GPS location accuracy
+- [ ] Test offline caching
+- [ ] Test duplicate detection
+- [ ] Test performance with large datasets
+- [ ] Create final checkpoint

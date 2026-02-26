@@ -5,6 +5,8 @@ import SessionStatistics from './components/SessionStatistics';
 import EnhancedLocationMap from './components/EnhancedLocationMap';
 import type { BuildingPolygon } from './models/BuildingPolygon';
 import BuildingForm from './components/BuildingForm';
+import DuplicateWarningDialog from './components/DuplicateWarningDialog';
+import { checkBuildingDuplicates, type DuplicateCheckResult } from './services/duplicateDetectionService';
 
 interface SelectedLocation {
   lat: number;
@@ -20,6 +22,8 @@ function App() {
   const [selectedLocation, setSelectedLocation] = useState<SelectedLocation | null>(null);
   const [selectedBuilding, setSelectedBuilding] = useState<BuildingPolygon | null>(null);
   const [showForm, setShowForm] = useState(false);
+  const [showDuplicateWarning, setShowDuplicateWarning] = useState(false);
+  const [duplicateInfo, setDuplicateInfo] = useState<DuplicateCheckResult | null>(null);
   useEffect(() => {
     // Check if user is already logged in
     const token = localStorage.getItem('jwt_token');
@@ -58,10 +62,36 @@ function App() {
     });
   };
 
-  const handleConfirmLocation = () => {
-    if (selectedLocation) {
-      setShowForm(true);
+  const handleConfirmLocation = async () => {
+    if (!selectedLocation) return;
+
+    // Check for duplicates if a building is selected
+    if (selectedBuilding) {
+      try {
+        const result = await checkBuildingDuplicates(selectedBuilding.buildingId);
+        if (result.exists) {
+          setDuplicateInfo(result);
+          setShowDuplicateWarning(true);
+          return; // Wait for user decision
+        }
+      } catch (error) {
+        console.error('Error checking duplicates:', error);
+        // Continue anyway on error
+      }
     }
+
+    // No duplicates or no building selected - proceed directly
+    setShowForm(true);
+  };
+
+  const handleDuplicateContinue = () => {
+    setShowDuplicateWarning(false);
+    setShowForm(true);
+  };
+
+  const handleDuplicateCancel = () => {
+    setShowDuplicateWarning(false);
+    setDuplicateInfo(null);
   };
 
   const handleFormSuccess = () => {
@@ -141,6 +171,15 @@ function App() {
           </p>
         )}
       </div>
+
+      {/* Duplicate Warning Dialog */}
+      <DuplicateWarningDialog
+        open={showDuplicateWarning}
+        buildingId={selectedBuilding?.buildingId || ''}
+        duplicateInfo={duplicateInfo}
+        onContinue={handleDuplicateContinue}
+        onCancel={handleDuplicateCancel}
+      />
 
       {/* Building Form Modal */}
       {showForm && selectedLocation && (
