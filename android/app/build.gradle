@@ -1,24 +1,14 @@
 apply plugin: 'com.android.application'
 
 android {
-    namespace = "com.propertyenum.mobile.v2"
+    namespace = "com.mottainai.enumeration"
     compileSdk = rootProject.ext.compileSdkVersion
-    
-    signingConfigs {
-        release {
-            storeFile file("../../mottainai-release-key.jks")
-            storePassword "mottainai2026"
-            keyAlias "mottainai-key"
-            keyPassword "mottainai2026"
-        }
-    }
-    
     defaultConfig {
-        applicationId "com.propertyenum.mobile.v2"
+        applicationId "com.mottainai.enumeration"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 190
-        versionName "1.9.0"
+        versionCode 1100
+        versionName "1.10.0"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
@@ -28,14 +18,8 @@ android {
     }
     buildTypes {
         release {
-            signingConfig signingConfigs.release
-            minifyEnabled true
-            shrinkResources true
-            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
-            // Optimize APK size
-            ndk {
-                abiFilters 'armeabi-v7a', 'arm64-v8a', 'x86', 'x86_64'
-            }
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }
     }
 }

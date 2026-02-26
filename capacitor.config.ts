@@ -3,21 +3,13 @@ import type { CapacitorConfig } from '@capacitor/cli';
 const config: CapacitorConfig = {
   appId: 'com.propertyenum.mobile.v2',
   appName: 'Property Enumeration',
-  webDir: 'dist/public',
+  webDir: 'dist',
   server: {
     androidScheme: 'http',
     cleartext: true,
     allowNavigation: ['*']
   },
-  android: {
-    buildOptions: {
-      keystorePath: undefined,
-      keystorePassword: undefined,
-      keystoreAlias: undefined,
-      keystoreAliasPassword: undefined,
-      releaseType: 'APK'
-    }
-  }
+  android: {}
 };
 
 export default config;
