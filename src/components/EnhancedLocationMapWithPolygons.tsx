@@ -135,6 +135,8 @@ export function EnhancedLocationMapWithPolygons({
   const [isLoadingPolygons, setIsLoadingPolygons] = useState(false);
   const [polygonError, setPolygonError] = useState<string | null>(null);
   const [flyTarget, setFlyTarget] = useState<[number, number] | null>(null);
+  const [isDownloading, setIsDownloading] = useState(false);
+  const [downloadProgress, setDownloadProgress] = useState<string | null>(null);
 
   // Search state
   const [searchQuery, setSearchQuery] = useState('');
@@ -199,13 +201,47 @@ export function EnhancedLocationMapWithPolygons({
         savePolygonsToCache(freshPolygons, lat, lon);
         tryAutoSelect(lat, lon, freshPolygons);
       } else if (cachedPolygons.length === 0) {
-        setPolygonError('No building data available for this area');
+        setPolygonError('No building data — tap Download to save area data for offline use');
       }
     } catch (error) {
       console.error('Error loading polygons:', error);
-      setPolygonError('Failed to load building data');
+      // Check if we have cached data to fall back to
+      const cachedPolygons = getCachedPolygonsNearLocation(lat, lon, 5.0);
+      if (cachedPolygons.length > 0) {
+        setPolygons(cachedPolygons);
+        tryAutoSelect(lat, lon, cachedPolygons);
+        setPolygonError('Offline — showing cached data');
+      } else {
+        setPolygonError('No internet & no cached data — tap Download when online');
+      }
     } finally {
       setIsLoadingPolygons(false);
+    }
+  }
+
+  async function handleDownloadAreaData() {
+    setIsDownloading(true);
+    setDownloadProgress('Connecting to ArcGIS…');
+    try {
+      setDownloadProgress('Downloading building data…');
+      const freshPolygons = await fetchPolygonsNearLocation(position[0], position[1], 5.0);
+      if (freshPolygons.length > 0) {
+        setPolygons(freshPolygons);
+        savePolygonsToCache(freshPolygons, position[0], position[1]);
+        tryAutoSelect(position[0], position[1], freshPolygons);
+        setPolygonError(null);
+        setDownloadProgress(`✓ ${freshPolygons.length} buildings saved for offline use`);
+        setTimeout(() => setDownloadProgress(null), 3000);
+      } else {
+        setDownloadProgress('No buildings found in this area');
+        setTimeout(() => setDownloadProgress(null), 3000);
+      }
+    } catch (error) {
+      console.error('Download error:', error);
+      setDownloadProgress('Download failed — check internet connection');
+      setTimeout(() => setDownloadProgress(null), 4000);
+    } finally {
+      setIsDownloading(false);
     }
   }
 
@@ -445,10 +481,33 @@ export function EnhancedLocationMapWithPolygons({
             </div>
           )}
 
-          {/* Polygon error */}
+          {/* Polygon error / offline notice */}
           {polygonError && !isLoadingPolygons && (
-            <div className="absolute top-2 left-1/2 -translate-x-1/2 bg-yellow-50 px-4 py-2 rounded-full shadow-md text-sm text-yellow-700 z-[1001]">
-              {polygonError}
+            <div className="absolute top-2 left-1/2 -translate-x-1/2 bg-yellow-50 border border-yellow-300 px-3 py-2 rounded-xl shadow-md text-xs text-yellow-800 z-[1001] flex items-center gap-2 max-w-[85%]">
+              <span className="shrink-0">⚠️</span>
+              <span>{polygonError}</span>
+              {polygons.length === 0 && (
+                <button
+                  onClick={handleDownloadAreaData}
+                  disabled={isDownloading}
+                  className="ml-1 px-2 py-0.5 bg-blue-600 text-white rounded-lg text-xs font-bold shrink-0 disabled:opacity-50"
+                >
+                  {isDownloading ? '…' : 'Download'}
+                </button>
+              )}
+            </div>
+          )}
+
+          {/* Download progress toast */}
+          {downloadProgress && (
+            <div className="absolute top-2 left-1/2 -translate-x-1/2 bg-blue-600 text-white px-4 py-2 rounded-full shadow-md text-xs font-semibold z-[1002] flex items-center gap-2">
+              {isDownloading && (
+                <svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                </svg>
+              )}
+              {downloadProgress}
             </div>
           )}
 

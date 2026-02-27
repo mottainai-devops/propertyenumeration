@@ -303,6 +303,11 @@ function App() {
           pendingCount={pendingBuildings.length}
           onViewQueue={() => setCurrentScreen('offline-queue')}
           onViewStats={() => setCurrentScreen('statistics')}
+          surveyedCount={surveyedBuildingIds.size}
+          onClearSurveyedHistory={() => {
+            setSurveyedBuildingIds(new Set());
+            try { localStorage.removeItem('surveyedBuildingIds'); } catch {}
+          }}
         />
       )}
 
@@ -325,7 +330,14 @@ function App() {
       {currentScreen === 'location' && (
         <div className="container mx-auto px-4 pt-4 pb-4">
           <div className="flex justify-between items-center mb-3">
-            <h1 className="text-xl font-bold text-gray-900">Property Enumeration</h1>
+            <div>
+              <h1 className="text-xl font-bold text-gray-900">Property Enumeration</h1>
+              {surveyedBuildingIds.size > 0 && (
+                <p className="text-xs text-green-700 font-semibold mt-0.5">
+                  ✓ {surveyedBuildingIds.size} building{surveyedBuildingIds.size !== 1 ? 's' : ''} surveyed this session
+                </p>
+              )}
+            </div>
             <button
               onClick={handleLogout}
               className="px-3 py-1.5 bg-red-500 text-white rounded-lg hover:bg-red-600 transition text-sm"

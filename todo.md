@@ -86,3 +86,13 @@
 - [x] Grey-out already-surveyed polygons with reduced opacity, dashed border, and checkmark label
 - [x] Track surveyed buildings in localStorage (keyed by buildingId)
 - [x] Pass surveyed building IDs from App.tsx down to map component
+
+---
+
+## 🔧 v1.19.0 - Clear History, Progress Counter, Offline Download
+
+- [x] Add "Clear surveyed history" button in session screen to reset grey indicators
+- [x] Show session progress counter in location screen header (e.g., "12 surveyed today")
+- [x] Add "Download area data" button when polygon cache is empty for offline use
+- [x] Show download progress indicator while fetching area polygons
+- [x] Offline search and auto-select work from cached data without internet

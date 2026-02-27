@@ -6,6 +6,8 @@ interface SessionManagementProps {
   pendingCount: number;
   onViewQueue: () => void;
   onViewStats?: () => void;
+  surveyedCount?: number;
+  onClearSurveyedHistory?: () => void;
 }
 
 export default function SessionManagement({
@@ -14,25 +16,29 @@ export default function SessionManagement({
   pendingCount,
   onViewQueue,
   onViewStats,
+  surveyedCount = 0,
+  onClearSurveyedHistory,
 }: SessionManagementProps) {
   const [user, setUser] = useState<any>(null);
   const [activeSession, setActiveSession] = useState<any>(null);
+  const [showClearConfirm, setShowClearConfirm] = useState(false);
 
   useEffect(() => {
     const savedUser = localStorage.getItem('user');
-    if (savedUser) {
-      setUser(JSON.parse(savedUser));
-    }
-
+    if (savedUser) setUser(JSON.parse(savedUser));
     const savedSession = localStorage.getItem('activeSession');
-    if (savedSession) {
-      setActiveSession(JSON.parse(savedSession));
-    }
+    if (savedSession) setActiveSession(JSON.parse(savedSession));
   }, []);
+
+  const handleClearHistory = () => {
+    if (onClearSurveyedHistory) onClearSurveyedHistory();
+    setShowClearConfirm(false);
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-teal-50 to-green-50 p-6">
       <div className="max-w-2xl mx-auto">
+
         {/* Header */}
         <div className="bg-white rounded-2xl shadow-xl p-6 mb-6">
           <div className="flex items-center justify-between mb-4">
@@ -77,7 +83,7 @@ export default function SessionManagement({
                   <h2 className="text-lg font-bold text-yellow-900">Offline Queue</h2>
                 </div>
                 <p className="text-sm text-yellow-800 mb-4">
-                  You have {pendingCount} building{pendingCount > 1 ? 's' : ''} waiting to be synced to the server.
+                  You have {pendingCount} building{pendingCount > 1 ? 's' : ''} waiting to be synced.
                 </p>
                 <button
                   onClick={onViewQueue}
@@ -99,7 +105,7 @@ export default function SessionManagement({
         )}
 
         {/* Main Action Card */}
-        <div className="bg-white rounded-2xl shadow-xl p-8">
+        <div className="bg-white rounded-2xl shadow-xl p-8 mb-6">
           <div className="text-center mb-6">
             <div className="w-20 h-20 bg-gradient-to-br from-blue-500 to-teal-500 rounded-full flex items-center justify-center mx-auto mb-4">
               <svg className="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -108,9 +114,7 @@ export default function SessionManagement({
               </svg>
             </div>
             <h2 className="text-2xl font-bold text-gray-900 mb-2">Start Enumeration</h2>
-            <p className="text-gray-600">
-              Begin registering buildings in your assigned area
-            </p>
+            <p className="text-gray-600">Begin registering buildings in your assigned area</p>
           </div>
 
           <button
@@ -155,38 +159,86 @@ export default function SessionManagement({
         )}
 
         {/* Quick Stats */}
-        <div className="grid grid-cols-2 gap-4 mt-6">
+        <div className="grid grid-cols-3 gap-3 mb-6">
           <div className="bg-white rounded-xl shadow p-4">
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
-                <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div className="flex flex-col items-center text-center">
+              <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center mb-2">
+                <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
                 </svg>
               </div>
-              <div>
-                <p className="text-xs text-gray-600">Total Buildings</p>
-                <p className="text-xl font-bold text-gray-900">{activeSession?.buildingsRegistered || 0}</p>
-              </div>
+              <p className="text-xs text-gray-500">Registered</p>
+              <p className="text-xl font-bold text-gray-900">{activeSession?.buildingsRegistered || 0}</p>
             </div>
           </div>
 
           <div className="bg-white rounded-xl shadow p-4">
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center">
-                <svg className="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div className="flex flex-col items-center text-center">
+              <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center mb-2">
+                <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+              <p className="text-xs text-gray-500">Surveyed</p>
+              <p className="text-xl font-bold text-green-700">{surveyedCount}</p>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-xl shadow p-4">
+            <div className="flex flex-col items-center text-center">
+              <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center mb-2">
+                <svg className="w-5 h-5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
                 </svg>
               </div>
-              <div>
-                <p className="text-xs text-gray-600">Pending Sync</p>
-                <p className="text-xl font-bold text-gray-900">{pendingCount}</p>
-              </div>
+              <p className="text-xs text-gray-500">Pending Sync</p>
+              <p className="text-xl font-bold text-gray-900">{pendingCount}</p>
             </div>
           </div>
         </div>
 
+        {/* Surveyed History Management */}
+        {surveyedCount > 0 && (
+          <div className="bg-green-50 border border-green-200 rounded-xl p-4 mb-6">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <div>
+                  <p className="text-sm font-semibold text-green-900">{surveyedCount} building{surveyedCount !== 1 ? 's' : ''} marked as surveyed</p>
+                  <p className="text-xs text-green-700">Grey polygons on map indicate completed buildings</p>
+                </div>
+              </div>
+              {!showClearConfirm ? (
+                <button
+                  onClick={() => setShowClearConfirm(true)}
+                  className="ml-3 px-3 py-1.5 text-xs bg-white border border-green-300 text-green-700 rounded-lg hover:bg-green-100 transition font-medium shrink-0"
+                >
+                  Clear History
+                </button>
+              ) : (
+                <div className="flex gap-2 ml-3 shrink-0">
+                  <button
+                    onClick={handleClearHistory}
+                    className="px-3 py-1.5 text-xs bg-red-500 text-white rounded-lg hover:bg-red-600 transition font-medium"
+                  >
+                    Confirm
+                  </button>
+                  <button
+                    onClick={() => setShowClearConfirm(false)}
+                    className="px-3 py-1.5 text-xs bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition font-medium"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* Help Section */}
-        <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mt-6">
+        <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
           <div className="flex items-start gap-3">
             <svg className="w-5 h-5 text-blue-600 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
