@@ -3,9 +3,13 @@ import { MapContainer, TileLayer, Marker, Polygon, Popup, useMap, useMapEvents }
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import type { BuildingPolygon } from '../models/BuildingPolygon';
-import { fetchPolygonsNearLocation, fetchPolygonsInBounds } from '../services/arcgisService';
+import { fetchPolygonsNearLocation } from '../services/arcgisService';
 import { getCachedPolygonsNearLocation, savePolygonsToCache } from '../services/simplePolygonCache';
 import { findPolygonAtPoint } from '../utils/pointInPolygon';
+import { getMockPolygons } from '../services/mockPolygonData';
+
+// Enable mock data for testing polygon rendering
+const USE_MOCK_DATA = true;
 
 // Fix Leaflet default marker icon issue - use local bundled icons
 delete (L.Icon.Default.prototype as any)._getIconUrl;
@@ -204,34 +208,7 @@ export function EnhancedLocationMapWithPolygons({
     return () => clearTimeout(timer);
   }, []); // Only load once on mount
 
-  /**
-   * Load polygons from cache or ArcGIS using viewport bounds
-   */
-  async function loadPolygonsInViewport(bounds: { north: number; south: number; east: number; west: number }) {
-    setIsLoadingPolygons(true);
-    setPolygonError(null);
-
-    try {
-      // Fetch polygons in viewport from ArcGIS
-      const freshPolygons = await fetchPolygonsInBounds(bounds);
-      
-      if (freshPolygons.length > 0) {
-        setPolygons(freshPolygons);
-        // Update cache
-        const centerLat = (bounds.north + bounds.south) / 2;
-        const centerLon = (bounds.east + bounds.west) / 2;
-        savePolygonsToCache(freshPolygons, centerLat, centerLon);
-        console.log(`Fetched and cached ${freshPolygons.length} polygons from viewport`);
-      } else {
-        setPolygonError('No building data available in this area');
-      }
-    } catch (error) {
-      console.error('Error loading polygons in viewport:', error);
-      setPolygonError('Failed to load building data');
-    } finally {
-      setIsLoadingPolygons(false);
-    }
-  }
+  // Removed loadPolygonsInViewport - using loadPolygons instead for simplicity
 
   /**
    * Load polygons from cache or ArcGIS (fallback to radius-based)
@@ -241,6 +218,15 @@ export function EnhancedLocationMapWithPolygons({
     setPolygonError(null);
 
     try {
+      // Use mock data for testing if enabled
+      if (USE_MOCK_DATA) {
+        console.log('[MockData] Using mock polygons for testing');
+        const mockPolygons = getMockPolygons();
+        setPolygons(mockPolygons);
+        setIsLoadingPolygons(false);
+        return;
+      }
+
       // Try cache first
       const cachedPolygons = getCachedPolygonsNearLocation(lat, lon, 5.0);
       
@@ -402,29 +388,55 @@ export function EnhancedLocationMapWithPolygons({
           </div>
         )}
 
-        {/* Refresh button */}
+        {/* Refresh button - positioned bottom-left to avoid zoom controls */}
         <button
           onClick={() => {
-            // Get current map bounds and reload polygons
-            const mapElement = document.querySelector('.leaflet-container') as any;
-            if (mapElement && mapElement._leaflet_map) {
-              const map = mapElement._leaflet_map;
-              const bounds = map.getBounds();
-              loadPolygonsInViewport({
-                north: bounds.getNorth(),
-                south: bounds.getSouth(),
-                east: bounds.getEast(),
-                west: bounds.getWest(),
-              });
-            }
+            console.log('[Refresh] Reloading polygons...');
+            loadPolygons(position[0], position[1]);
           }}
           disabled={isLoadingPolygons}
-          className="absolute top-2 left-2 bg-white px-3 py-2 rounded-lg shadow-md text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed z-10 flex items-center gap-2"
+          className="absolute bottom-12 left-2 bg-white p-2 rounded-lg shadow-md text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed z-[1000] flex items-center justify-center"
+          title="Refresh building data"
         >
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
           </svg>
-          Refresh
+        </button>
+
+        {/* Location widget - center map on current GPS position */}
+        <button
+          onClick={() => {
+            console.log('[Location] Getting current GPS position...');
+            if (navigator.geolocation) {
+              navigator.geolocation.getCurrentPosition(
+                (pos) => {
+                  const newLat = pos.coords.latitude;
+                  const newLon = pos.coords.longitude;
+                  console.log(`[Location] GPS position: ${newLat}, ${newLon}`);
+                  setPosition([newLat, newLon]);
+                  onLocationChange(newLat, newLon);
+                },
+                (error) => {
+                  console.error('[Location] Error getting GPS:', error);
+                  alert('Unable to get GPS location. Please enable location services.');
+                },
+                {
+                  enableHighAccuracy: true,
+                  timeout: 10000,
+                  maximumAge: 0,
+                }
+              );
+            } else {
+              alert('Geolocation is not supported by this device.');
+            }
+          }}
+          className="absolute bottom-12 right-2 bg-white p-2 rounded-lg shadow-md text-gray-700 hover:bg-gray-50 z-[1000] flex items-center justify-center"
+          title="Center on my location"
+        >
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+          </svg>
         </button>
 
         {/* Polygon count indicator */}
