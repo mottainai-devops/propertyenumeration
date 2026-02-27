@@ -65,3 +65,12 @@
 - [x] Reduce map label font size and only show labels at zoom >= 20 (labels hidden at zoom 18-19)
 - [x] Remove excess whitespace below building selection card
 - [x] Tighten location screen layout: smaller header, removed info box, compact padding
+
+---
+
+## 🔧 v1.17.0 - Polygon Labels (IN PROGRESS)
+
+- [x] Show polygon labels at zoom >= 18 (was 20)
+- [x] Label shows business name if available (not 'None'), otherwise building ID
+- [x] Label text truncated at 18 chars with ellipsis
+- [x] Labels remain non-interactive (pointer-events: none) so tapping the label still selects the polygon

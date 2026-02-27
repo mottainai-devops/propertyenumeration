@@ -79,7 +79,7 @@ function MapRefCapture({ onMapReady }: { onMapReady: (map: L.Map) => void }) {
 }
 
 /**
- * Zoom-dependent label component
+ * Zoom-dependent label component - shows business name (if available) or building ID
  */
 function ZoomDependentLabel({ polygon, minZoom = 18 }: { polygon: BuildingPolygon; minZoom?: number }) {
   const map = useMap();
@@ -100,10 +100,19 @@ function ZoomDependentLabel({ polygon, minZoom = 18 }: { polygon: BuildingPolygo
 
   if (!showLabel) return null;
 
-  // Create custom text marker with reduced size
+  // Prefer business name over building ID; filter out 'None' values
+  const rawName = polygon.businessName;
+  const hasValidBusiness = rawName && rawName !== 'None' && rawName !== 'none' && rawName.trim() !== '';
+  const labelText = hasValidBusiness ? rawName! : polygon.buildingId;
+
+  // Truncate long names to keep labels compact
+  const maxChars = 18;
+  const displayText = labelText.length > maxChars ? labelText.slice(0, maxChars - 1) + '…' : labelText;
+
+  // Create custom text marker - small, non-interactive, white shadow for legibility
   const labelIcon = L.divIcon({
     className: 'building-label',
-    html: `<div style="font-size: 9px; color: #333; text-shadow: 1px 1px 2px white; font-weight: bold; white-space: nowrap; pointer-events: none;">${polygon.buildingId}</div>`,
+    html: `<div style="font-size: 8px; color: #1a1a1a; text-shadow: 0 0 3px white, 0 0 3px white; font-weight: 700; white-space: nowrap; pointer-events: none; line-height: 1.2; text-align: center;">${displayText}</div>`,
     iconSize: [0, 0],
     iconAnchor: [0, 0],
   });
@@ -391,7 +400,7 @@ export function EnhancedLocationMapWithPolygons({
                     click: (e) => handlePolygonClick(polygon, e),
                   }}
                 />
-                <ZoomDependentLabel polygon={polygon} minZoom={20} />
+                <ZoomDependentLabel polygon={polygon} minZoom={18} />
               </React.Fragment>
             );
           })}
