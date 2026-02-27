@@ -8,12 +8,13 @@ import BuildingForm from './components/BuildingForm';
 import OfflineQueue from './components/OfflineQueue';
 import SessionStatistics from './components/SessionStatistics';
 import BuildingsList from './components/BuildingsList';
+import SessionHistory from './components/SessionHistory';
 import ErrorBoundary from './components/ErrorBoundary';
 import { useToast } from './components/Toast';
 import { authApi, buildingApi, customerApi, sessionApi, type Session } from './api/client';
 import { getOperationErrorMessage, logError, retryOperation } from './utils/errorHandler';
 
-type AppScreen = 'login' | 'session' | 'location' | 'building' | 'success' | 'offline-queue' | 'statistics' | 'buildings-list';
+type AppScreen = 'login' | 'session' | 'location' | 'building' | 'success' | 'offline-queue' | 'statistics' | 'buildings-list' | 'session-history';
 
 interface LocationData {
   latitude: number;
@@ -91,7 +92,7 @@ function App() {
       backButtonHandler = await CapacitorApp.addListener('backButton', ({ canGoBack }) => {
         if (currentScreen === 'building' || currentScreen === 'location') {
           setCurrentScreen('session');
-        } else if (currentScreen === 'buildings-list' || currentScreen === 'statistics' || currentScreen === 'offline-queue') {
+        } else if (currentScreen === 'buildings-list' || currentScreen === 'statistics' || currentScreen === 'offline-queue' || currentScreen === 'session-history') {
           setCurrentScreen('session');
         } else if (currentScreen === 'success') {
           setCurrentScreen('location');
@@ -447,6 +448,7 @@ function App() {
             onViewQueue={() => setCurrentScreen('offline-queue')}
             onViewStats={() => setCurrentScreen('statistics')}
             onViewBuildings={() => setCurrentScreen('buildings-list')}
+            onViewSessionHistory={() => setCurrentScreen('session-history')}
             surveyedCount={surveyedBuildingIds.size}
             recentBuildingsCount={recentBuildings.length}
             onClearSurveyedHistory={() => {
@@ -486,6 +488,12 @@ function App() {
           <BuildingsList
             buildings={recentBuildings}
             pendingBuildings={pendingBuildings}
+            onClose={() => setCurrentScreen('session')}
+          />
+        )}
+
+        {currentScreen === 'session-history' && (
+          <SessionHistory
             onClose={() => setCurrentScreen('session')}
           />
         )}
@@ -533,19 +541,29 @@ function App() {
         )}
 
         {currentScreen === 'building' && location && (
-          <div className="container mx-auto px-4 py-8">
-            <div className="flex justify-between items-center mb-6">
-              <h1 className="text-3xl font-bold text-gray-900">Property Enumeration</h1>
+          <div className="container mx-auto px-4 pt-4 pb-4">
+            <div className="flex justify-between items-center mb-3">
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => { setSelectedBuildingData(null); setCurrentScreen('location'); }}
+                  className="p-1.5 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                  </svg>
+                </button>
+                <h1 className="text-xl font-bold text-gray-900">Register Building</h1>
+              </div>
               <button
                 onClick={handleLogout}
-                className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition"
+                className="px-3 py-1.5 bg-red-500 text-white rounded-lg hover:bg-red-600 transition text-sm"
               >
                 Logout
               </button>
             </div>
-            <div className="bg-white rounded-2xl shadow-xl p-6">
-              <h2 className="text-2xl font-bold text-gray-900 mb-4">Step 2: Building Information</h2>
-              <p className="text-gray-600 mb-6">
+            <div className="bg-white rounded-2xl shadow-xl p-4">
+              <h2 className="text-lg font-bold text-gray-900 mb-1">Step 2: Building Information</h2>
+              <p className="text-gray-500 text-sm mb-3">
                 Fill in the building details and capture photos.
               </p>
               <BuildingForm
@@ -562,46 +580,77 @@ function App() {
         )}
 
         {currentScreen === 'success' && (
-          <div className="container mx-auto px-4 py-8">
-            <div className="flex justify-between items-center mb-6">
-              <h1 className="text-3xl font-bold text-gray-900">Property Enumeration</h1>
+          <div className="container mx-auto px-4 pt-4 pb-4">
+            <div className="flex justify-between items-center mb-3">
+              <h1 className="text-xl font-bold text-gray-900">Property Enumeration</h1>
               <button
                 onClick={handleLogout}
-                className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition"
+                className="px-3 py-1.5 bg-red-500 text-white rounded-lg hover:bg-red-600 transition text-sm"
               >
                 Logout
               </button>
             </div>
-            <div className="bg-white rounded-2xl shadow-xl p-8 text-center">
-              <div className="text-6xl mb-4">✅</div>
-              <h2 className="text-3xl font-bold text-gray-900 mb-2">Success!</h2>
-              <p className="text-gray-600 mb-2">
-                Building registered successfully{!isOnline && ' (offline — will sync later)'}.
+            <div className="bg-white rounded-2xl shadow-xl p-6 text-center">
+              <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                <svg className="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+              <h2 className="text-2xl font-bold text-gray-900 mb-1">Building Registered!</h2>
+              <p className="text-gray-500 text-sm mb-4">
+                {!isOnline ? 'Saved offline — will sync when online.' : 'Successfully saved to server.'}
               </p>
               {recentBuildings[0] && (
-                <div className="bg-gray-50 rounded-xl p-4 mb-6 text-left">
-                  <p className="text-sm font-semibold text-gray-700">{recentBuildings[0].address}</p>
+                <div className="bg-gray-50 rounded-xl p-4 mb-4 text-left">
+                  {recentBuildings[0].buildingId && (
+                    <p className="text-xs font-mono text-blue-600 mb-1">ID: {recentBuildings[0].buildingId}</p>
+                  )}
+                  <p className="text-sm font-semibold text-gray-800">{recentBuildings[0].address}</p>
                   {recentBuildings[0].buildingName && (
-                    <p className="text-xs text-gray-500">{recentBuildings[0].buildingName}</p>
+                    <p className="text-xs text-gray-500 mt-0.5">{recentBuildings[0].buildingName}</p>
                   )}
                   <p className="text-xs text-gray-400 mt-1">
                     {recentBuildings[0].propertyType} · {recentBuildings[0].numberOfUnits} unit{recentBuildings[0].numberOfUnits !== 1 ? 's' : ''}
-                    {Array.isArray(recentBuildings[0].photos) && recentBuildings[0].photos.length > 0 && ` · ${recentBuildings[0].photos.length} photo${recentBuildings[0].photos.length !== 1 ? 's' : ''}`}
+                    {recentBuildings[0].lotCode && ` · ${recentBuildings[0].lotCode}`}
                   </p>
+                  {/* Photo thumbnails */}
+                  {Array.isArray(recentBuildings[0].photos) && recentBuildings[0].photos.length > 0 && (
+                    <div className="flex gap-2 mt-3 overflow-x-auto pb-1">
+                      {recentBuildings[0].photos.slice(0, 4).map((photo: string, i: number) => (
+                        <img
+                          key={i}
+                          src={photo}
+                          alt={`Photo ${i + 1}`}
+                          className="w-16 h-16 object-cover rounded-lg flex-shrink-0 border border-gray-200"
+                        />
+                      ))}
+                      {recentBuildings[0].photos.length > 4 && (
+                        <div className="w-16 h-16 bg-gray-100 rounded-lg flex-shrink-0 flex items-center justify-center text-xs text-gray-500 font-medium">
+                          +{recentBuildings[0].photos.length - 4}
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               )}
               <div className="flex flex-col gap-3">
                 <button
                   onClick={handleRegisterAnother}
-                  className="px-8 py-4 bg-gradient-to-r from-blue-500 to-teal-500 text-white rounded-lg hover:from-blue-600 hover:to-teal-600 transition font-medium text-lg"
+                  className="w-full py-3 bg-gradient-to-r from-blue-500 to-teal-500 text-white rounded-xl hover:from-blue-600 hover:to-teal-600 transition font-bold text-base shadow"
                 >
                   Register Another Building
                 </button>
                 <button
                   onClick={() => setCurrentScreen('buildings-list')}
-                  className="px-8 py-3 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition font-medium"
+                  className="w-full py-2.5 bg-gray-100 text-gray-700 rounded-xl hover:bg-gray-200 transition font-medium text-sm"
                 >
                   View All Registered Buildings
+                </button>
+                <button
+                  onClick={() => setCurrentScreen('session')}
+                  className="w-full py-2.5 bg-gray-50 text-gray-500 rounded-xl hover:bg-gray-100 transition font-medium text-sm"
+                >
+                  Back to Dashboard
                 </button>
               </div>
             </div>

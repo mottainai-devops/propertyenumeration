@@ -169,3 +169,20 @@
 - [x] Add green Share button next to Export CSV in SessionStatistics header
 - [x] Uses Web Share API with file sharing (Android native share sheet)
 - [x] Falls back to browser download if Web Share API not available
+
+---
+
+## 🔧 v1.25.0 - Remaining Modules (buildingApi.list, session history, customer unlink, building edit, UI polish)
+
+### High Priority
+- [ ] Wire buildingApi.list() to BuildingsList screen (replace localStorage-only data)
+- [ ] Add dedicated buildingId field to building submission (not just in notes)
+- [ ] Add session history browser screen (list past sessions from sessionApi.list())
+- [ ] Add customer unlink button in BuildingForm step 2
+- [ ] Add building edit screen (open registered building and edit fields)
+
+### Low Priority Polish
+- [ ] Success screen: add photo thumbnails for the registered building
+- [ ] Building screen header: tighten padding to match location screen
+- [ ] Offline queue: show photo count and GPS per pending building
+- [ ] Session end GPS: add fallback when GPS unavailable
