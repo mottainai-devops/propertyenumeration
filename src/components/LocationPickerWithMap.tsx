@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { MapErrorBoundary } from './MapErrorBoundary';
 import { EnhancedLocationMapWithPolygons } from './EnhancedLocationMapWithPolygons';
 import SimpleLocationPicker from './SimpleLocationPicker';
+import type { BuildingPolygon } from '../models/BuildingPolygon';
 
 interface LocationData {
   latitude: number;
@@ -21,7 +22,7 @@ interface LocationPickerWithMapProps {
 export default function LocationPickerWithMap({ onLocationSelect }: LocationPickerWithMapProps) {
   const [location, setLocation] = useState<LocationData>({ latitude: 6.5244, longitude: 3.3792 }); // Default: Lagos
   const [useMap, setUseMap] = useState(true);
-
+  const [selectedBuilding, setSelectedBuilding] = useState<BuildingPolygon | null>(null);
 
   // Get initial GPS location
   useEffect(() => {
@@ -46,15 +47,54 @@ export default function LocationPickerWithMap({ onLocationSelect }: LocationPick
     }
   }, []);
 
-  const [selectedBuilding, setSelectedBuilding] = useState<any>(null);
-
+  // Called when the user drags the marker or the map location changes
+  // Does NOT navigate to form - just updates the stored location
   const handleMapLocationChange = (lat: number, lng: number) => {
-    const newLocation = { latitude: lat, longitude: lng };
-    setLocation(newLocation);
-    // If no building is selected, just pass location
-    if (!selectedBuilding) {
-      onLocationSelect(newLocation);
+    setLocation({ latitude: lat, longitude: lng });
+    // Clear building selection if user moves the marker manually
+    // (only clear if the new position is far from the selected building center)
+    if (selectedBuilding) {
+      const dist = Math.sqrt(
+        Math.pow(selectedBuilding.centerLat - lat, 2) +
+        Math.pow(selectedBuilding.centerLon - lng, 2)
+      );
+      // If moved more than ~50m away from building center, clear selection
+      if (dist * 111000 > 50) {
+        setSelectedBuilding(null);
+      }
     }
+  };
+
+  // Called when user taps a polygon - shows confirmation card, does NOT navigate
+  const handleBuildingSelected = (building: BuildingPolygon) => {
+    console.log('[LocationPicker] Building selected from polygon tap:', building.buildingId);
+    console.log('[LocationPicker] Building data:', {
+      buildingId: building.buildingId,
+      address: building.address,
+      businessName: building.businessName,
+      zone: building.zone,
+    });
+    setSelectedBuilding(building);
+    setLocation({ latitude: building.centerLat, longitude: building.centerLon });
+  };
+
+  // Called when user presses "Proceed with this Building" - navigates to form WITH building data
+  const handleProceedWithBuilding = () => {
+    if (!selectedBuilding) return;
+
+    const locationData: LocationData = {
+      latitude: selectedBuilding.centerLat,
+      longitude: selectedBuilding.centerLon,
+    };
+    const buildingData = {
+      buildingId: selectedBuilding.buildingId,
+      address: selectedBuilding.address,
+      businessName: selectedBuilding.businessName,
+      zone: selectedBuilding.zone,
+    };
+
+    console.log('[LocationPicker] Proceeding with building:', buildingData);
+    onLocationSelect(locationData, buildingData);
   };
 
   const handleSimpleLocationSelect = (locationData: LocationData) => {
@@ -84,57 +124,64 @@ export default function LocationPickerWithMap({ onLocationSelect }: LocationPick
                 📍 <strong>Drag the marker</strong> to adjust location or use GPS button below
               </p>
             </div>
+
             <EnhancedLocationMapWithPolygons
               latitude={location.latitude}
               longitude={location.longitude}
               onLocationChange={handleMapLocationChange}
-              onBuildingSelected={(building) => {
-                console.log('Building selected:', building.buildingId, building.address);
-                setSelectedBuilding(building);
-              }}
+              onBuildingSelected={handleBuildingSelected}
             />
-            
-            {/* Building Selection Confirmation */}
-            {selectedBuilding && (
-              <div className="mt-4 bg-green-50 border-2 border-green-500 rounded-lg p-4">
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <h3 className="text-lg font-bold text-green-900 mb-2">🏢 Building Selected</h3>
-                    <div className="space-y-1 text-sm text-green-800">
-                      <p><strong>Building ID:</strong> {selectedBuilding.buildingId}</p>
-                      {selectedBuilding.address && <p><strong>Address:</strong> {selectedBuilding.address}</p>}
-                      {selectedBuilding.businessName && <p><strong>Business:</strong> {selectedBuilding.businessName}</p>}
-                      {selectedBuilding.zone && <p><strong>Zone:</strong> {selectedBuilding.zone}</p>}
-                    </div>
+
+            {/* Building Selection Confirmation Card */}
+            {selectedBuilding ? (
+              <div className="mt-2 bg-green-50 border-2 border-green-500 rounded-xl p-4 shadow-md">
+                <div className="flex items-start justify-between mb-3">
+                  <div className="flex items-center gap-2">
+                    <span className="text-2xl">🏢</span>
+                    <h3 className="text-base font-bold text-green-900">Building Selected</h3>
                   </div>
                   <button
                     onClick={() => setSelectedBuilding(null)}
-                    className="ml-4 text-green-600 hover:text-green-800 font-bold"
+                    className="text-green-600 hover:text-green-800 font-bold text-lg leading-none"
+                    aria-label="Clear selection"
                   >
                     ✕
                   </button>
                 </div>
+
+                <div className="space-y-1 text-sm text-green-800 mb-4">
+                  <div className="flex gap-2">
+                    <span className="font-semibold w-24 shrink-0">Building ID:</span>
+                    <span className="font-mono font-bold text-green-900">{selectedBuilding.buildingId}</span>
+                  </div>
+                  {selectedBuilding.address && (
+                    <div className="flex gap-2">
+                      <span className="font-semibold w-24 shrink-0">Address:</span>
+                      <span>{selectedBuilding.address}</span>
+                    </div>
+                  )}
+                  {selectedBuilding.businessName && (
+                    <div className="flex gap-2">
+                      <span className="font-semibold w-24 shrink-0">Business:</span>
+                      <span>{selectedBuilding.businessName}</span>
+                    </div>
+                  )}
+                  {selectedBuilding.zone && (
+                    <div className="flex gap-2">
+                      <span className="font-semibold w-24 shrink-0">Zone:</span>
+                      <span>{selectedBuilding.zone}</span>
+                    </div>
+                  )}
+                </div>
+
                 <button
-                  onClick={() => {
-                    const locationData = {
-                      latitude: selectedBuilding.centerLat,
-                      longitude: selectedBuilding.centerLon,
-                    };
-                    const buildingData = {
-                      buildingId: selectedBuilding.buildingId,
-                      address: selectedBuilding.address,
-                      businessName: selectedBuilding.businessName,
-                      zone: selectedBuilding.zone,
-                    };
-                    onLocationSelect(locationData, buildingData);
-                  }}
-                  className="w-full mt-4 px-6 py-3 bg-green-600 text-white font-bold rounded-lg hover:bg-green-700 transition"
+                  onClick={handleProceedWithBuilding}
+                  className="w-full py-3 bg-green-600 text-white font-bold rounded-lg hover:bg-green-700 active:bg-green-800 transition text-base"
                 >
                   ✓ Proceed with this Building
                 </button>
               </div>
-            )}
-            {!selectedBuilding && (
+            ) : (
               <button
                 onClick={() => setUseMap(false)}
                 className="w-full px-4 py-2 text-sm text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition"

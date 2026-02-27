@@ -47,3 +47,12 @@
 - [x] Make refresh and location buttons larger (52px touch targets)
 - [x] Auto-fit map to polygons after loading (removed - was causing zoom-out to show all 2000 buildings)
 - [x] Ensure building selection card appears when polygon is tapped
+
+---
+
+## 🔧 v1.15.0 - Auto-Fill Fix (IN PROGRESS)
+
+- [x] Fix: polygon click goes directly to form without building data - need to show confirmation card first
+- [x] Fix: onLocationChange must NOT navigate to form when a building is selected
+- [x] Fix: "Proceed with this Building" button must pass building data (address, businessName) to form
+- [x] Verify address and building name auto-fill in BuildingForm when selectedBuilding prop is set
