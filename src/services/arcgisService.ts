@@ -143,14 +143,37 @@ export async function fetchPolygonsNearLocation(
 
       const data: ArcGISQueryResponse = await response.json();
 
+      // Comprehensive logging for debugging
+      console.log('[ArcGIS] Raw API Response:', JSON.stringify(data, null, 2));
+      console.log('[ArcGIS] Features count:', data.features?.length || 0);
+      
       if (data.error) {
+        console.error('[ArcGIS] API Error:', data.error);
         throw new Error(`ArcGIS API Error: ${data.error.message}`);
       }
 
+      if (!data.features || data.features.length === 0) {
+        console.warn('[ArcGIS] No features returned from API');
+        console.warn('[ArcGIS] Query URL:', url);
+        return [];
+      }
+
       console.log(`[ArcGIS] Fetched ${data.features.length} polygons`);
+      console.log('[ArcGIS] First feature sample:', JSON.stringify(data.features[0], null, 2));
 
       // Convert ArcGIS features to BuildingPolygon objects
-      return data.features.map((feature) => convertArcGISFeatureToBuildingPolygon(feature));
+      const polygons = data.features.map((feature) => {
+        const converted = convertArcGISFeatureToBuildingPolygon(feature);
+        console.log('[ArcGIS] Converted polygon:', {
+          buildingId: converted.buildingId,
+          center: [converted.centerLat, converted.centerLon],
+          geometryType: converted.geometry.type,
+          coordinatesLength: converted.geometry.coordinates.length,
+        });
+        return converted;
+      });
+      
+      return polygons;
     } catch (fetchError) {
       clearTimeout(timeoutId);
       if (fetchError instanceof Error && fetchError.name === 'AbortError') {

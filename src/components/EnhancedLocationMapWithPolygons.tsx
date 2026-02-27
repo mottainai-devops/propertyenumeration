@@ -9,7 +9,7 @@ import { findPolygonAtPoint } from '../utils/pointInPolygon';
 import { getMockPolygons } from '../services/mockPolygonData';
 
 // Enable mock data for testing polygon rendering
-const USE_MOCK_DATA = true;
+const USE_MOCK_DATA = false; // Disabled to test ArcGIS integration
 
 // Fix Leaflet default marker icon issue - use local bundled icons
 delete (L.Icon.Default.prototype as any)._getIconUrl;
