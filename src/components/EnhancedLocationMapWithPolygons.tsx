@@ -80,20 +80,39 @@ function MapClickHandler({
 
 
 /**
- * Map updater component with viewport loading
+ * Map updater component with viewport loading and auto-fit
  */
 function MapUpdater({ 
   center, 
+  polygons,
   onViewportChange 
 }: { 
   center: [number, number];
+  polygons: BuildingPolygon[];
   onViewportChange?: (bounds: { north: number; south: number; east: number; west: number }) => void;
 }) {
   const map = useMap();
+  const [hasAutoFitted, setHasAutoFitted] = useState(false);
   
   useEffect(() => {
     map.setView(center, map.getZoom());
   }, [center, map]);
+
+  // Auto-fit map to show all polygons when they first load
+  useEffect(() => {
+    if (polygons.length > 0 && !hasAutoFitted) {
+      console.log(`[MapUpdater] Auto-fitting map to ${polygons.length} polygons`);
+      try {
+        const bounds = L.latLngBounds(
+          polygons.map(p => [p.centerLat, p.centerLon] as [number, number])
+        );
+        map.fitBounds(bounds, { padding: [50, 50], maxZoom: 16 });
+        setHasAutoFitted(true);
+      } catch (error) {
+        console.error('[MapUpdater] Error fitting bounds:', error);
+      }
+    }
+  }, [polygons, hasAutoFitted, map]);
 
   // Listen for moveend event to detect viewport changes
   useMapEvents({
@@ -175,9 +194,14 @@ export function EnhancedLocationMapWithPolygons({
     setPosition([latitude, longitude]);
   }, [latitude, longitude]);
 
-  // Don't auto-load on position change - only load on manual refresh or initial load
+  // Load polygons on mount with proper timing
   useEffect(() => {
-    loadPolygons(position[0], position[1]);
+    // Delay loading slightly to ensure map is rendered
+    const timer = setTimeout(() => {
+      console.log('[EnhancedLocationMap] Loading polygons for position:', position);
+      loadPolygons(position[0], position[1]);
+    }, 500);
+    return () => clearTimeout(timer);
   }, []); // Only load once on mount
 
   /**
@@ -229,10 +253,11 @@ export function EnhancedLocationMapWithPolygons({
       const freshPolygons = await fetchPolygonsNearLocation(lat, lon, 5.0);
       
       if (freshPolygons.length > 0) {
+        console.log(`[ArcGIS] Fetched ${freshPolygons.length} polygons, setting state...`);
         setPolygons(freshPolygons);
         // Update cache
         savePolygonsToCache(freshPolygons, lat, lon);
-        console.log(`Fetched and cached ${freshPolygons.length} polygons from ArcGIS`);
+        console.log(`[ArcGIS] Polygons set in state, cache updated`);
       } else if (cachedPolygons.length === 0) {
         // No polygons found in cache or from ArcGIS
         setPolygonError('No building data available for this area');
@@ -256,10 +281,14 @@ export function EnhancedLocationMapWithPolygons({
   const handleMapClick = (lat: number, lng: number, polygon?: BuildingPolygon) => {
     if (polygon) {
       // Polygon tapped - select it (confirming action)
+      console.log('[Map] Polygon tapped:', polygon.buildingId);
       setSelectedPolygon(polygon);
       setPosition([polygon.centerLat, polygon.centerLon]);
       onLocationChange(polygon.centerLat, polygon.centerLon);
-      onBuildingSelected?.(polygon);
+      if (onBuildingSelected) {
+        console.log('[Map] Calling onBuildingSelected with:', polygon);
+        onBuildingSelected(polygon);
+      }
     } else {
       // Regular location selection
       setSelectedPolygon(null);
@@ -293,7 +322,7 @@ export function EnhancedLocationMapWithPolygons({
             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
           />
           
-          <MapUpdater center={position} />
+          <MapUpdater center={position} polygons={polygons} />
           <MapClickHandler onMapClick={handleMapClick} polygons={polygons} />
           
           <Marker
@@ -319,14 +348,28 @@ export function EnhancedLocationMapWithPolygons({
           </Marker>
 
           {/* Render building polygons */}
-          {polygons.map((polygon) => {
+          {polygons.length > 0 && (() => { console.log(`[Render] Rendering ${polygons.length} polygons`); return null; })()}
+          {polygons.map((polygon, index) => {
             const color = getPolygonColor(polygon.buildingId);
             const isSelected = selectedPolygon?.buildingId === polygon.buildingId;
             
             // Convert GeoJSON coordinates to Leaflet format
+            if (!polygon.geometry || !polygon.geometry.coordinates || !polygon.geometry.coordinates[0]) {
+              console.error(`[Render] Invalid geometry for polygon ${polygon.buildingId}:`, polygon.geometry);
+              return null;
+            }
+            
             const coordinates = polygon.geometry.coordinates[0].map(
               ([lng, lat]) => [lat, lng] as [number, number]
             );
+            
+            if (index === 0) {
+              console.log(`[Render] First polygon sample:`, {
+                buildingId: polygon.buildingId,
+                originalCoords: polygon.geometry.coordinates[0].slice(0, 2),
+                convertedCoords: coordinates.slice(0, 2)
+              });
+            }
 
             return (
               <React.Fragment key={polygon.buildingId}>
