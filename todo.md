@@ -149,3 +149,23 @@
 - [x] Add padding-top: env(safe-area-inset-top) to #root in index.css
 - [x] Safe-area handled at #root level - all headers inherit correct offset
 - [x] safe-bottom utility class already existed; added safe-top utility class too
+
+---
+
+## 🔧 v1.24.0 - Daily Target, GPS Accuracy Badge, Share Report
+
+### Daily Target Tracker
+- [x] Add daily target input field to session setup screen (default 50, stepper +/-)
+- [x] Store daily target in localStorage per session
+- [x] Show progress ring in Statistics screen (completed / target)
+- [x] Progress ring also shown in session dashboard before starting
+
+### GPS Accuracy Warning
+- [x] Monitor GPS accuracy in EnhancedLocationMapWithPolygons via watchPosition
+- [x] Show amber badge when accuracy > 15m: "GPS ±Xm — wait for fix"
+- [x] Badge auto-hides when accuracy improves to <= 15m
+
+### Native Share Sheet for CSV
+- [x] Add green Share button next to Export CSV in SessionStatistics header
+- [x] Uses Web Share API with file sharing (Android native share sheet)
+- [x] Falls back to browser download if Web Share API not available

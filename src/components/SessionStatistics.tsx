@@ -15,6 +15,7 @@ interface SessionStatisticsProps {
   isOnline?: boolean;
   isSyncing?: boolean;
   onSyncAll?: () => void;
+  dailyTarget?: number;
 }
 
 function formatRelativeTime(ms: number): string {
@@ -33,6 +34,7 @@ export default function SessionStatistics({
   isOnline = true,
   isSyncing = false,
   onSyncAll,
+  dailyTarget = 50,
 }: SessionStatisticsProps) {
   const [activeSession, setActiveSession] = useState<SessionData | null>(null);
   const [sessionDuration, setSessionDuration] = useState('00:00:00');
@@ -89,6 +91,90 @@ export default function SessionStatistics({
       return `"${str.replace(/"/g, '""')}"`;
     }
     return str;
+  }
+
+  async function handleShareReport() {
+    setIsExporting(true);
+    try {
+      const allBuildings = [...recentBuildings, ...pendingBuildings];
+      if (allBuildings.length === 0) {
+        setExportMsg('No buildings to share yet');
+        setTimeout(() => setExportMsg(null), 3000);
+        setIsExporting(false);
+        return;
+      }
+
+      const headers = [
+        'Building ID', 'Address', 'Building Name', 'Lot Code',
+        'Property Type', 'Number of Units', 'Latitude', 'Longitude',
+        'Zone', 'Notes', 'Photo Count', 'Timestamp', 'Status',
+      ];
+
+      const rows = allBuildings.map((b: any) => {
+        const photoCount = Array.isArray(b.photos) ? b.photos.length
+          : Array.isArray(b.photoUrls) ? b.photoUrls.length
+          : (b.photoCount ?? 0);
+        return [
+          escapeCSV(b.buildingId || b.selectedBuildingId || ''),
+          escapeCSV(b.address || ''),
+          escapeCSV(b.buildingName || ''),
+          escapeCSV(b.lotCode || activeSession?.lotCode || ''),
+          escapeCSV(b.propertyType || ''),
+          escapeCSV(b.numberOfUnits || ''),
+          escapeCSV(b.latitude || b.gpsCoordinates?.latitude || ''),
+          escapeCSV(b.longitude || b.gpsCoordinates?.longitude || ''),
+          escapeCSV(b.zone || ''),
+          escapeCSV(b.notes || ''),
+          escapeCSV(photoCount),
+          escapeCSV(b.timestamp ? new Date(b.timestamp).toISOString() : ''),
+          escapeCSV(b.synced ? 'Synced' : 'Pending'),
+        ];
+      });
+
+      const csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+      const sessionDate = activeSession
+        ? new Date(activeSession.startTime).toISOString().slice(0, 10)
+        : new Date().toISOString().slice(0, 10);
+      const filename = `enumeration_${activeSession?.lotCode || 'session'}_${sessionDate}.csv`;
+
+      // Try Web Share API (Android share sheet)
+      if (navigator.share && navigator.canShare) {
+        const file = new File([csvContent], filename, { type: 'text/csv' });
+        if (navigator.canShare({ files: [file] })) {
+          await navigator.share({
+            title: `Property Enumeration Report — ${activeSession?.lotCode || 'Session'}`,
+            text: `${allBuildings.length} buildings registered on ${sessionDate}`,
+            files: [file],
+          });
+          setExportMsg(`✓ Shared ${allBuildings.length} buildings`);
+          setTimeout(() => setExportMsg(null), 4000);
+          return;
+        }
+      }
+
+      // Fallback: download
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      setExportMsg(`✓ Exported ${allBuildings.length} buildings`);
+      setTimeout(() => setExportMsg(null), 4000);
+    } catch (err: any) {
+      if (err?.name === 'AbortError') {
+        setExportMsg('Share cancelled');
+      } else {
+        console.error('Share error:', err);
+        setExportMsg('Share failed — try Export CSV instead');
+      }
+      setTimeout(() => setExportMsg(null), 3000);
+    } finally {
+      setIsExporting(false);
+    }
   }
 
   async function handleExportCSV() {
@@ -196,23 +282,43 @@ export default function SessionStatistics({
                 <p className="text-sm text-gray-600">Current session metrics</p>
               </div>
             </div>
-            <button
-              onClick={handleExportCSV}
-              disabled={isExporting}
-              className="flex items-center gap-1.5 px-3 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-lg transition text-sm font-medium"
-            >
-              {isExporting ? (
-                <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                </svg>
-              ) : (
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                </svg>
-              )}
-              Export CSV
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleShareReport}
+                disabled={isExporting}
+                className="flex items-center gap-1.5 px-3 py-2 bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white rounded-lg transition text-sm font-medium"
+                title="Share via WhatsApp, email, Drive…"
+              >
+                {isExporting ? (
+                  <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                  </svg>
+                ) : (
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
+                  </svg>
+                )}
+                Share
+              </button>
+              <button
+                onClick={handleExportCSV}
+                disabled={isExporting}
+                className="flex items-center gap-1.5 px-3 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-lg transition text-sm font-medium"
+              >
+                {isExporting ? (
+                  <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                  </svg>
+                ) : (
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                  </svg>
+                )}
+                Export CSV
+              </button>
+            </div>
           </div>
           {exportMsg && (
             <div className={`mt-2 text-xs px-3 py-1.5 rounded-lg font-medium ${exportMsg.startsWith('✓') ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
@@ -277,6 +383,34 @@ export default function SessionStatistics({
                   <p className="text-sm text-gray-600 mb-2">Session Duration</p>
                   <p className="text-4xl font-bold text-gray-900 font-mono">{sessionDuration}</p>
                 </div>
+
+                {/* Daily Target Progress Ring */}
+                {dailyTarget > 0 && (
+                  <div className="flex items-center justify-center gap-4 mb-4 bg-white rounded-xl p-4">
+                    <div className="relative w-20 h-20">
+                      <svg className="w-20 h-20 -rotate-90" viewBox="0 0 36 36">
+                        <circle cx="18" cy="18" r="15.9" fill="none" stroke="#e5e7eb" strokeWidth="3" />
+                        <circle
+                          cx="18" cy="18" r="15.9" fill="none"
+                          stroke={activeSession.buildingsRegistered >= dailyTarget ? '#10b981' : '#3b82f6'}
+                          strokeWidth="3"
+                          strokeDasharray={`${Math.min(100, Math.round((activeSession.buildingsRegistered / dailyTarget) * 100))} 100`}
+                          strokeLinecap="round"
+                        />
+                      </svg>
+                      <span className="absolute inset-0 flex items-center justify-center text-sm font-bold text-gray-800">
+                        {Math.min(100, Math.round((activeSession.buildingsRegistered / dailyTarget) * 100))}%
+                      </span>
+                    </div>
+                    <div>
+                      <p className="text-lg font-bold text-gray-900">{activeSession.buildingsRegistered} / {dailyTarget}</p>
+                      <p className="text-sm text-gray-600">Daily target</p>
+                      {activeSession.buildingsRegistered >= dailyTarget && (
+                        <p className="text-xs font-bold text-green-600 mt-1">🎯 Target reached!</p>
+                      )}
+                    </div>
+                  </div>
+                )}
 
                 <div className="grid grid-cols-2 gap-4">
                   <div className="bg-white rounded-xl p-4 text-center">

@@ -45,6 +45,10 @@ function App() {
       return saved ? new Set(JSON.parse(saved)) : new Set();
     } catch { return new Set(); }
   });
+  const [dailyTarget, setDailyTarget] = useState<number>(() => {
+    const saved = localStorage.getItem('dailyTarget');
+    return saved ? parseInt(saved) : 50;
+  });
   const sessionStartTimeRef = useRef<Date | null>(null);
   const { showToast, ToastContainer } = useToast();
 
@@ -137,7 +141,11 @@ function App() {
     setCurrentScreen('login');
   };
 
-  const handleStartEnumeration = async (lotCode?: string) => {
+  const handleStartEnumeration = async (lotCode?: string, target?: number) => {
+    if (target && target !== dailyTarget) {
+      setDailyTarget(target);
+      localStorage.setItem('dailyTarget', String(target));
+    }
     // Try to start a server-side session
     if (isOnline) {
       try {
@@ -445,6 +453,11 @@ function App() {
               setSurveyedBuildingIds(new Set());
               try { localStorage.removeItem('surveyedBuildingIds'); } catch {}
             }}
+            dailyTarget={dailyTarget}
+            onSetDailyTarget={(t) => {
+              setDailyTarget(t);
+              localStorage.setItem('dailyTarget', String(t));
+            }}
           />
         )}
 
@@ -465,6 +478,7 @@ function App() {
             isOnline={isOnline}
             isSyncing={isSyncing}
             onSyncAll={syncPendingBuildings}
+            dailyTarget={dailyTarget}
           />
         )}
 

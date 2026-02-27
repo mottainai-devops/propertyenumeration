@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 
 interface SessionManagementProps {
-  onStartEnumeration: (lotCode?: string) => void;
+  onStartEnumeration: (lotCode?: string, dailyTarget?: number) => void;
   onLogout: () => void;
   pendingCount: number;
   onViewQueue: () => void;
@@ -10,6 +10,8 @@ interface SessionManagementProps {
   surveyedCount?: number;
   recentBuildingsCount?: number;
   onClearSurveyedHistory?: () => void;
+  dailyTarget?: number;
+  onSetDailyTarget?: (target: number) => void;
 }
 
 export default function SessionManagement({
@@ -22,10 +24,13 @@ export default function SessionManagement({
   surveyedCount = 0,
   recentBuildingsCount = 0,
   onClearSurveyedHistory,
+  dailyTarget: _dailyTarget = 50,
+  onSetDailyTarget,
 }: SessionManagementProps) {
   const [user, setUser] = useState<any>(null);
   const [activeSession, setActiveSession] = useState<any>(null);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
+  const [targetInput, setTargetInput] = useState('50');
 
   useEffect(() => {
     const savedUser = localStorage.getItem('user');
@@ -121,8 +126,65 @@ export default function SessionManagement({
             <p className="text-gray-600">Begin registering buildings in your assigned area</p>
           </div>
 
+          {/* Daily Target Input */}
+          <div className="mb-4">
+            <label className="block text-sm font-semibold text-gray-700 mb-2">Daily Building Target</label>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => {
+                  const v = Math.max(1, parseInt(targetInput || '50') - 5);
+                  setTargetInput(String(v));
+                  if (onSetDailyTarget) onSetDailyTarget(v);
+                }}
+                className="w-10 h-10 bg-gray-100 hover:bg-gray-200 rounded-lg font-bold text-gray-700 flex items-center justify-center text-xl"
+              >−</button>
+              <input
+                type="number"
+                min="1"
+                max="500"
+                value={targetInput}
+                onChange={e => {
+                  setTargetInput(e.target.value);
+                  const v = parseInt(e.target.value);
+                  if (!isNaN(v) && v > 0 && onSetDailyTarget) onSetDailyTarget(v);
+                }}
+                className="flex-1 text-center text-xl font-bold border-2 border-gray-200 rounded-lg py-2 focus:outline-none focus:border-blue-400"
+              />
+              <button
+                onClick={() => {
+                  const v = Math.min(500, parseInt(targetInput || '50') + 5);
+                  setTargetInput(String(v));
+                  if (onSetDailyTarget) onSetDailyTarget(v);
+                }}
+                className="w-10 h-10 bg-gray-100 hover:bg-gray-200 rounded-lg font-bold text-gray-700 flex items-center justify-center text-xl"
+              >+</button>
+            </div>
+            {/* Progress ring preview */}
+            {(activeSession?.buildingsRegistered || 0) > 0 && (
+              <div className="mt-3 flex items-center gap-3">
+                <div className="relative w-12 h-12">
+                  <svg className="w-12 h-12 -rotate-90" viewBox="0 0 36 36">
+                    <circle cx="18" cy="18" r="15.9" fill="none" stroke="#e5e7eb" strokeWidth="3" />
+                    <circle
+                      cx="18" cy="18" r="15.9" fill="none"
+                      stroke="#10b981" strokeWidth="3"
+                      strokeDasharray={`${Math.min(100, Math.round(((activeSession?.buildingsRegistered || 0) / (parseInt(targetInput) || 50)) * 100))} 100`}
+                      strokeLinecap="round"
+                    />
+                  </svg>
+                  <span className="absolute inset-0 flex items-center justify-center text-xs font-bold text-gray-700">
+                    {Math.min(100, Math.round(((activeSession?.buildingsRegistered || 0) / (parseInt(targetInput) || 50)) * 100))}%
+                  </span>
+                </div>
+                <span className="text-sm text-gray-600">
+                  {activeSession?.buildingsRegistered || 0} of {parseInt(targetInput) || 50} buildings today
+                </span>
+              </div>
+            )}
+          </div>
+
           <button
-            onClick={() => onStartEnumeration()}
+            onClick={() => onStartEnumeration(undefined, parseInt(targetInput) || 50)}
             className="w-full bg-gradient-to-r from-blue-500 to-teal-500 hover:from-blue-600 hover:to-teal-600 text-white font-bold py-4 px-6 rounded-lg transition text-lg shadow-lg"
           >
             Start Enumeration Session
