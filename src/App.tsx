@@ -27,6 +27,12 @@ function App() {
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [pendingBuildings, setPendingBuildings] = useState<any[]>([]);
   const [isSyncing, setIsSyncing] = useState(false);
+  const [surveyedBuildingIds, setSurveyedBuildingIds] = useState<Set<string>>(() => {
+    try {
+      const saved = localStorage.getItem('surveyedBuildingIds');
+      return saved ? new Set(JSON.parse(saved)) : new Set();
+    } catch { return new Set(); }
+  });
   const { showToast, ToastContainer } = useToast();
 
   // Monitor network status
@@ -136,6 +142,15 @@ function App() {
     setCurrentScreen('building');
   };
 
+  const markBuildingSurveyed = (buildingId: string) => {
+    setSurveyedBuildingIds(prev => {
+      const next = new Set(prev);
+      next.add(buildingId);
+      try { localStorage.setItem('surveyedBuildingIds', JSON.stringify([...next])); } catch {}
+      return next;
+    });
+  };
+
   const handleBuildingSubmit = async (buildingData: any) => {
     const { linkedCustomerId, ...buildingFields } = buildingData;
     const buildingWithLocation = {
@@ -171,19 +186,22 @@ function App() {
         } else {
           showToast('Building registered successfully!', 'success');
         }
-        
+        // Track surveyed building
+        if (buildingWithLocation.buildingId) markBuildingSurveyed(buildingWithLocation.buildingId);
         setCurrentScreen('success');
       } catch (error) {
         logError('Building Creation', error, buildingWithLocation);
         // Save to localStorage for later sync
         saveBuildingOffline(buildingWithLocation);
         showToast('Building saved offline. Will sync when online.', 'info');
+        if (buildingWithLocation.buildingId) markBuildingSurveyed(buildingWithLocation.buildingId);
         setCurrentScreen('success');
       }
     } else {
       // Save to localStorage
       saveBuildingOffline(buildingWithLocation);
       showToast('Building saved offline. Will sync when online.', 'info');
+      if (buildingWithLocation.buildingId) markBuildingSurveyed(buildingWithLocation.buildingId);
       setCurrentScreen('success');
     }
   };
@@ -320,7 +338,10 @@ function App() {
             <p className="text-gray-500 text-sm mb-3">
               Tap a building polygon to select it.
             </p>
-            <LocationPickerWithMap onLocationSelect={handleLocationSelect} />
+            <LocationPickerWithMap
+              onLocationSelect={handleLocationSelect}
+              surveyedBuildingIds={surveyedBuildingIds}
+            />
           </div>
         </div>
       )}

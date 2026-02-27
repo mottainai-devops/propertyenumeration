@@ -74,3 +74,15 @@
 - [x] Label shows business name if available (not 'None'), otherwise building ID
 - [x] Label text truncated at 18 chars with ellipsis
 - [x] Labels remain non-interactive (pointer-events: none) so tapping the label still selects the polygon
+
+---
+
+## 🔧 v1.18.0 - Auto-Select, Search Bar, Surveyed Indicator (IN PROGRESS)
+
+- [x] Auto-select building when GPS position falls inside a known polygon on map open
+- [x] Show confirmation card immediately when GPS auto-match found
+- [x] Search bar above map: type building ID or business name to pan and select
+- [x] Search results dropdown showing up to 6 matches
+- [x] Grey-out already-surveyed polygons with reduced opacity, dashed border, and checkmark label
+- [x] Track surveyed buildings in localStorage (keyed by buildingId)
+- [x] Pass surveyed building IDs from App.tsx down to map component

@@ -17,10 +17,15 @@ interface LocationPickerWithMapProps {
     businessName?: string;
     zone?: string;
   }) => void;
+  /** Building IDs already surveyed this session */
+  surveyedBuildingIds?: Set<string>;
 }
 
-export default function LocationPickerWithMap({ onLocationSelect }: LocationPickerWithMapProps) {
-  const [location, setLocation] = useState<LocationData>({ latitude: 6.5244, longitude: 3.3792 }); // Default: Lagos
+export default function LocationPickerWithMap({
+  onLocationSelect,
+  surveyedBuildingIds = new Set(),
+}: LocationPickerWithMapProps) {
+  const [location, setLocation] = useState<LocationData>({ latitude: 6.5244, longitude: 3.3792 });
   const [useMap, setUseMap] = useState(true);
   const [selectedBuilding, setSelectedBuilding] = useState<BuildingPolygon | null>(null);
 
@@ -35,66 +40,40 @@ export default function LocationPickerWithMap({ onLocationSelect }: LocationPick
             accuracy: pos.coords.accuracy,
           });
         },
-        (error) => {
-          console.error('Error getting GPS location:', error);
-        },
-        {
-          enableHighAccuracy: true,
-          timeout: 10000,
-          maximumAge: 0,
-        }
+        (error) => console.error('Error getting GPS location:', error),
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
       );
     }
   }, []);
 
-  // Called when the user drags the marker or the map location changes
-  // Does NOT navigate to form - just updates the stored location
   const handleMapLocationChange = (lat: number, lng: number) => {
     setLocation({ latitude: lat, longitude: lng });
-    // Clear building selection if user moves the marker manually
-    // (only clear if the new position is far from the selected building center)
     if (selectedBuilding) {
       const dist = Math.sqrt(
         Math.pow(selectedBuilding.centerLat - lat, 2) +
         Math.pow(selectedBuilding.centerLon - lng, 2)
       );
-      // If moved more than ~50m away from building center, clear selection
-      if (dist * 111000 > 50) {
-        setSelectedBuilding(null);
-      }
+      if (dist * 111000 > 50) setSelectedBuilding(null);
     }
   };
 
-  // Called when user taps a polygon - shows confirmation card, does NOT navigate
   const handleBuildingSelected = (building: BuildingPolygon) => {
-    console.log('[LocationPicker] Building selected from polygon tap:', building.buildingId);
-    console.log('[LocationPicker] Building data:', {
-      buildingId: building.buildingId,
-      address: building.address,
-      businessName: building.businessName,
-      zone: building.zone,
-    });
+    console.log('[LocationPicker] Building selected:', building.buildingId);
     setSelectedBuilding(building);
     setLocation({ latitude: building.centerLat, longitude: building.centerLon });
   };
 
-  // Called when user presses "Proceed with this Building" - navigates to form WITH building data
   const handleProceedWithBuilding = () => {
     if (!selectedBuilding) return;
-
-    const locationData: LocationData = {
-      latitude: selectedBuilding.centerLat,
-      longitude: selectedBuilding.centerLon,
-    };
-    const buildingData = {
-      buildingId: selectedBuilding.buildingId,
-      address: selectedBuilding.address,
-      businessName: selectedBuilding.businessName,
-      zone: selectedBuilding.zone,
-    };
-
-    console.log('[LocationPicker] Proceeding with building:', buildingData);
-    onLocationSelect(locationData, buildingData);
+    onLocationSelect(
+      { latitude: selectedBuilding.centerLat, longitude: selectedBuilding.centerLon },
+      {
+        buildingId: selectedBuilding.buildingId,
+        address: selectedBuilding.address,
+        businessName: selectedBuilding.businessName,
+        zone: selectedBuilding.zone,
+      }
+    );
   };
 
   const handleSimpleLocationSelect = (locationData: LocationData) => {
@@ -102,7 +81,6 @@ export default function LocationPickerWithMap({ onLocationSelect }: LocationPick
     onLocationSelect(locationData);
   };
 
-  // Fallback component when map fails
   const MapFallback = () => (
     <div className="space-y-4">
       <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
@@ -124,15 +102,20 @@ export default function LocationPickerWithMap({ onLocationSelect }: LocationPick
               longitude={location.longitude}
               onLocationChange={handleMapLocationChange}
               onBuildingSelected={handleBuildingSelected}
+              surveyedBuildingIds={surveyedBuildingIds}
             />
 
             {/* Building Selection Confirmation Card */}
             {selectedBuilding ? (
-              <div className="mt-2 bg-green-50 border-2 border-green-500 rounded-xl p-4 shadow-md">
+              <div className="bg-green-50 border-2 border-green-500 rounded-xl p-4 shadow-md">
                 <div className="flex items-start justify-between mb-3">
                   <div className="flex items-center gap-2">
                     <span className="text-2xl">🏢</span>
-                    <h3 className="text-base font-bold text-green-900">Building Selected</h3>
+                    <h3 className="text-base font-bold text-green-900">
+                      {surveyedBuildingIds.has(selectedBuilding.buildingId)
+                        ? '✓ Already Surveyed'
+                        : 'Building Selected'}
+                    </h3>
                   </div>
                   <button
                     onClick={() => setSelectedBuilding(null)}
@@ -142,6 +125,12 @@ export default function LocationPickerWithMap({ onLocationSelect }: LocationPick
                     ✕
                   </button>
                 </div>
+
+                {surveyedBuildingIds.has(selectedBuilding.buildingId) && (
+                  <div className="bg-amber-50 border border-amber-300 rounded-lg px-3 py-2 mb-3 text-xs text-amber-800 font-medium">
+                    ⚠️ This building was already registered this session. You can still proceed to update it.
+                  </div>
+                )}
 
                 <div className="space-y-1 text-sm text-green-800 mb-4">
                   <div className="flex gap-2">
@@ -154,7 +143,9 @@ export default function LocationPickerWithMap({ onLocationSelect }: LocationPick
                       <span>{selectedBuilding.address}</span>
                     </div>
                   )}
-                  {selectedBuilding.businessName && selectedBuilding.businessName !== 'None' && selectedBuilding.businessName !== 'none' && (
+                  {selectedBuilding.businessName &&
+                    selectedBuilding.businessName !== 'None' &&
+                    selectedBuilding.businessName !== 'none' && (
                     <div className="flex gap-2">
                       <span className="font-semibold w-24 shrink-0">Business:</span>
                       <span>{selectedBuilding.businessName}</span>
@@ -178,7 +169,7 @@ export default function LocationPickerWithMap({ onLocationSelect }: LocationPick
             ) : (
               <button
                 onClick={() => setUseMap(false)}
-                className="w-full px-4 py-2 text-sm text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition"
+                className="w-full px-4 py-2 text-sm text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition"
               >
                 Switch to GPS-only mode
               </button>
@@ -188,9 +179,7 @@ export default function LocationPickerWithMap({ onLocationSelect }: LocationPick
       ) : (
         <div className="space-y-4">
           <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
-            <p className="text-sm text-gray-700">
-              Using GPS-only mode
-            </p>
+            <p className="text-sm text-gray-700">Using GPS-only mode</p>
           </div>
           <SimpleLocationPicker onLocationSelect={handleSimpleLocationSelect} />
           <button
