@@ -118,13 +118,7 @@ export default function LocationPickerWithMap({ onLocationSelect }: LocationPick
     <div className="w-full">
       {useMap ? (
         <MapErrorBoundary fallback={<MapFallback />}>
-          <div className="space-y-4">
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-              <p className="text-sm text-blue-800">
-                📍 <strong>Drag the marker</strong> to adjust location or use GPS button below
-              </p>
-            </div>
-
+          <div className="space-y-3">
             <EnhancedLocationMapWithPolygons
               latitude={location.latitude}
               longitude={location.longitude}
@@ -160,7 +154,7 @@ export default function LocationPickerWithMap({ onLocationSelect }: LocationPick
                       <span>{selectedBuilding.address}</span>
                     </div>
                   )}
-                  {selectedBuilding.businessName && (
+                  {selectedBuilding.businessName && selectedBuilding.businessName !== 'None' && selectedBuilding.businessName !== 'none' && (
                     <div className="flex gap-2">
                       <span className="font-semibold w-24 shrink-0">Business:</span>
                       <span>{selectedBuilding.businessName}</span>

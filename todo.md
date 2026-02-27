@@ -56,3 +56,12 @@
 - [x] Fix: onLocationChange must NOT navigate to form when a building is selected
 - [x] Fix: "Proceed with this Building" button must pass building data (address, businessName) to form
 - [x] Verify address and building name auto-fill in BuildingForm when selectedBuilding prop is set
+
+---
+
+## 🔧 v1.16.0 - Map UI Polish (IN PROGRESS)
+
+- [x] Hide "None" string for Business field in building selection card
+- [x] Reduce map label font size and only show labels at zoom >= 20 (labels hidden at zoom 18-19)
+- [x] Remove excess whitespace below building selection card
+- [x] Tighten location screen layout: smaller header, removed info box, compact padding

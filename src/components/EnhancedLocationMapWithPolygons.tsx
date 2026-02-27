@@ -391,7 +391,7 @@ export function EnhancedLocationMapWithPolygons({
                     click: (e) => handlePolygonClick(polygon, e),
                   }}
                 />
-                <ZoomDependentLabel polygon={polygon} minZoom={18} />
+                <ZoomDependentLabel polygon={polygon} minZoom={20} />
               </React.Fragment>
             );
           })}
