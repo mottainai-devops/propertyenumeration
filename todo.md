@@ -36,3 +36,14 @@
 - [ ] Verify map loads correctly
 - [ ] Verify fallback works if map fails
 - [ ] Confirm no crashes
+
+---
+
+## 🔧 v1.14.0 - Polygon Interaction Fixes (IN PROGRESS)
+
+- [x] Fix polygon click handlers - polygons not showing building selection card when tapped
+- [x] Auto-load polygons on map open (no manual refresh needed)
+- [x] Set initial zoom to level 18 so buildings are large enough to tap
+- [x] Make refresh and location buttons larger (52px touch targets)
+- [x] Auto-fit map to polygons after loading (removed - was causing zoom-out to show all 2000 buildings)
+- [x] Ensure building selection card appears when polygon is tapped

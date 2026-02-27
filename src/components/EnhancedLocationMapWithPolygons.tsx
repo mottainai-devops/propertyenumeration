@@ -1,11 +1,10 @@
-import React, { useState, useEffect } from 'react';
-import { MapContainer, TileLayer, Marker, Polygon, Popup, useMap, useMapEvents } from 'react-leaflet';
+import React, { useState, useEffect, useRef } from 'react';
+import { MapContainer, TileLayer, Marker, Polygon, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import type { BuildingPolygon } from '../models/BuildingPolygon';
 import { fetchPolygonsNearLocation } from '../services/arcgisService';
 import { getCachedPolygonsNearLocation, savePolygonsToCache } from '../services/simplePolygonCache';
-import { findPolygonAtPoint } from '../utils/pointInPolygon';
 import { getMockPolygons } from '../services/mockPolygonData';
 
 // Enable mock data for testing polygon rendering
@@ -56,100 +55,33 @@ interface EnhancedLocationMapWithPolygonsProps {
 }
 
 /**
- * Map event handler component for click events
+ * Map center updater - only updates center, does NOT auto-fit bounds
  */
-function MapClickHandler({
-  onMapClick,
-  polygons,
-}: {
-  onMapClick: (lat: number, lng: number, polygon?: BuildingPolygon) => void;
-  polygons: BuildingPolygon[];
-})
-{
-  const handleClick = (e: L.LeafletMouseEvent) => {
-    const lat = e.latlng.lat;
-    const lng = e.latlng.lng;
-    
-    console.log('[MapClickHandler] Map clicked at:', { lat, lng });
-    console.log('[MapClickHandler] Checking', polygons.length, 'polygons');
-    
-    // Check if click is on a polygon
-    const tappedPolygon = findPolygonAtPoint({ lat, lon: lng }, polygons) || undefined;
-    
-    if (tappedPolygon) {
-      console.log('[MapClickHandler] Found polygon:', tappedPolygon.buildingId);
-    } else {
-      console.log('[MapClickHandler] No polygon found at click location');
-    }
-    
-    onMapClick(lat, lng, tappedPolygon);
-  };
-  
-  useMapEvents({
-    click: handleClick,
-  });
-  return null;
-}
-
-
-
-/**
- * Map updater component with viewport loading and auto-fit
- */
-function MapUpdater({ 
-  center, 
-  polygons,
-  onViewportChange 
-}: { 
-  center: [number, number];
-  polygons: BuildingPolygon[];
-  onViewportChange?: (bounds: { north: number; south: number; east: number; west: number }) => void;
-}) {
+function MapCenterUpdater({ center }: { center: [number, number] }) {
   const map = useMap();
-  const [hasAutoFitted, setHasAutoFitted] = useState(false);
-  
+
   useEffect(() => {
     map.setView(center, map.getZoom());
   }, [center, map]);
 
-  // Auto-fit map to show all polygons when they first load
-  useEffect(() => {
-    if (polygons.length > 0 && !hasAutoFitted) {
-      console.log(`[MapUpdater] Auto-fitting map to ${polygons.length} polygons`);
-      try {
-        const bounds = L.latLngBounds(
-          polygons.map(p => [p.centerLat, p.centerLon] as [number, number])
-        );
-        map.fitBounds(bounds, { padding: [50, 50], maxZoom: 16 });
-        setHasAutoFitted(true);
-      } catch (error) {
-        console.error('[MapUpdater] Error fitting bounds:', error);
-      }
-    }
-  }, [polygons, hasAutoFitted, map]);
+  return null;
+}
 
-  // Listen for moveend event to detect viewport changes
-  useMapEvents({
-    moveend: () => {
-      if (onViewportChange) {
-        const bounds = map.getBounds();
-        onViewportChange({
-          north: bounds.getNorth(),
-          south: bounds.getSouth(),
-          east: bounds.getEast(),
-          west: bounds.getWest(),
-        });
-      }
-    },
-  });
-  
+/**
+ * Map ref capture component - exposes map instance to parent
+ */
+function MapRefCapture({ onMapReady }: { onMapReady: (map: L.Map) => void }) {
+  const map = useMap();
+  useEffect(() => {
+    onMapReady(map);
+  }, [map, onMapReady]);
   return null;
 }
 
 /**
  * Zoom-dependent label component
  */
-function ZoomDependentLabel({ polygon, minZoom = 17 }: { polygon: BuildingPolygon; minZoom?: number }) {
+function ZoomDependentLabel({ polygon, minZoom = 18 }: { polygon: BuildingPolygon; minZoom?: number }) {
   const map = useMap();
   const [showLabel, setShowLabel] = useState(false);
 
@@ -171,7 +103,7 @@ function ZoomDependentLabel({ polygon, minZoom = 17 }: { polygon: BuildingPolygo
   // Create custom text marker with reduced size
   const labelIcon = L.divIcon({
     className: 'building-label',
-    html: `<div style="font-size: 9px; color: #333; text-shadow: 1px 1px 2px white; font-weight: bold; white-space: nowrap;">${polygon.buildingId}</div>`,
+    html: `<div style="font-size: 9px; color: #333; text-shadow: 1px 1px 2px white; font-weight: bold; white-space: nowrap; pointer-events: none;">${polygon.buildingId}</div>`,
     iconSize: [0, 0],
     iconAnchor: [0, 0],
   });
@@ -180,13 +112,7 @@ function ZoomDependentLabel({ polygon, minZoom = 17 }: { polygon: BuildingPolygo
     <Marker
       position={[polygon.centerLat, polygon.centerLon]}
       icon={labelIcon}
-      eventHandlers={{
-        click: (e) => {
-          L.DomEvent.stopPropagation(e);
-          // Label tap = view info (non-confirming action)
-          console.log('Label tapped:', polygon.buildingId);
-        },
-      }}
+      interactive={false}
     />
   );
 }
@@ -203,25 +129,28 @@ export function EnhancedLocationMapWithPolygons({
   const [selectedPolygon, setSelectedPolygon] = useState<BuildingPolygon | null>(null);
   const [isLoadingPolygons, setIsLoadingPolygons] = useState(false);
   const [polygonError, setPolygonError] = useState<string | null>(null);
+  const mapRef = useRef<L.Map | null>(null);
+  const hasLoadedRef = useRef(false);
 
   useEffect(() => {
     setPosition([latitude, longitude]);
   }, [latitude, longitude]);
 
-  // Load polygons on mount with proper timing
+  // Auto-load polygons on mount - triggered once when component mounts
   useEffect(() => {
+    if (hasLoadedRef.current) return;
+    hasLoadedRef.current = true;
+
     // Delay loading slightly to ensure map is rendered
     const timer = setTimeout(() => {
-      console.log('[EnhancedLocationMap] Loading polygons for position:', position);
-      loadPolygons(position[0], position[1]);
-    }, 500);
+      console.log('[EnhancedLocationMap] Auto-loading polygons for position:', latitude, longitude);
+      loadPolygons(latitude, longitude);
+    }, 800);
     return () => clearTimeout(timer);
-  }, []); // Only load once on mount
-
-  // Removed loadPolygonsInViewport - using loadPolygons instead for simplicity
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   /**
-   * Load polygons from cache or ArcGIS (fallback to radius-based)
+   * Load polygons from cache or ArcGIS
    */
   async function loadPolygons(lat: number, lon: number) {
     setIsLoadingPolygons(true);
@@ -239,7 +168,7 @@ export function EnhancedLocationMapWithPolygons({
 
       // Try cache first
       const cachedPolygons = getCachedPolygonsNearLocation(lat, lon, 5.0);
-      
+
       if (cachedPolygons.length > 0) {
         setPolygons(cachedPolygons);
         console.log(`Loaded ${cachedPolygons.length} cached polygons`);
@@ -247,16 +176,16 @@ export function EnhancedLocationMapWithPolygons({
 
       // Fetch fresh data from ArcGIS in background
       const freshPolygons = await fetchPolygonsNearLocation(lat, lon, 5.0);
-      
+
       if (freshPolygons.length > 0) {
         console.log(`[ArcGIS] Fetched ${freshPolygons.length} polygons, setting state...`);
         setPolygons(freshPolygons);
         // Update cache
         savePolygonsToCache(freshPolygons, lat, lon);
         console.log(`[ArcGIS] Polygons set in state, cache updated`);
-        
+
         // Check which polygon contains the current GPS location
-        const containingPolygon = findPolygonAtPoint({ lat, lon }, freshPolygons);
+        const containingPolygon = findPolygonAtPointLocal({ lat, lon }, freshPolygons);
         if (containingPolygon) {
           console.log(`[GPS] Current location (${lat}, ${lon}) is inside polygon:`, containingPolygon.buildingId);
           console.log('[GPS] Polygon details:', {
@@ -292,6 +221,36 @@ export function EnhancedLocationMapWithPolygons({
     }
   }
 
+  /**
+   * Local point-in-polygon check (ray casting)
+   */
+  function findPolygonAtPointLocal(
+    point: { lat: number; lon: number },
+    polys: BuildingPolygon[]
+  ): BuildingPolygon | null {
+    for (const poly of polys) {
+      try {
+        const ring = poly.geometry.coordinates[0];
+        if (!ring) continue;
+        let inside = false;
+        let j = ring.length - 1;
+        for (let i = 0; i < ring.length; i++) {
+          const [xi, yi] = ring[i];
+          const [xj, yj] = ring[j];
+          const intersect =
+            yi > point.lat !== yj > point.lat &&
+            point.lon < ((xj - xi) * (point.lat - yi)) / (yj - yi) + xi;
+          if (intersect) inside = !inside;
+          j = i;
+        }
+        if (inside) return poly;
+      } catch {
+        continue;
+      }
+    }
+    return null;
+  }
+
   const handleMarkerDragEnd = (event: L.DragEndEvent) => {
     const marker = event.target;
     const newPos = marker.getLatLng();
@@ -299,37 +258,73 @@ export function EnhancedLocationMapWithPolygons({
     onLocationChange(newPos.lat, newPos.lng);
   };
 
-  const handleMapClick = (lat: number, lng: number, polygon?: BuildingPolygon) => {
-    console.log('[Map] handleMapClick called:', { lat, lng, polygon: polygon?.buildingId });
-    if (polygon) {
-      // Polygon tapped - select it (confirming action)
-      console.log('[Map] Polygon tapped:', polygon.buildingId);
-      setSelectedPolygon(polygon);
-      setPosition([polygon.centerLat, polygon.centerLon]);
-      onLocationChange(polygon.centerLat, polygon.centerLon);
-      if (onBuildingSelected) {
-        console.log('[Map] Calling onBuildingSelected with:', polygon);
-        onBuildingSelected(polygon);
-      }
-    } else {
-      // Regular location selection
-      console.log('[Map] No polygon detected at click location');
-      setSelectedPolygon(null);
-      setPosition([lat, lng]);
-      onLocationChange(lat, lng);
-    }
-  };
+  /**
+   * Direct polygon click handler - called when a polygon is tapped
+   * This is the primary click handler; no MapClickHandler needed
+   */
+  const handlePolygonClick = (polygon: BuildingPolygon, e: L.LeafletMouseEvent) => {
+    // Stop propagation so the map click doesn't fire
+    L.DomEvent.stopPropagation(e as unknown as Event);
 
-  // Direct polygon click handler (backup method)
-  const handlePolygonClick = (polygon: BuildingPolygon) => {
-    console.log('[Map] Direct polygon click:', polygon.buildingId);
+    console.log('[Polygon] Tapped polygon:', polygon.buildingId);
+    console.log('[Polygon] Building details:', {
+      buildingId: polygon.buildingId,
+      address: polygon.address,
+      businessName: polygon.businessName,
+      zone: polygon.zone,
+    });
+
     setSelectedPolygon(polygon);
     setPosition([polygon.centerLat, polygon.centerLon]);
     onLocationChange(polygon.centerLat, polygon.centerLon);
+
     if (onBuildingSelected) {
-      console.log('[Map] Calling onBuildingSelected with:', polygon);
+      console.log('[Polygon] Calling onBuildingSelected callback');
       onBuildingSelected(polygon);
+    } else {
+      console.warn('[Polygon] onBuildingSelected callback is NOT set!');
     }
+  };
+
+  /**
+   * Handle location button click - center map on GPS
+   */
+  const handleLocateMe = () => {
+    console.log('[Location] Getting current GPS position...');
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          const newLat = pos.coords.latitude;
+          const newLon = pos.coords.longitude;
+          console.log(`[Location] GPS position: ${newLat}, ${newLon}`);
+          setPosition([newLat, newLon]);
+          onLocationChange(newLat, newLon);
+          // Pan map to new location
+          if (mapRef.current) {
+            mapRef.current.setView([newLat, newLon], mapRef.current.getZoom());
+          }
+        },
+        (error) => {
+          console.error('[Location] Error getting GPS:', error);
+          alert('Unable to get GPS location. Please enable location services.');
+        },
+        {
+          enableHighAccuracy: true,
+          timeout: 10000,
+          maximumAge: 0,
+        }
+      );
+    } else {
+      alert('Geolocation is not supported by this device.');
+    }
+  };
+
+  /**
+   * Handle refresh button click - reload polygons
+   */
+  const handleRefresh = () => {
+    console.log('[Refresh] Reloading polygons for position:', position);
+    loadPolygons(position[0], position[1]);
   };
 
   if (mapError) {
@@ -345,10 +340,10 @@ export function EnhancedLocationMapWithPolygons({
 
   try {
     return (
-      <div className="w-full h-64 rounded-lg overflow-hidden border border-gray-200 relative">
+      <div className="w-full h-96 rounded-lg overflow-hidden border border-gray-200 relative">
         <MapContainer
           center={position}
-          zoom={15}
+          zoom={18}
           style={{ height: '100%', width: '100%' }}
           className="z-0"
         >
@@ -356,75 +351,47 @@ export function EnhancedLocationMapWithPolygons({
             attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
           />
-          
-          <MapUpdater center={position} polygons={polygons} />
-          <MapClickHandler onMapClick={handleMapClick} polygons={polygons} />
-          
+
+          <MapCenterUpdater center={position} />
+          <MapRefCapture onMapReady={(map) => { mapRef.current = map; }} />
+
           <Marker
             position={position}
             draggable={true}
             eventHandlers={{
               dragend: handleMarkerDragEnd,
             }}
-          >
-            <Popup>
-              Current Location<br />
-              Lat: {position[0].toFixed(6)}<br />
-              Lng: {position[1].toFixed(6)}
-              {selectedPolygon && (
-                <>
-                  <br /><br />
-                  <strong>Building: {selectedPolygon.buildingId}</strong>
-                  {selectedPolygon.businessName && <><br />Business: {selectedPolygon.businessName}</>}
-                  {selectedPolygon.address && <><br />Address: {selectedPolygon.address}</>}
-                </>
-              )}
-            </Popup>
-          </Marker>
+          />
 
           {/* Render building polygons */}
-          {polygons.length > 0 && (() => { console.log(`[Render] Rendering ${polygons.length} polygons`); return null; })()}
-          {polygons.map((polygon, index) => {
+          {polygons.map((polygon) => {
             const color = getPolygonColor(polygon.buildingId);
             const isSelected = selectedPolygon?.buildingId === polygon.buildingId;
-            
+
             // Convert GeoJSON coordinates to Leaflet format
             if (!polygon.geometry || !polygon.geometry.coordinates || !polygon.geometry.coordinates[0]) {
-              console.error(`[Render] Invalid geometry for polygon ${polygon.buildingId}:`, polygon.geometry);
               return null;
             }
-            
+
             const coordinates = polygon.geometry.coordinates[0].map(
               ([lng, lat]) => [lat, lng] as [number, number]
             );
-            
-            if (index === 0) {
-              console.log(`[Render] First polygon sample:`, {
-                buildingId: polygon.buildingId,
-                originalCoords: polygon.geometry.coordinates[0].slice(0, 2),
-                convertedCoords: coordinates.slice(0, 2)
-              });
-            }
 
             return (
               <React.Fragment key={polygon.buildingId}>
                 <Polygon
                   positions={coordinates}
                   pathOptions={{
-                    color: isSelected ? '#000' : color,
-                    fillColor: color,
-                    fillOpacity: isSelected ? 0.4 : 0.2,
-                    weight: isSelected ? 3 : 2,
+                    color: isSelected ? '#1a56db' : color,
+                    fillColor: isSelected ? '#1a56db' : color,
+                    fillOpacity: isSelected ? 0.5 : 0.35,
+                    weight: isSelected ? 4 : 2,
                   }}
                   eventHandlers={{
-                    click: (e) => {
-                      L.DomEvent.stopPropagation(e);
-                      console.log('[Polygon] Direct click on polygon:', polygon.buildingId);
-                      handlePolygonClick(polygon);
-                    },
+                    click: (e) => handlePolygonClick(polygon, e),
                   }}
                 />
-                <ZoomDependentLabel polygon={polygon} minZoom={17} />
+                <ZoomDependentLabel polygon={polygon} minZoom={18} />
               </React.Fragment>
             );
           })}
@@ -432,64 +399,43 @@ export function EnhancedLocationMapWithPolygons({
 
         {/* Loading indicator */}
         {isLoadingPolygons && (
-          <div className="absolute top-2 right-2 bg-white px-3 py-1 rounded-lg shadow-md text-sm text-gray-600 z-10">
+          <div className="absolute top-2 left-1/2 -translate-x-1/2 bg-white px-4 py-2 rounded-full shadow-md text-sm text-gray-700 z-[1001] flex items-center gap-2">
+            <svg className="w-4 h-4 animate-spin text-blue-500" fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+            </svg>
             Loading buildings...
           </div>
         )}
 
         {/* Polygon error indicator */}
         {polygonError && !isLoadingPolygons && (
-          <div className="absolute top-2 right-2 bg-yellow-50 px-3 py-1 rounded-lg shadow-md text-sm text-yellow-700 z-10">
+          <div className="absolute top-2 left-1/2 -translate-x-1/2 bg-yellow-50 px-4 py-2 rounded-full shadow-md text-sm text-yellow-700 z-[1001]">
             {polygonError}
           </div>
         )}
 
-        {/* Refresh button - positioned bottom-left to avoid zoom controls */}
+        {/* Refresh button - large touch target, bottom-left */}
         <button
-          onClick={() => {
-            console.log('[Refresh] Reloading polygons...');
-            loadPolygons(position[0], position[1]);
-          }}
+          onClick={handleRefresh}
           disabled={isLoadingPolygons}
-          className="absolute bottom-12 left-2 bg-white p-2 rounded-lg shadow-md text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed z-[1000] flex items-center justify-center"
+          className="absolute bottom-14 left-3 bg-white rounded-xl shadow-lg text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed z-[1001] flex items-center justify-center"
+          style={{ width: '52px', height: '52px' }}
           title="Refresh building data"
         >
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
           </svg>
         </button>
 
-        {/* Location widget - center map on current GPS position */}
+        {/* Location widget - large touch target, bottom-right */}
         <button
-          onClick={() => {
-            console.log('[Location] Getting current GPS position...');
-            if (navigator.geolocation) {
-              navigator.geolocation.getCurrentPosition(
-                (pos) => {
-                  const newLat = pos.coords.latitude;
-                  const newLon = pos.coords.longitude;
-                  console.log(`[Location] GPS position: ${newLat}, ${newLon}`);
-                  setPosition([newLat, newLon]);
-                  onLocationChange(newLat, newLon);
-                },
-                (error) => {
-                  console.error('[Location] Error getting GPS:', error);
-                  alert('Unable to get GPS location. Please enable location services.');
-                },
-                {
-                  enableHighAccuracy: true,
-                  timeout: 10000,
-                  maximumAge: 0,
-                }
-              );
-            } else {
-              alert('Geolocation is not supported by this device.');
-            }
-          }}
-          className="absolute bottom-12 right-2 bg-white p-2 rounded-lg shadow-md text-gray-700 hover:bg-gray-50 z-[1000] flex items-center justify-center"
+          onClick={handleLocateMe}
+          className="absolute bottom-14 right-3 bg-white rounded-xl shadow-lg text-gray-700 hover:bg-gray-50 z-[1001] flex items-center justify-center"
+          style={{ width: '52px', height: '52px' }}
           title="Center on my location"
         >
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
           </svg>
@@ -497,8 +443,8 @@ export function EnhancedLocationMapWithPolygons({
 
         {/* Polygon count indicator */}
         {polygons.length > 0 && !isLoadingPolygons && (
-          <div className="absolute bottom-2 right-2 bg-white px-3 py-1 rounded-lg shadow-md text-xs text-gray-600 z-10">
-            {polygons.length} buildings
+          <div className="absolute bottom-2 left-1/2 -translate-x-1/2 bg-white px-3 py-1 rounded-full shadow-md text-xs text-gray-600 z-[1001]">
+            {polygons.length} buildings loaded
           </div>
         )}
       </div>
