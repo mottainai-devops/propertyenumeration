@@ -23,6 +23,7 @@ interface LocationData {
 function App() {
   const [currentScreen, setCurrentScreen] = useState<AppScreen>('login');
   const [location, setLocation] = useState<LocationData | null>(null);
+  const [selectedBuildingData, setSelectedBuildingData] = useState<any>(null);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [pendingBuildings, setPendingBuildings] = useState<any[]>([]);
   const [isSyncing, setIsSyncing] = useState(false);
@@ -129,8 +130,9 @@ function App() {
     setCurrentScreen('login');
   };
 
-  const handleLocationSelect = (locationData: LocationData) => {
+  const handleLocationSelect = (locationData: LocationData, buildingData?: any) => {
     setLocation(locationData);
+    setSelectedBuildingData(buildingData || null);
     setCurrentScreen('building');
   };
 
@@ -342,7 +344,11 @@ function App() {
             <BuildingForm 
               onSubmit={handleBuildingSubmit} 
               location={location} 
-              onBack={() => setCurrentScreen('session')}
+              selectedBuilding={selectedBuildingData}
+              onBack={() => {
+                setSelectedBuildingData(null);
+                setCurrentScreen('session');
+              }}
             />
           </div>
         </div>

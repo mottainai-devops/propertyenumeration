@@ -3,7 +3,7 @@ import { MapContainer, TileLayer, Marker, Polygon, Popup, useMap, useMapEvents }
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import type { BuildingPolygon } from '../models/BuildingPolygon';
-import { fetchPolygonsNearLocation } from '../services/arcgisService';
+import { fetchPolygonsNearLocation, fetchPolygonsInBounds } from '../services/arcgisService';
 import { getCachedPolygonsNearLocation, savePolygonsToCache } from '../services/simplePolygonCache';
 import { findPolygonAtPoint } from '../utils/pointInPolygon';
 
@@ -80,14 +80,35 @@ function MapClickHandler({
 
 
 /**
- * Map updater component
+ * Map updater component with viewport loading
  */
-function MapUpdater({ center }: { center: [number, number] }) {
+function MapUpdater({ 
+  center, 
+  onViewportChange 
+}: { 
+  center: [number, number];
+  onViewportChange?: (bounds: { north: number; south: number; east: number; west: number }) => void;
+}) {
   const map = useMap();
   
   useEffect(() => {
     map.setView(center, map.getZoom());
   }, [center, map]);
+
+  // Listen for moveend event to detect viewport changes
+  useMapEvents({
+    moveend: () => {
+      if (onViewportChange) {
+        const bounds = map.getBounds();
+        onViewportChange({
+          north: bounds.getNorth(),
+          south: bounds.getSouth(),
+          east: bounds.getEast(),
+          west: bounds.getWest(),
+        });
+      }
+    },
+  });
   
   return null;
 }
@@ -154,13 +175,42 @@ export function EnhancedLocationMapWithPolygons({
     setPosition([latitude, longitude]);
   }, [latitude, longitude]);
 
-  // Load polygons when map position changes
+  // Don't auto-load on position change - only load on manual refresh or initial load
   useEffect(() => {
     loadPolygons(position[0], position[1]);
-  }, [position]);
+  }, []); // Only load once on mount
 
   /**
-   * Load polygons from cache or ArcGIS
+   * Load polygons from cache or ArcGIS using viewport bounds
+   */
+  async function loadPolygonsInViewport(bounds: { north: number; south: number; east: number; west: number }) {
+    setIsLoadingPolygons(true);
+    setPolygonError(null);
+
+    try {
+      // Fetch polygons in viewport from ArcGIS
+      const freshPolygons = await fetchPolygonsInBounds(bounds);
+      
+      if (freshPolygons.length > 0) {
+        setPolygons(freshPolygons);
+        // Update cache
+        const centerLat = (bounds.north + bounds.south) / 2;
+        const centerLon = (bounds.east + bounds.west) / 2;
+        savePolygonsToCache(freshPolygons, centerLat, centerLon);
+        console.log(`Fetched and cached ${freshPolygons.length} polygons from viewport`);
+      } else {
+        setPolygonError('No building data available in this area');
+      }
+    } catch (error) {
+      console.error('Error loading polygons in viewport:', error);
+      setPolygonError('Failed to load building data');
+    } finally {
+      setIsLoadingPolygons(false);
+    }
+  }
+
+  /**
+   * Load polygons from cache or ArcGIS (fallback to radius-based)
    */
   async function loadPolygons(lat: number, lon: number) {
     setIsLoadingPolygons(true);
@@ -308,6 +358,31 @@ export function EnhancedLocationMapWithPolygons({
             {polygonError}
           </div>
         )}
+
+        {/* Refresh button */}
+        <button
+          onClick={() => {
+            // Get current map bounds and reload polygons
+            const mapElement = document.querySelector('.leaflet-container') as any;
+            if (mapElement && mapElement._leaflet_map) {
+              const map = mapElement._leaflet_map;
+              const bounds = map.getBounds();
+              loadPolygonsInViewport({
+                north: bounds.getNorth(),
+                south: bounds.getSouth(),
+                east: bounds.getEast(),
+                west: bounds.getWest(),
+              });
+            }
+          }}
+          disabled={isLoadingPolygons}
+          className="absolute top-2 left-2 bg-white px-3 py-2 rounded-lg shadow-md text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed z-10 flex items-center gap-2"
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+          </svg>
+          Refresh
+        </button>
 
         {/* Polygon count indicator */}
         {polygons.length > 0 && !isLoadingPolygons && (

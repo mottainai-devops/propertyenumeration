@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Camera, CameraResultType, CameraSource } from '@capacitor/camera';
 import CustomerSearch from './CustomerSearch';
 import LotDropdown from './LotDropdown';
@@ -14,12 +14,18 @@ interface LocationData {
 interface BuildingFormProps {
   onSubmit: (buildingData: any) => Promise<void>;
   location: LocationData;
+  selectedBuilding?: {
+    buildingId: string;
+    address?: string;
+    businessName?: string;
+    zone?: string;
+  } | null;
   onBack: () => void;
 }
 
 type FormStep = 'building-details' | 'customer-linking';
 
-export default function BuildingForm({ onSubmit, location, onBack }: BuildingFormProps) {
+export default function BuildingForm({ onSubmit, location, selectedBuilding, onBack }: BuildingFormProps) {
   const [currentStep, setCurrentStep] = useState<FormStep>('building-details');
   const [formData, setFormData] = useState({
     address: '',
@@ -36,6 +42,18 @@ export default function BuildingForm({ onSubmit, location, onBack }: BuildingFor
   const [error, setError] = useState('');
   const [photoLoading, setPhotoLoading] = useState(false);
   const [photoSizes, setPhotoSizes] = useState<number[]>([]);
+
+  // Auto-fill form when building is selected from map
+  useEffect(() => {
+    if (selectedBuilding) {
+      setFormData(prev => ({
+        ...prev,
+        address: selectedBuilding.address || '',
+        buildingName: selectedBuilding.businessName || '',
+        notes: `Building ID: ${selectedBuilding.buildingId}${selectedBuilding.zone ? ` | Zone: ${selectedBuilding.zone}` : ''}`,
+      }));
+    }
+  }, [selectedBuilding]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
@@ -210,6 +228,23 @@ export default function BuildingForm({ onSubmit, location, onBack }: BuildingFor
                 Lat: {location.latitude.toFixed(6)}, Lng: {location.longitude.toFixed(6)}
               </p>
             </div>
+
+            {/* Building Selection Indicator */}
+            {selectedBuilding && (
+              <div className="bg-green-50 border-2 border-green-500 rounded-lg p-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-lg">🏢</span>
+                  <p className="text-sm text-green-900 font-bold">Building Auto-Selected from Map</p>
+                </div>
+                <div className="text-xs text-green-800 space-y-1">
+                  <p><strong>Building ID:</strong> {selectedBuilding.buildingId}</p>
+                  {selectedBuilding.zone && <p><strong>Zone:</strong> {selectedBuilding.zone}</p>}
+                </div>
+                <p className="text-xs text-green-700 mt-2 italic">
+                  ℹ️ Form fields have been pre-filled. You can edit them if needed.
+                </p>
+              </div>
+            )}
 
             {/* Address */}
             <div>

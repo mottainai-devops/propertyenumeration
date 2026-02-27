@@ -25,6 +25,74 @@ const ARCGIS_API_KEY =
 const REQUEST_TIMEOUT = 15000;
 
 /**
+ * Fetch building polygons within a bounding box (viewport)
+ * @param bounds - Map bounds { north, south, east, west }
+ * @returns Array of BuildingPolygon objects or empty array on error
+ */
+export async function fetchPolygonsInBounds(
+  bounds: { north: number; south: number; east: number; west: number }
+): Promise<BuildingPolygon[]> {
+  try {
+    // Build query parameters with bounding box
+    const params = new URLSearchParams({
+      where: '1=1', // Get all features within geometry
+      geometry: JSON.stringify({
+        xmin: bounds.west,
+        ymin: bounds.south,
+        xmax: bounds.east,
+        ymax: bounds.north,
+        spatialReference: { wkid: 4326 }, // WGS84
+      }),
+      geometryType: 'esriGeometryEnvelope',
+      spatialRel: 'esriSpatialRelIntersects',
+      outFields:
+        'building_id,business_name,cust_phone,customer_email,address,Zone,socio_economic_groups',
+      returnGeometry: 'true',
+      f: 'json',
+      token: ARCGIS_API_KEY,
+    });
+
+    const url = `${ARCGIS_BASE_URL}/query?${params.toString()}`;
+    console.log('[ArcGIS] Fetching polygons in bounds:', bounds);
+
+    // Create abort controller for timeout
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT);
+
+    try {
+      const response = await fetch(url, { signal: controller.signal });
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        throw new Error(`ArcGIS API request failed: ${response.status}`);
+      }
+
+      const data: ArcGISQueryResponse = await response.json();
+
+      if (data.error) {
+        throw new Error(`ArcGIS API Error: ${data.error.message}`);
+      }
+
+      console.log(`[ArcGIS] Fetched ${data.features.length} polygons in viewport`);
+
+      // Convert ArcGIS features to BuildingPolygon objects
+      return data.features.map((feature) => convertArcGISFeatureToBuildingPolygon(feature));
+    } catch (fetchError) {
+      clearTimeout(timeoutId);
+      if (fetchError instanceof Error && fetchError.name === 'AbortError') {
+        console.error('[ArcGIS] Request timeout after', REQUEST_TIMEOUT, 'ms');
+        throw new Error('Request timeout - ArcGIS service is slow or unavailable');
+      }
+      throw fetchError;
+    }
+  } catch (error) {
+    console.error('[ArcGIS] Error fetching polygons in bounds:', error);
+    // Return empty array instead of throwing to allow graceful degradation
+    return [];
+  }
+}
+
+/**
  * Fetch building polygons within radius from a center point
  * @param lat - Center latitude (WGS84)
  * @param lon - Center longitude (WGS84)

@@ -10,7 +10,12 @@ interface LocationData {
 }
 
 interface LocationPickerWithMapProps {
-  onLocationSelect: (location: LocationData) => void;
+  onLocationSelect: (location: LocationData, buildingData?: {
+    buildingId: string;
+    address?: string;
+    businessName?: string;
+    zone?: string;
+  }) => void;
 }
 
 export default function LocationPickerWithMap({ onLocationSelect }: LocationPickerWithMapProps) {
@@ -41,10 +46,15 @@ export default function LocationPickerWithMap({ onLocationSelect }: LocationPick
     }
   }, []);
 
+  const [selectedBuilding, setSelectedBuilding] = useState<any>(null);
+
   const handleMapLocationChange = (lat: number, lng: number) => {
     const newLocation = { latitude: lat, longitude: lng };
     setLocation(newLocation);
-    onLocationSelect(newLocation);
+    // If no building is selected, just pass location
+    if (!selectedBuilding) {
+      onLocationSelect(newLocation);
+    }
   };
 
   const handleSimpleLocationSelect = (locationData: LocationData) => {
@@ -80,14 +90,58 @@ export default function LocationPickerWithMap({ onLocationSelect }: LocationPick
               onLocationChange={handleMapLocationChange}
               onBuildingSelected={(building) => {
                 console.log('Building selected:', building.buildingId, building.address);
+                setSelectedBuilding(building);
               }}
             />
-            <button
-              onClick={() => setUseMap(false)}
-              className="w-full px-4 py-2 text-sm text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition"
-            >
-              Switch to GPS-only mode
-            </button>
+            
+            {/* Building Selection Confirmation */}
+            {selectedBuilding && (
+              <div className="mt-4 bg-green-50 border-2 border-green-500 rounded-lg p-4">
+                <div className="flex items-start justify-between">
+                  <div className="flex-1">
+                    <h3 className="text-lg font-bold text-green-900 mb-2">🏢 Building Selected</h3>
+                    <div className="space-y-1 text-sm text-green-800">
+                      <p><strong>Building ID:</strong> {selectedBuilding.buildingId}</p>
+                      {selectedBuilding.address && <p><strong>Address:</strong> {selectedBuilding.address}</p>}
+                      {selectedBuilding.businessName && <p><strong>Business:</strong> {selectedBuilding.businessName}</p>}
+                      {selectedBuilding.zone && <p><strong>Zone:</strong> {selectedBuilding.zone}</p>}
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setSelectedBuilding(null)}
+                    className="ml-4 text-green-600 hover:text-green-800 font-bold"
+                  >
+                    ✕
+                  </button>
+                </div>
+                <button
+                  onClick={() => {
+                    const locationData = {
+                      latitude: selectedBuilding.centerLat,
+                      longitude: selectedBuilding.centerLon,
+                    };
+                    const buildingData = {
+                      buildingId: selectedBuilding.buildingId,
+                      address: selectedBuilding.address,
+                      businessName: selectedBuilding.businessName,
+                      zone: selectedBuilding.zone,
+                    };
+                    onLocationSelect(locationData, buildingData);
+                  }}
+                  className="w-full mt-4 px-6 py-3 bg-green-600 text-white font-bold rounded-lg hover:bg-green-700 transition"
+                >
+                  ✓ Proceed with this Building
+                </button>
+              </div>
+            )}
+            {!selectedBuilding && (
+              <button
+                onClick={() => setUseMap(false)}
+                className="w-full px-4 py-2 text-sm text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition"
+              >
+                Switch to GPS-only mode
+              </button>
+            )}
           </div>
         </MapErrorBoundary>
       ) : (
