@@ -106,3 +106,12 @@
 - [x] Add CSV export button in Statistics screen
 - [x] CSV includes building ID, address, GPS, lot code, timestamp per row
 - [x] CSV downloads via browser download API (Android saves to Downloads folder)
+
+---
+
+## 🔧 v1.21.0 - Photo Count CSV, Sync-All Button, Property Type Chart
+
+- [x] Add photo count column to CSV export
+- [x] Add "Sync All Pending" button to Statistics screen when online and pending > 0
+- [x] Add horizontal bar chart showing Residential/Commercial/Industrial breakdown
+- [x] Chart uses recentBuildings + pendingBuildings data, also shows total photos in Performance section

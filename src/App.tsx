@@ -324,6 +324,10 @@ function App() {
       {currentScreen === 'statistics' && (
         <SessionStatistics
           onClose={() => setCurrentScreen('session')}
+          pendingBuildings={pendingBuildings}
+          isOnline={isOnline}
+          isSyncing={isSyncing}
+          onSyncAll={syncPendingBuildings}
         />
       )}
 

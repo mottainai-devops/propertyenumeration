@@ -10,6 +10,10 @@ interface SessionData {
 
 interface SessionStatisticsProps {
   onClose: () => void;
+  pendingBuildings?: any[];
+  isOnline?: boolean;
+  isSyncing?: boolean;
+  onSyncAll?: () => void;
 }
 
 function formatRelativeTime(ms: number): string {
@@ -22,7 +26,13 @@ function formatRelativeTime(ms: number): string {
   return 'just now';
 }
 
-export default function SessionStatistics({ onClose }: SessionStatisticsProps) {
+export default function SessionStatistics({
+  onClose,
+  pendingBuildings = [],
+  isOnline = true,
+  isSyncing = false,
+  onSyncAll,
+}: SessionStatisticsProps) {
   const [activeSession, setActiveSession] = useState<SessionData | null>(null);
   const [sessionDuration, setSessionDuration] = useState('00:00:00');
   const [recentBuildings, setRecentBuildings] = useState<any[]>([]);
@@ -71,10 +81,7 @@ export default function SessionStatistics({ onClose }: SessionStatisticsProps) {
   async function handleExportCSV() {
     setIsExporting(true);
     try {
-      // Collect all buildings: recentBuildings + pendingBuildings
-      const pending: any[] = JSON.parse(localStorage.getItem('pendingBuildings') || '[]');
-      const allBuildings = [...recentBuildings, ...pending];
-
+      const allBuildings = [...recentBuildings, ...pendingBuildings];
       if (allBuildings.length === 0) {
         setExportMsg('No buildings to export yet');
         setTimeout(() => setExportMsg(null), 3000);
@@ -85,29 +92,36 @@ export default function SessionStatistics({ onClose }: SessionStatisticsProps) {
       const headers = [
         'Building ID', 'Address', 'Building Name', 'Lot Code',
         'Property Type', 'Number of Units', 'Latitude', 'Longitude',
-        'Zone', 'Notes', 'Timestamp', 'Status',
+        'Zone', 'Notes', 'Photo Count', 'Timestamp', 'Status',
       ];
 
-      const rows = allBuildings.map((b: any) => [
-        escapeCSV(b.buildingId || b.selectedBuildingId || ''),
-        escapeCSV(b.address || ''),
-        escapeCSV(b.buildingName || ''),
-        escapeCSV(b.lotCode || activeSession?.lotCode || ''),
-        escapeCSV(b.propertyType || ''),
-        escapeCSV(b.numberOfUnits || ''),
-        escapeCSV(b.latitude || b.lat || ''),
-        escapeCSV(b.longitude || b.lng || ''),
-        escapeCSV(b.zone || ''),
-        escapeCSV(b.notes || ''),
-        escapeCSV(b.timestamp ? new Date(b.timestamp).toISOString() : ''),
-        escapeCSV(b.synced ? 'Synced' : 'Pending'),
-      ]);
+      const rows = allBuildings.map((b: any) => {
+        const photoCount = Array.isArray(b.photos) ? b.photos.length
+          : Array.isArray(b.photoUrls) ? b.photoUrls.length
+          : (b.photoCount ?? 0);
+        return [
+          escapeCSV(b.buildingId || b.selectedBuildingId || ''),
+          escapeCSV(b.address || ''),
+          escapeCSV(b.buildingName || ''),
+          escapeCSV(b.lotCode || activeSession?.lotCode || ''),
+          escapeCSV(b.propertyType || ''),
+          escapeCSV(b.numberOfUnits || ''),
+          escapeCSV(b.latitude || b.gpsCoordinates?.latitude || ''),
+          escapeCSV(b.longitude || b.gpsCoordinates?.longitude || ''),
+          escapeCSV(b.zone || ''),
+          escapeCSV(b.notes || ''),
+          escapeCSV(photoCount),
+          escapeCSV(b.timestamp ? new Date(b.timestamp).toISOString() : ''),
+          escapeCSV(b.synced ? 'Synced' : 'Pending'),
+        ];
+      });
 
       const csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
       const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
       const url = URL.createObjectURL(blob);
-
-      const sessionDate = activeSession ? new Date(activeSession.startTime).toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10);
+      const sessionDate = activeSession
+        ? new Date(activeSession.startTime).toISOString().slice(0, 10)
+        : new Date().toISOString().slice(0, 10);
       const filename = `enumeration_${activeSession?.lotCode || 'session'}_${sessionDate}.csv`;
 
       const a = document.createElement('a');
@@ -128,6 +142,24 @@ export default function SessionStatistics({ onClose }: SessionStatisticsProps) {
       setIsExporting(false);
     }
   }
+
+  // Build property type breakdown from all buildings
+  const allBuildings = [...recentBuildings, ...pendingBuildings];
+  const typeCounts: Record<string, number> = {};
+  for (const b of allBuildings) {
+    const t = b.propertyType || 'Unknown';
+    typeCounts[t] = (typeCounts[t] || 0) + 1;
+  }
+  const typeEntries = Object.entries(typeCounts).sort((a, b) => b[1] - a[1]);
+  const maxCount = typeEntries.length > 0 ? Math.max(...typeEntries.map(e => e[1])) : 1;
+
+  const TYPE_COLORS: Record<string, string> = {
+    Residential: 'bg-blue-500',
+    Commercial: 'bg-orange-500',
+    Industrial: 'bg-purple-500',
+    Mixed: 'bg-teal-500',
+    Unknown: 'bg-gray-400',
+  };
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-end">
@@ -151,7 +183,6 @@ export default function SessionStatistics({ onClose }: SessionStatisticsProps) {
                 <p className="text-sm text-gray-600">Current session metrics</p>
               </div>
             </div>
-            {/* CSV Export button */}
             <button
               onClick={handleExportCSV}
               disabled={isExporting}
@@ -177,6 +208,42 @@ export default function SessionStatistics({ onClose }: SessionStatisticsProps) {
           )}
         </div>
 
+        {/* Sync-All Banner */}
+        {pendingBuildings.length > 0 && isOnline && (
+          <div className="mx-6 mt-4 bg-yellow-50 border border-yellow-200 rounded-xl px-4 py-3 flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <svg className="w-5 h-5 text-yellow-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+              <p className="text-sm text-yellow-800 font-medium">
+                {pendingBuildings.length} building{pendingBuildings.length !== 1 ? 's' : ''} pending sync
+              </p>
+            </div>
+            <button
+              onClick={onSyncAll}
+              disabled={isSyncing}
+              className="shrink-0 px-3 py-1.5 bg-yellow-600 hover:bg-yellow-700 disabled:opacity-50 text-white rounded-lg text-sm font-bold flex items-center gap-1.5 transition"
+            >
+              {isSyncing ? (
+                <>
+                  <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                  </svg>
+                  Syncing…
+                </>
+              ) : (
+                <>
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  </svg>
+                  Sync All
+                </>
+              )}
+            </button>
+          </div>
+        )}
+
         {/* Content */}
         <div className="p-6 space-y-6">
           {activeSession ? (
@@ -193,13 +260,11 @@ export default function SessionStatistics({ onClose }: SessionStatisticsProps) {
                   </span>
                 </div>
 
-                {/* Duration Display */}
                 <div className="text-center mb-6">
                   <p className="text-sm text-gray-600 mb-2">Session Duration</p>
                   <p className="text-4xl font-bold text-gray-900 font-mono">{sessionDuration}</p>
                 </div>
 
-                {/* Stats Grid */}
                 <div className="grid grid-cols-2 gap-4">
                   <div className="bg-white rounded-xl p-4 text-center">
                     <svg className="w-8 h-8 text-blue-600 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -208,7 +273,6 @@ export default function SessionStatistics({ onClose }: SessionStatisticsProps) {
                     <p className="text-2xl font-bold text-gray-900">{activeSession.buildingsRegistered}</p>
                     <p className="text-xs text-gray-600">Buildings</p>
                   </div>
-
                   <div className="bg-white rounded-xl p-4 text-center">
                     <svg className="w-8 h-8 text-purple-600 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
@@ -219,7 +283,6 @@ export default function SessionStatistics({ onClose }: SessionStatisticsProps) {
                   </div>
                 </div>
 
-                {/* Session Info */}
                 <div className="mt-4 pt-4 border-t border-green-200">
                   <div className="flex items-center gap-2 text-sm text-gray-700">
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -230,52 +293,89 @@ export default function SessionStatistics({ onClose }: SessionStatisticsProps) {
                 </div>
               </div>
 
+              {/* Property Type Breakdown Chart */}
+              {typeEntries.length > 0 && (
+                <div className="bg-gray-50 rounded-xl p-5">
+                  <h3 className="text-base font-bold text-gray-900 mb-4 flex items-center gap-2">
+                    <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                    </svg>
+                    Property Type Breakdown
+                  </h3>
+                  <div className="space-y-3">
+                    {typeEntries.map(([type, count]) => {
+                      const pct = Math.round((count / maxCount) * 100);
+                      const colorClass = TYPE_COLORS[type] || 'bg-gray-400';
+                      const totalBuildings = allBuildings.length;
+                      const share = totalBuildings > 0 ? Math.round((count / totalBuildings) * 100) : 0;
+                      return (
+                        <div key={type}>
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="text-sm font-medium text-gray-700">{type}</span>
+                            <span className="text-sm text-gray-500">{count} ({share}%)</span>
+                          </div>
+                          <div className="w-full bg-gray-200 rounded-full h-3">
+                            <div
+                              className={`${colorClass} h-3 rounded-full transition-all duration-500`}
+                              style={{ width: `${pct}%` }}
+                            />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <p className="text-xs text-gray-400 mt-3">{allBuildings.length} total buildings this session</p>
+                </div>
+              )}
+
               {/* Recent Buildings */}
               {recentBuildings.length > 0 && (
                 <div>
                   <h3 className="text-lg font-bold text-gray-900 mb-3">Recent Buildings</h3>
                   <div className="space-y-3">
-                    {recentBuildings.slice(0, 5).map((building, index) => (
-                      <div
-                        key={index}
-                        className="bg-white border border-gray-200 rounded-xl p-4 hover:border-gray-300 transition"
-                      >
-                        <div className="flex items-start justify-between">
-                          <div className="flex-1">
-                            <p className="font-semibold text-gray-900 mb-1">
-                              {building.buildingName || building.address}
-                            </p>
-                            {building.buildingName && (
-                              <p className="text-sm text-gray-600 mb-2">{building.address}</p>
-                            )}
-                            <div className="flex items-center gap-3 text-xs text-gray-500">
-                              <span className="flex items-center gap-1">
-                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-                                </svg>
-                                {building.propertyType}
-                              </span>
-                              <span className="flex items-center gap-1">
-                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
-                                </svg>
-                                {building.numberOfUnits} unit{building.numberOfUnits > 1 ? 's' : ''}
-                              </span>
-                              {building.timestamp && (
-                                <span className="text-gray-400">
-                                  {formatRelativeTime(Date.now() - new Date(building.timestamp).getTime())}
-                                </span>
+                    {recentBuildings.slice(0, 5).map((building, index) => {
+                      const photoCount = Array.isArray(building.photos) ? building.photos.length
+                        : Array.isArray(building.photoUrls) ? building.photoUrls.length
+                        : (building.photoCount ?? 0);
+                      return (
+                        <div
+                          key={index}
+                          className="bg-white border border-gray-200 rounded-xl p-4 hover:border-gray-300 transition"
+                        >
+                          <div className="flex items-start justify-between">
+                            <div className="flex-1">
+                              <p className="font-semibold text-gray-900 mb-1">
+                                {building.buildingName || building.address}
+                              </p>
+                              {building.buildingName && (
+                                <p className="text-sm text-gray-600 mb-2">{building.address}</p>
                               )}
+                              <div className="flex items-center gap-3 text-xs text-gray-500 flex-wrap">
+                                <span>{building.propertyType}</span>
+                                <span>{building.numberOfUnits} unit{building.numberOfUnits > 1 ? 's' : ''}</span>
+                                <span className="flex items-center gap-0.5">
+                                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                                  </svg>
+                                  {photoCount} photo{photoCount !== 1 ? 's' : ''}
+                                </span>
+                                {building.timestamp && (
+                                  <span className="text-gray-400">
+                                    {formatRelativeTime(Date.now() - new Date(building.timestamp).getTime())}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                            <div className="ml-4">
+                              <span className="text-xs px-2 py-1 bg-green-100 text-green-800 rounded-full font-medium">
+                                ✓ Registered
+                              </span>
                             </div>
                           </div>
-                          <div className="ml-4">
-                            <span className="text-xs px-2 py-1 bg-green-100 text-green-800 rounded-full font-medium">
-                              ✓ Registered
-                            </span>
-                          </div>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
               )}
@@ -306,6 +406,17 @@ export default function SessionStatistics({ onClose }: SessionStatisticsProps) {
                               3600000
                           )
                         : 0}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-gray-700">Total photos taken</span>
+                    <span className="text-sm font-semibold text-gray-900">
+                      {allBuildings.reduce((sum, b) => {
+                        const n = Array.isArray(b.photos) ? b.photos.length
+                          : Array.isArray(b.photoUrls) ? b.photoUrls.length
+                          : (b.photoCount ?? 0);
+                        return sum + n;
+                      }, 0)}
                     </span>
                   </div>
                 </div>
