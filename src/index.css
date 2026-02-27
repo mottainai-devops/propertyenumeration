@@ -107,8 +107,12 @@ body {
 
 #root {
   width: 100%;
-  height: 100vh;
+  min-height: 100vh;
+  height: 100%;
   overflow: hidden;
+  /* Push content below the system status bar on Android/iOS */
+  padding-top: var(--sat);
+  padding-top: env(safe-area-inset-top, 0px);
 }
 
 /* Safe-area utility classes */
@@ -126,4 +130,13 @@ body {
 
 .safe-margin-bottom {
   margin-bottom: calc(16px + var(--sab));
+}
+
+.safe-top {
+  padding-top: calc(0px + var(--sat));
+  padding-top: env(safe-area-inset-top, 0px);
+}
+
+.safe-top-lg {
+  padding-top: calc(8px + var(--sat));
 }

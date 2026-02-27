@@ -140,3 +140,12 @@
 - [x] Show server stats: total sessions, total buildings, average per session, avg duration
 - [x] Show lot breakdown table from server data
 - [x] Fallback to localStorage data when offline or API fails
+
+---
+
+## 🔧 v1.23.0 - Safe-Area Inset Fix
+
+- [x] viewport-fit=cover already present in index.html (confirmed)
+- [x] Add padding-top: env(safe-area-inset-top) to #root in index.css
+- [x] Safe-area handled at #root level - all headers inherit correct offset
+- [x] safe-bottom utility class already existed; added safe-top utility class too
