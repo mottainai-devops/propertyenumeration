@@ -4,7 +4,7 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import type { BuildingPolygon } from '../models/BuildingPolygon';
 import { fetchPolygonsNearLocation } from '../services/arcgisService';
-import { getCachedPolygonsNearLocation, savePolygonsToCache } from '../services/simplePolygonCache';
+import { getCachedPolygonsNearLocation, savePolygonsToCache, getCacheTimestamp } from '../services/simplePolygonCache';
 import { getMockPolygons } from '../services/mockPolygonData';
 
 // Enable mock data for testing polygon rendering
@@ -137,6 +137,7 @@ export function EnhancedLocationMapWithPolygons({
   const [flyTarget, setFlyTarget] = useState<[number, number] | null>(null);
   const [isDownloading, setIsDownloading] = useState(false);
   const [downloadProgress, setDownloadProgress] = useState<string | null>(null);
+  const [cacheTimestamp, setCacheTimestamp] = useState<number | null>(() => getCacheTimestamp());
 
   // Search state
   const [searchQuery, setSearchQuery] = useState('');
@@ -199,6 +200,7 @@ export function EnhancedLocationMapWithPolygons({
       if (freshPolygons.length > 0) {
         setPolygons(freshPolygons);
         savePolygonsToCache(freshPolygons, lat, lon);
+        setCacheTimestamp(Date.now());
         tryAutoSelect(lat, lon, freshPolygons);
       } else if (cachedPolygons.length === 0) {
         setPolygonError('No building data — tap Download to save area data for offline use');
@@ -228,6 +230,7 @@ export function EnhancedLocationMapWithPolygons({
       if (freshPolygons.length > 0) {
         setPolygons(freshPolygons);
         savePolygonsToCache(freshPolygons, position[0], position[1]);
+        setCacheTimestamp(Date.now());
         tryAutoSelect(position[0], position[1], freshPolygons);
         setPolygonError(null);
         setDownloadProgress(`✓ ${freshPolygons.length} buildings saved for offline use`);
@@ -537,12 +540,26 @@ export function EnhancedLocationMapWithPolygons({
             </svg>
           </button>
 
-          {/* Building count */}
+          {/* Building count + cache age */}
           {polygons.length > 0 && !isLoadingPolygons && (
-            <div className="absolute bottom-2 left-1/2 -translate-x-1/2 bg-white px-3 py-1 rounded-full shadow-md text-xs text-gray-600 z-[1001]">
-              {polygons.length} buildings loaded
+            <div className="absolute bottom-2 left-1/2 -translate-x-1/2 bg-white px-3 py-1.5 rounded-full shadow-md text-xs text-gray-600 z-[1001] flex items-center gap-1.5">
+              <span>{polygons.length} buildings loaded</span>
               {surveyedBuildingIds.size > 0 && (
-                <span className="ml-1 text-green-600 font-semibold">· {surveyedBuildingIds.size} surveyed</span>
+                <span className="text-green-600 font-semibold">· {surveyedBuildingIds.size} surveyed</span>
+              )}
+              {cacheTimestamp && (
+                <span className="text-gray-400">
+                  · saved {(() => {
+                    const diffMs = Date.now() - cacheTimestamp;
+                    const mins = Math.floor(diffMs / 60000);
+                    const hrs = Math.floor(mins / 60);
+                    const days = Math.floor(hrs / 24);
+                    if (days > 0) return `${days}d ago`;
+                    if (hrs > 0) return `${hrs}h ago`;
+                    if (mins > 0) return `${mins}m ago`;
+                    return 'just now';
+                  })()}
+                </span>
               )}
             </div>
           )}

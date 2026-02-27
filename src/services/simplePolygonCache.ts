@@ -72,6 +72,20 @@ export function clearCache(): void {
 }
 
 /**
+ * Get cache timestamp (ms since epoch), or null if no cache
+ */
+export function getCacheTimestamp(): number | null {
+  try {
+    const cached = localStorage.getItem(CACHE_KEY);
+    if (!cached) return null;
+    const cacheData: CacheData = JSON.parse(cached);
+    return cacheData.timestamp ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Calculate distance between two points (Haversine formula)
  */
 function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {

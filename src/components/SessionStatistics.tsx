@@ -12,56 +12,122 @@ interface SessionStatisticsProps {
   onClose: () => void;
 }
 
+function formatRelativeTime(ms: number): string {
+  const mins = Math.floor(ms / 60000);
+  const hrs = Math.floor(mins / 60);
+  const days = Math.floor(hrs / 24);
+  if (days > 0) return `${days}d ago`;
+  if (hrs > 0) return `${hrs}h ago`;
+  if (mins > 0) return `${mins}m ago`;
+  return 'just now';
+}
+
 export default function SessionStatistics({ onClose }: SessionStatisticsProps) {
   const [activeSession, setActiveSession] = useState<SessionData | null>(null);
   const [sessionDuration, setSessionDuration] = useState('00:00:00');
   const [recentBuildings, setRecentBuildings] = useState<any[]>([]);
+  const [isExporting, setIsExporting] = useState(false);
+  const [exportMsg, setExportMsg] = useState<string | null>(null);
 
   useEffect(() => {
-    // Load active session from localStorage
     const savedSession = localStorage.getItem('activeSession');
-    if (savedSession) {
-      setActiveSession(JSON.parse(savedSession));
-    }
-
-    // Load recent buildings from localStorage
+    if (savedSession) setActiveSession(JSON.parse(savedSession));
     const savedBuildings = localStorage.getItem('recentBuildings');
-    if (savedBuildings) {
-      setRecentBuildings(JSON.parse(savedBuildings));
-    }
+    if (savedBuildings) setRecentBuildings(JSON.parse(savedBuildings));
   }, []);
 
   useEffect(() => {
     if (!activeSession) return;
-
-    // Update duration every second
     const interval = setInterval(() => {
       const startTime = new Date(activeSession.startTime);
       const now = new Date();
       const diffMs = now.getTime() - startTime.getTime();
-      
       const hours = Math.floor(diffMs / 3600000);
       const minutes = Math.floor((diffMs % 3600000) / 60000);
       const seconds = Math.floor((diffMs % 60000) / 1000);
-      
       setSessionDuration(
         `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`
       );
     }, 1000);
-
     return () => clearInterval(interval);
   }, [activeSession]);
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
     return date.toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
+      month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit',
     });
   };
+
+  function escapeCSV(val: any): string {
+    if (val === null || val === undefined) return '';
+    const str = String(val);
+    if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+      return `"${str.replace(/"/g, '""')}"`;
+    }
+    return str;
+  }
+
+  async function handleExportCSV() {
+    setIsExporting(true);
+    try {
+      // Collect all buildings: recentBuildings + pendingBuildings
+      const pending: any[] = JSON.parse(localStorage.getItem('pendingBuildings') || '[]');
+      const allBuildings = [...recentBuildings, ...pending];
+
+      if (allBuildings.length === 0) {
+        setExportMsg('No buildings to export yet');
+        setTimeout(() => setExportMsg(null), 3000);
+        setIsExporting(false);
+        return;
+      }
+
+      const headers = [
+        'Building ID', 'Address', 'Building Name', 'Lot Code',
+        'Property Type', 'Number of Units', 'Latitude', 'Longitude',
+        'Zone', 'Notes', 'Timestamp', 'Status',
+      ];
+
+      const rows = allBuildings.map((b: any) => [
+        escapeCSV(b.buildingId || b.selectedBuildingId || ''),
+        escapeCSV(b.address || ''),
+        escapeCSV(b.buildingName || ''),
+        escapeCSV(b.lotCode || activeSession?.lotCode || ''),
+        escapeCSV(b.propertyType || ''),
+        escapeCSV(b.numberOfUnits || ''),
+        escapeCSV(b.latitude || b.lat || ''),
+        escapeCSV(b.longitude || b.lng || ''),
+        escapeCSV(b.zone || ''),
+        escapeCSV(b.notes || ''),
+        escapeCSV(b.timestamp ? new Date(b.timestamp).toISOString() : ''),
+        escapeCSV(b.synced ? 'Synced' : 'Pending'),
+      ]);
+
+      const csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+
+      const sessionDate = activeSession ? new Date(activeSession.startTime).toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10);
+      const filename = `enumeration_${activeSession?.lotCode || 'session'}_${sessionDate}.csv`;
+
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+      setExportMsg(`✓ Exported ${allBuildings.length} buildings`);
+      setTimeout(() => setExportMsg(null), 4000);
+    } catch (err) {
+      console.error('CSV export error:', err);
+      setExportMsg('Export failed — try again');
+      setTimeout(() => setExportMsg(null), 3000);
+    } finally {
+      setIsExporting(false);
+    }
+  }
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-end">
@@ -85,7 +151,30 @@ export default function SessionStatistics({ onClose }: SessionStatisticsProps) {
                 <p className="text-sm text-gray-600">Current session metrics</p>
               </div>
             </div>
+            {/* CSV Export button */}
+            <button
+              onClick={handleExportCSV}
+              disabled={isExporting}
+              className="flex items-center gap-1.5 px-3 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-lg transition text-sm font-medium"
+            >
+              {isExporting ? (
+                <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                </svg>
+              ) : (
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                </svg>
+              )}
+              Export CSV
+            </button>
           </div>
+          {exportMsg && (
+            <div className={`mt-2 text-xs px-3 py-1.5 rounded-lg font-medium ${exportMsg.startsWith('✓') ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+              {exportMsg}
+            </div>
+          )}
         </div>
 
         {/* Content */}
@@ -172,6 +261,11 @@ export default function SessionStatistics({ onClose }: SessionStatisticsProps) {
                                 </svg>
                                 {building.numberOfUnits} unit{building.numberOfUnits > 1 ? 's' : ''}
                               </span>
+                              {building.timestamp && (
+                                <span className="text-gray-400">
+                                  {formatRelativeTime(Date.now() - new Date(building.timestamp).getTime())}
+                                </span>
+                              )}
                             </div>
                           </div>
                           <div className="ml-4">
@@ -196,8 +290,7 @@ export default function SessionStatistics({ onClose }: SessionStatisticsProps) {
                       {activeSession.buildingsRegistered > 0
                         ? Math.round(
                             (new Date().getTime() - new Date(activeSession.startTime).getTime()) /
-                              60000 /
-                              activeSession.buildingsRegistered
+                              60000 / activeSession.buildingsRegistered
                           )
                         : 0}{' '}
                       min

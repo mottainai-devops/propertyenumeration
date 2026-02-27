@@ -338,12 +338,23 @@ function App() {
                 </p>
               )}
             </div>
-            <button
-              onClick={handleLogout}
-              className="px-3 py-1.5 bg-red-500 text-white rounded-lg hover:bg-red-600 transition text-sm"
-            >
-              Logout
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setCurrentScreen('session')}
+                className="px-3 py-1.5 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition text-sm flex items-center gap-1"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                </svg>
+                Session
+              </button>
+              <button
+                onClick={handleLogout}
+                className="px-3 py-1.5 bg-red-500 text-white rounded-lg hover:bg-red-600 transition text-sm"
+              >
+                Logout
+              </button>
+            </div>
           </div>
           <div className="bg-white rounded-2xl shadow-xl p-4">
             <h2 className="text-lg font-bold text-gray-900 mb-1">Step 1: Select Location</h2>

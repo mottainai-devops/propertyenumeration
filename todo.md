@@ -96,3 +96,13 @@
 - [x] Add "Download area data" button when polygon cache is empty for offline use
 - [x] Show download progress indicator while fetching area polygons
 - [x] Offline search and auto-select work from cached data without internet
+
+---
+
+## 🔧 v1.20.0 - Timestamp, CSV Export, Back Button
+
+- [x] Show "Area data: saved Xh ago" timestamp below map
+- [x] Add "Back to session" button on location screen header
+- [x] Add CSV export button in Statistics screen
+- [x] CSV includes building ID, address, GPS, lot code, timestamp per row
+- [x] CSV downloads via browser download API (Android saves to Downloads folder)
