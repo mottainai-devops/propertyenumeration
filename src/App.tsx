@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { App as CapacitorApp } from '@capacitor/app';
 import Login from './components/Login';
 import SessionManagement from './components/SessionManagement';
@@ -7,17 +7,25 @@ import LocationPickerWithMap from './components/LocationPickerWithMap';
 import BuildingForm from './components/BuildingForm';
 import OfflineQueue from './components/OfflineQueue';
 import SessionStatistics from './components/SessionStatistics';
+import BuildingsList from './components/BuildingsList';
 import ErrorBoundary from './components/ErrorBoundary';
 import { useToast } from './components/Toast';
-import { authApi, buildingApi, customerApi } from './api/client';
+import { authApi, buildingApi, customerApi, sessionApi, type Session } from './api/client';
 import { getOperationErrorMessage, logError, retryOperation } from './utils/errorHandler';
 
-type AppScreen = 'login' | 'session' | 'location' | 'building' | 'success' | 'offline-queue' | 'statistics';
+type AppScreen = 'login' | 'session' | 'location' | 'building' | 'success' | 'offline-queue' | 'statistics' | 'buildings-list';
 
 interface LocationData {
   latitude: number;
   longitude: number;
   accuracy?: number;
+}
+
+interface SessionSummary {
+  lotCode: string;
+  duration: string;
+  buildingsCount: number;
+  photosCount: number;
 }
 
 function App() {
@@ -27,12 +35,17 @@ function App() {
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [pendingBuildings, setPendingBuildings] = useState<any[]>([]);
   const [isSyncing, setIsSyncing] = useState(false);
+  const [recentBuildings, setRecentBuildings] = useState<any[]>([]);
+  const [activeServerSession, setActiveServerSession] = useState<Session | null>(null);
+  const [sessionSummary, setSessionSummary] = useState<SessionSummary | null>(null);
+  const [showSessionSummary, setShowSessionSummary] = useState(false);
   const [surveyedBuildingIds, setSurveyedBuildingIds] = useState<Set<string>>(() => {
     try {
       const saved = localStorage.getItem('surveyedBuildingIds');
       return saved ? new Set(JSON.parse(saved)) : new Set();
     } catch { return new Set(); }
   });
+  const sessionStartTimeRef = useRef<Date | null>(null);
   const { showToast, ToastContainer } = useToast();
 
   // Monitor network status
@@ -42,25 +55,20 @@ function App() {
       syncPendingBuildings();
     };
     const handleOffline = () => setIsOnline(false);
-
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
-
     return () => {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
     };
   }, []);
 
-  // Load pending buildings from localStorage
+  // Load pending buildings and recent buildings from localStorage
   useEffect(() => {
-    const loadPendingBuildings = () => {
-      const pending = localStorage.getItem('pendingBuildings');
-      if (pending) {
-        setPendingBuildings(JSON.parse(pending));
-      }
-    };
-    loadPendingBuildings();
+    const pending = localStorage.getItem('pendingBuildings');
+    if (pending) setPendingBuildings(JSON.parse(pending));
+    const recent = localStorage.getItem('recentBuildings');
+    if (recent) setRecentBuildings(JSON.parse(recent));
   }, []);
 
   // Check if user is already logged in
@@ -68,40 +76,33 @@ function App() {
     const token = localStorage.getItem('authToken');
     const savedUser = localStorage.getItem('user');
     if (token && savedUser) {
-      // User is logged in
-      setCurrentScreen('location');
+      setCurrentScreen('session');
     }
   }, []);
 
   // Handle hardware back button
   useEffect(() => {
     let backButtonHandler: any;
-
     const setupBackButton = async () => {
       backButtonHandler = await CapacitorApp.addListener('backButton', ({ canGoBack }) => {
-        // If in building or location screen, go back to session
         if (currentScreen === 'building' || currentScreen === 'location') {
           setCurrentScreen('session');
-        }
-        // If in session screen, allow app to go to background (don't exit)
-        else if (currentScreen === 'session') {
+        } else if (currentScreen === 'buildings-list' || currentScreen === 'statistics' || currentScreen === 'offline-queue') {
+          setCurrentScreen('session');
+        } else if (currentScreen === 'success') {
+          setCurrentScreen('location');
+        } else if (currentScreen === 'session') {
           CapacitorApp.minimizeApp();
-        }
-        // For other screens, use default behavior
-        else if (canGoBack) {
+        } else if (canGoBack) {
           window.history.back();
         } else {
           CapacitorApp.minimizeApp();
         }
       });
     };
-
     setupBackButton();
-
     return () => {
-      if (backButtonHandler) {
-        backButtonHandler.remove();
-      }
+      if (backButtonHandler) backButtonHandler.remove();
     };
   }, [currentScreen]);
 
@@ -118,7 +119,6 @@ function App() {
       );
       localStorage.setItem('authToken', response.token);
       localStorage.setItem('user', JSON.stringify(response.user));
-      // Store assigned lots separately for easy access
       localStorage.setItem('assignedLots', JSON.stringify(response.user.assignedLots || []));
       showToast('Login successful!', 'success');
       setCurrentScreen('session');
@@ -133,7 +133,106 @@ function App() {
   const handleLogout = () => {
     localStorage.removeItem('authToken');
     localStorage.removeItem('user');
+    setActiveServerSession(null);
     setCurrentScreen('login');
+  };
+
+  const handleStartEnumeration = async (lotCode?: string) => {
+    // Try to start a server-side session
+    if (isOnline) {
+      try {
+        const gps = await getCurrentGPS();
+        const session = await sessionApi.start({
+          lotCode: lotCode || getDefaultLotCode(),
+          startLocation: gps,
+        });
+        setActiveServerSession(session);
+        localStorage.setItem('serverSessionId', session._id);
+        sessionStartTimeRef.current = new Date(session.startTime);
+        showToast('Session started!', 'success');
+      } catch (error) {
+        logError('Session Start', error, {});
+        // Continue offline — session will be local only
+        sessionStartTimeRef.current = new Date();
+        showToast('Started offline — session will sync later', 'info');
+      }
+    } else {
+      sessionStartTimeRef.current = new Date();
+    }
+    setCurrentScreen('location');
+  };
+
+  const handleEndSession = async () => {
+    const sessionId = localStorage.getItem('serverSessionId') || activeServerSession?._id;
+    let summary: SessionSummary | null = null;
+
+    if (isOnline && sessionId) {
+      try {
+        const gps = await getCurrentGPS();
+        const ended = await sessionApi.end(sessionId, { endLocation: gps });
+        const startTime = new Date(ended.startTime);
+        const endTime = ended.endTime ? new Date(ended.endTime) : new Date();
+        const diffMs = endTime.getTime() - startTime.getTime();
+        const hrs = Math.floor(diffMs / 3600000);
+        const mins = Math.floor((diffMs % 3600000) / 60000);
+        summary = {
+          lotCode: ended.lotCode,
+          duration: `${hrs}h ${mins}m`,
+          buildingsCount: ended.buildingsEnumerated,
+          photosCount: ended.photosUploaded,
+        };
+        setActiveServerSession(null);
+        localStorage.removeItem('serverSessionId');
+      } catch (error) {
+        logError('Session End', error, {});
+      }
+    }
+
+    // Build local summary if server call failed
+    if (!summary) {
+      const startTime = sessionStartTimeRef.current || new Date();
+      const diffMs = Date.now() - startTime.getTime();
+      const hrs = Math.floor(diffMs / 3600000);
+      const mins = Math.floor((diffMs % 3600000) / 60000);
+      const savedSession = localStorage.getItem('activeSession');
+      const localSession = savedSession ? JSON.parse(savedSession) : null;
+      summary = {
+        lotCode: localSession?.lotCode || getDefaultLotCode(),
+        duration: `${hrs}h ${mins}m`,
+        buildingsCount: recentBuildings.length,
+        photosCount: recentBuildings.reduce((sum, b) => {
+          return sum + (Array.isArray(b.photos) ? b.photos.length : (b.photoCount ?? 0));
+        }, 0),
+      };
+    }
+
+    setSessionSummary(summary);
+    setShowSessionSummary(true);
+  };
+
+  const getCurrentGPS = (): Promise<{ latitude: number; longitude: number; accuracy?: number }> => {
+    return new Promise((resolve) => {
+      if (!navigator.geolocation) {
+        resolve({ latitude: 0, longitude: 0 });
+        return;
+      }
+      navigator.geolocation.getCurrentPosition(
+        (pos) => resolve({
+          latitude: pos.coords.latitude,
+          longitude: pos.coords.longitude,
+          accuracy: pos.coords.accuracy,
+        }),
+        () => resolve({ latitude: 0, longitude: 0 }),
+        { timeout: 5000, maximumAge: 30000 }
+      );
+    });
+  };
+
+  const getDefaultLotCode = (): string => {
+    try {
+      const lots = JSON.parse(localStorage.getItem('assignedLots') || '[]');
+      return lots[0]?.lotCode || 'UNKNOWN';
+    } catch { return 'UNKNOWN'; }
   };
 
   const handleLocationSelect = (locationData: LocationData, buildingData?: any) => {
@@ -149,6 +248,12 @@ function App() {
       try { localStorage.setItem('surveyedBuildingIds', JSON.stringify([...next])); } catch {}
       return next;
     });
+  };
+
+  const addToRecentBuildings = (buildingData: any) => {
+    const updated = [{ ...buildingData, timestamp: Date.now(), synced: true }, ...recentBuildings].slice(0, 50);
+    setRecentBuildings(updated);
+    try { localStorage.setItem('recentBuildings', JSON.stringify(updated)); } catch {}
   };
 
   const handleBuildingSubmit = async (buildingData: any) => {
@@ -173,8 +278,7 @@ function App() {
             },
           }
         );
-        
-        // Link customer if one was selected
+
         if (linkedCustomerId) {
           try {
             await customerApi.link(linkedCustomerId, building._id);
@@ -186,22 +290,23 @@ function App() {
         } else {
           showToast('Building registered successfully!', 'success');
         }
-        // Track surveyed building
+
         if (buildingWithLocation.buildingId) markBuildingSurveyed(buildingWithLocation.buildingId);
+        addToRecentBuildings({ ...buildingWithLocation, _id: building._id, synced: true });
         setCurrentScreen('success');
       } catch (error) {
         logError('Building Creation', error, buildingWithLocation);
-        // Save to localStorage for later sync
         saveBuildingOffline(buildingWithLocation);
         showToast('Building saved offline. Will sync when online.', 'info');
         if (buildingWithLocation.buildingId) markBuildingSurveyed(buildingWithLocation.buildingId);
+        addToRecentBuildings({ ...buildingWithLocation, synced: false });
         setCurrentScreen('success');
       }
     } else {
-      // Save to localStorage
       saveBuildingOffline(buildingWithLocation);
       showToast('Building saved offline. Will sync when online.', 'info');
       if (buildingWithLocation.buildingId) markBuildingSurveyed(buildingWithLocation.buildingId);
+      addToRecentBuildings({ ...buildingWithLocation, synced: false });
       setCurrentScreen('success');
     }
   };
@@ -214,37 +319,24 @@ function App() {
 
   const syncPendingBuildings = async () => {
     if (pendingBuildings.length === 0 || isSyncing) return;
-
     setIsSyncing(true);
     showToast(`Syncing ${pendingBuildings.length} building(s)...`, 'info');
-    
     const remaining: any[] = [];
     let syncedCount = 0;
-
     for (const building of pendingBuildings) {
       try {
-        await retryOperation(
-          () => buildingApi.create(building),
-          { maxRetries: 1 }
-        );
+        await retryOperation(() => buildingApi.create(building), { maxRetries: 1 });
         syncedCount++;
       } catch (error) {
         logError('Building Sync', error, building);
         remaining.push(building);
       }
     }
-
     setPendingBuildings(remaining);
     localStorage.setItem('pendingBuildings', JSON.stringify(remaining));
     setIsSyncing(false);
-
-    // Show success message
-    if (syncedCount > 0) {
-      showToast(`Successfully synced ${syncedCount} building${syncedCount > 1 ? 's' : ''}!`, 'success');
-    }
-    if (remaining.length > 0) {
-      showToast(`${remaining.length} building${remaining.length > 1 ? 's' : ''} failed to sync`, 'error');
-    }
+    if (syncedCount > 0) showToast(`Successfully synced ${syncedCount} building${syncedCount > 1 ? 's' : ''}!`, 'success');
+    if (remaining.length > 0) showToast(`${remaining.length} building${remaining.length > 1 ? 's' : ''} failed to sync`, 'error');
   };
 
   const handleRemovePendingBuilding = (index: number) => {
@@ -255,8 +347,6 @@ function App() {
     }
   };
 
-
-
   const handleRegisterAnother = () => {
     setLocation(null);
     setCurrentScreen('location');
@@ -266,170 +356,243 @@ function App() {
     <ErrorBoundary>
       <ToastContainer />
       <div className="min-h-screen bg-gradient-to-br from-blue-50 via-teal-50 to-green-50">
-      {/* Network Status Banner */}
-      {!isOnline && (
-        <div className="bg-yellow-500 text-white px-4 pt-safe py-2 text-center font-medium">
-          📡 Offline Mode - Buildings will sync when connection is restored
-        </div>
-      )}
-      {isSyncing && (
-        <div className="bg-blue-500 text-white px-4 pt-safe py-2 text-center font-medium">
-          🔄 Syncing {pendingBuildings.length} pending building(s)...
-        </div>
-      )}
-      {isOnline && pendingBuildings.length > 0 && !isSyncing && (
-        <div 
-          className="bg-green-500 text-white px-4 pt-safe py-2 text-center font-medium cursor-pointer hover:bg-green-600 transition"
-          onClick={() => setCurrentScreen('offline-queue')}
-        >
-          ✅ Online - {pendingBuildings.length} building(s) waiting to sync (Tap to view)
-        </div>
-      )}
 
-      {/* Session Banner - shown during enumeration */}
-      {['location', 'building'].includes(currentScreen) && (
-        <SessionBanner onEndSession={() => setCurrentScreen('session')} />
-      )}
+        {/* Network Status Banner */}
+        {!isOnline && (
+          <div className="bg-yellow-500 text-white px-4 pt-safe py-2 text-center font-medium">
+            📡 Offline Mode - Buildings will sync when connection is restored
+          </div>
+        )}
+        {isSyncing && (
+          <div className="bg-blue-500 text-white px-4 pt-safe py-2 text-center font-medium">
+            🔄 Syncing {pendingBuildings.length} pending building(s)...
+          </div>
+        )}
+        {isOnline && pendingBuildings.length > 0 && !isSyncing && (
+          <div
+            className="bg-green-500 text-white px-4 pt-safe py-2 text-center font-medium cursor-pointer hover:bg-green-600 transition"
+            onClick={() => setCurrentScreen('offline-queue')}
+          >
+            ✅ Online - {pendingBuildings.length} building(s) waiting to sync (Tap to view)
+          </div>
+        )}
 
-      {/* Main Content */}
-      {currentScreen === 'login' && (
-        <Login onLogin={handleLogin} />
-      )}
+        {/* Session Banner - shown during enumeration */}
+        {['location', 'building'].includes(currentScreen) && (
+          <SessionBanner onEndSession={handleEndSession} />
+        )}
 
-      {currentScreen === 'session' && (
-        <SessionManagement
-          onStartEnumeration={() => setCurrentScreen('location')}
-          onLogout={handleLogout}
-          pendingCount={pendingBuildings.length}
-          onViewQueue={() => setCurrentScreen('offline-queue')}
-          onViewStats={() => setCurrentScreen('statistics')}
-          surveyedCount={surveyedBuildingIds.size}
-          onClearSurveyedHistory={() => {
-            setSurveyedBuildingIds(new Set());
-            try { localStorage.removeItem('surveyedBuildingIds'); } catch {}
-          }}
-        />
-      )}
-
-      {currentScreen === 'offline-queue' && (
-        <OfflineQueue
-          pendingBuildings={pendingBuildings}
-          onSync={syncPendingBuildings}
-          onRemove={handleRemovePendingBuilding}
-          onClose={() => setCurrentScreen('session')}
-          isSyncing={isSyncing}
-        />
-      )}
-
-      {currentScreen === 'statistics' && (
-        <SessionStatistics
-          onClose={() => setCurrentScreen('session')}
-          pendingBuildings={pendingBuildings}
-          isOnline={isOnline}
-          isSyncing={isSyncing}
-          onSyncAll={syncPendingBuildings}
-        />
-      )}
-
-      {currentScreen === 'location' && (
-        <div className="container mx-auto px-4 pt-4 pb-4">
-          <div className="flex justify-between items-center mb-3">
-            <div>
-              <h1 className="text-xl font-bold text-gray-900">Property Enumeration</h1>
-              {surveyedBuildingIds.size > 0 && (
-                <p className="text-xs text-green-700 font-semibold mt-0.5">
-                  ✓ {surveyedBuildingIds.size} building{surveyedBuildingIds.size !== 1 ? 's' : ''} surveyed this session
-                </p>
-              )}
-            </div>
-            <div className="flex items-center gap-2">
+        {/* Session Summary Modal */}
+        {showSessionSummary && sessionSummary && (
+          <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6">
+              <div className="text-center mb-6">
+                <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                  <svg className="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                </div>
+                <h2 className="text-xl font-bold text-gray-900">Session Complete</h2>
+                <p className="text-sm text-gray-500 mt-1">Great work today!</p>
+              </div>
+              <div className="grid grid-cols-2 gap-3 mb-6">
+                <div className="bg-blue-50 rounded-xl p-4 text-center">
+                  <p className="text-2xl font-bold text-blue-700">{sessionSummary.buildingsCount}</p>
+                  <p className="text-xs text-blue-600 mt-1">Buildings Registered</p>
+                </div>
+                <div className="bg-purple-50 rounded-xl p-4 text-center">
+                  <p className="text-2xl font-bold text-purple-700">{sessionSummary.photosCount}</p>
+                  <p className="text-xs text-purple-600 mt-1">Photos Taken</p>
+                </div>
+                <div className="bg-teal-50 rounded-xl p-4 text-center">
+                  <p className="text-lg font-bold text-teal-700">{sessionSummary.duration}</p>
+                  <p className="text-xs text-teal-600 mt-1">Duration</p>
+                </div>
+                <div className="bg-orange-50 rounded-xl p-4 text-center">
+                  <p className="text-lg font-bold text-orange-700">{sessionSummary.lotCode}</p>
+                  <p className="text-xs text-orange-600 mt-1">Lot Code</p>
+                </div>
+              </div>
               <button
-                onClick={() => setCurrentScreen('session')}
-                className="px-3 py-1.5 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition text-sm flex items-center gap-1"
+                onClick={() => {
+                  setShowSessionSummary(false);
+                  setCurrentScreen('session');
+                }}
+                className="w-full bg-gradient-to-r from-blue-500 to-teal-500 text-white font-bold py-3 rounded-xl transition hover:from-blue-600 hover:to-teal-600"
               >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-                </svg>
-                Session
+                Back to Dashboard
               </button>
+            </div>
+          </div>
+        )}
+
+        {/* Main Content */}
+        {currentScreen === 'login' && (
+          <Login onLogin={handleLogin} />
+        )}
+
+        {currentScreen === 'session' && (
+          <SessionManagement
+            onStartEnumeration={handleStartEnumeration}
+            onLogout={handleLogout}
+            pendingCount={pendingBuildings.length}
+            onViewQueue={() => setCurrentScreen('offline-queue')}
+            onViewStats={() => setCurrentScreen('statistics')}
+            onViewBuildings={() => setCurrentScreen('buildings-list')}
+            surveyedCount={surveyedBuildingIds.size}
+            recentBuildingsCount={recentBuildings.length}
+            onClearSurveyedHistory={() => {
+              setSurveyedBuildingIds(new Set());
+              try { localStorage.removeItem('surveyedBuildingIds'); } catch {}
+            }}
+          />
+        )}
+
+        {currentScreen === 'offline-queue' && (
+          <OfflineQueue
+            pendingBuildings={pendingBuildings}
+            onSync={syncPendingBuildings}
+            onRemove={handleRemovePendingBuilding}
+            onClose={() => setCurrentScreen('session')}
+            isSyncing={isSyncing}
+          />
+        )}
+
+        {currentScreen === 'statistics' && (
+          <SessionStatistics
+            onClose={() => setCurrentScreen('session')}
+            pendingBuildings={pendingBuildings}
+            isOnline={isOnline}
+            isSyncing={isSyncing}
+            onSyncAll={syncPendingBuildings}
+          />
+        )}
+
+        {currentScreen === 'buildings-list' && (
+          <BuildingsList
+            buildings={recentBuildings}
+            pendingBuildings={pendingBuildings}
+            onClose={() => setCurrentScreen('session')}
+          />
+        )}
+
+        {currentScreen === 'location' && (
+          <div className="container mx-auto px-4 pt-4 pb-4">
+            <div className="flex justify-between items-center mb-3">
+              <div>
+                <h1 className="text-xl font-bold text-gray-900">Property Enumeration</h1>
+                {surveyedBuildingIds.size > 0 && (
+                  <p className="text-xs text-green-700 font-semibold mt-0.5">
+                    ✓ {surveyedBuildingIds.size} building{surveyedBuildingIds.size !== 1 ? 's' : ''} surveyed this session
+                  </p>
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setCurrentScreen('session')}
+                  className="px-3 py-1.5 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition text-sm flex items-center gap-1"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                  </svg>
+                  Session
+                </button>
+                <button
+                  onClick={handleLogout}
+                  className="px-3 py-1.5 bg-red-500 text-white rounded-lg hover:bg-red-600 transition text-sm"
+                >
+                  Logout
+                </button>
+              </div>
+            </div>
+            <div className="bg-white rounded-2xl shadow-xl p-4">
+              <h2 className="text-lg font-bold text-gray-900 mb-1">Step 1: Select Location</h2>
+              <p className="text-gray-500 text-sm mb-3">
+                Tap a building polygon to select it.
+              </p>
+              <LocationPickerWithMap
+                onLocationSelect={handleLocationSelect}
+                surveyedBuildingIds={surveyedBuildingIds}
+              />
+            </div>
+          </div>
+        )}
+
+        {currentScreen === 'building' && location && (
+          <div className="container mx-auto px-4 py-8">
+            <div className="flex justify-between items-center mb-6">
+              <h1 className="text-3xl font-bold text-gray-900">Property Enumeration</h1>
               <button
                 onClick={handleLogout}
-                className="px-3 py-1.5 bg-red-500 text-white rounded-lg hover:bg-red-600 transition text-sm"
+                className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition"
               >
                 Logout
               </button>
             </div>
+            <div className="bg-white rounded-2xl shadow-xl p-6">
+              <h2 className="text-2xl font-bold text-gray-900 mb-4">Step 2: Building Information</h2>
+              <p className="text-gray-600 mb-6">
+                Fill in the building details and capture photos.
+              </p>
+              <BuildingForm
+                onSubmit={handleBuildingSubmit}
+                location={location}
+                selectedBuilding={selectedBuildingData}
+                onBack={() => {
+                  setSelectedBuildingData(null);
+                  setCurrentScreen('session');
+                }}
+              />
+            </div>
           </div>
-          <div className="bg-white rounded-2xl shadow-xl p-4">
-            <h2 className="text-lg font-bold text-gray-900 mb-1">Step 1: Select Location</h2>
-            <p className="text-gray-500 text-sm mb-3">
-              Tap a building polygon to select it.
-            </p>
-            <LocationPickerWithMap
-              onLocationSelect={handleLocationSelect}
-              surveyedBuildingIds={surveyedBuildingIds}
-            />
-          </div>
-        </div>
-      )}
+        )}
 
-      {currentScreen === 'building' && location && (
-        <div className="container mx-auto px-4 py-8">
-          <div className="flex justify-between items-center mb-6">
-            <h1 className="text-3xl font-bold text-gray-900">Property Enumeration</h1>
-            <button
-              onClick={handleLogout}
-              className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition"
-            >
-              Logout
-            </button>
+        {currentScreen === 'success' && (
+          <div className="container mx-auto px-4 py-8">
+            <div className="flex justify-between items-center mb-6">
+              <h1 className="text-3xl font-bold text-gray-900">Property Enumeration</h1>
+              <button
+                onClick={handleLogout}
+                className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition"
+              >
+                Logout
+              </button>
+            </div>
+            <div className="bg-white rounded-2xl shadow-xl p-8 text-center">
+              <div className="text-6xl mb-4">✅</div>
+              <h2 className="text-3xl font-bold text-gray-900 mb-2">Success!</h2>
+              <p className="text-gray-600 mb-2">
+                Building registered successfully{!isOnline && ' (offline — will sync later)'}.
+              </p>
+              {recentBuildings[0] && (
+                <div className="bg-gray-50 rounded-xl p-4 mb-6 text-left">
+                  <p className="text-sm font-semibold text-gray-700">{recentBuildings[0].address}</p>
+                  {recentBuildings[0].buildingName && (
+                    <p className="text-xs text-gray-500">{recentBuildings[0].buildingName}</p>
+                  )}
+                  <p className="text-xs text-gray-400 mt-1">
+                    {recentBuildings[0].propertyType} · {recentBuildings[0].numberOfUnits} unit{recentBuildings[0].numberOfUnits !== 1 ? 's' : ''}
+                    {Array.isArray(recentBuildings[0].photos) && recentBuildings[0].photos.length > 0 && ` · ${recentBuildings[0].photos.length} photo${recentBuildings[0].photos.length !== 1 ? 's' : ''}`}
+                  </p>
+                </div>
+              )}
+              <div className="flex flex-col gap-3">
+                <button
+                  onClick={handleRegisterAnother}
+                  className="px-8 py-4 bg-gradient-to-r from-blue-500 to-teal-500 text-white rounded-lg hover:from-blue-600 hover:to-teal-600 transition font-medium text-lg"
+                >
+                  Register Another Building
+                </button>
+                <button
+                  onClick={() => setCurrentScreen('buildings-list')}
+                  className="px-8 py-3 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition font-medium"
+                >
+                  View All Registered Buildings
+                </button>
+              </div>
+            </div>
           </div>
-          <div className="bg-white rounded-2xl shadow-xl p-6">
-            <h2 className="text-2xl font-bold text-gray-900 mb-4">Step 2: Building Information</h2>
-            <p className="text-gray-600 mb-6">
-              Fill in the building details and capture photos.
-            </p>
-            <BuildingForm 
-              onSubmit={handleBuildingSubmit} 
-              location={location} 
-              selectedBuilding={selectedBuildingData}
-              onBack={() => {
-                setSelectedBuildingData(null);
-                setCurrentScreen('session');
-              }}
-            />
-          </div>
-        </div>
-      )}
-
-
-
-      {currentScreen === 'success' && (
-        <div className="container mx-auto px-4 py-8">
-          <div className="flex justify-between items-center mb-6">
-            <h1 className="text-3xl font-bold text-gray-900">Property Enumeration</h1>
-            <button
-              onClick={handleLogout}
-              className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition"
-            >
-              Logout
-            </button>
-          </div>
-          <div className="bg-white rounded-2xl shadow-xl p-8 text-center">
-            <div className="text-6xl mb-4">✅</div>
-            <h2 className="text-3xl font-bold text-gray-900 mb-4">Success!</h2>
-            <p className="text-gray-600 mb-8">
-              Building registered successfully{!isOnline && ' (offline - will sync later)'}.
-            </p>
-            <button
-              onClick={handleRegisterAnother}
-              className="px-8 py-4 bg-gradient-to-r from-blue-500 to-teal-500 text-white rounded-lg hover:from-blue-600 hover:to-teal-600 transition font-medium text-lg"
-            >
-              Register Another Building
-            </button>
-          </div>
-        </div>
-      )}
+        )}
       </div>
     </ErrorBoundary>
   );

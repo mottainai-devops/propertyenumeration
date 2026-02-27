@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { sessionApi, type SessionStatistics as ServerStats } from '../api/client';
 
 interface SessionData {
   sessionId: string;
@@ -38,6 +39,8 @@ export default function SessionStatistics({
   const [recentBuildings, setRecentBuildings] = useState<any[]>([]);
   const [isExporting, setIsExporting] = useState(false);
   const [exportMsg, setExportMsg] = useState<string | null>(null);
+  const [serverStats, setServerStats] = useState<ServerStats | null>(null);
+  const [serverStatsLoading, setServerStatsLoading] = useState(false);
 
   useEffect(() => {
     const savedSession = localStorage.getItem('activeSession');
@@ -45,6 +48,16 @@ export default function SessionStatistics({
     const savedBuildings = localStorage.getItem('recentBuildings');
     if (savedBuildings) setRecentBuildings(JSON.parse(savedBuildings));
   }, []);
+
+  // Fetch server-side historical statistics
+  useEffect(() => {
+    if (!isOnline) return;
+    setServerStatsLoading(true);
+    sessionApi.getStatistics()
+      .then(stats => setServerStats(stats))
+      .catch(() => setServerStats(null))
+      .finally(() => setServerStatsLoading(false));
+  }, [isOnline]);
 
   useEffect(() => {
     if (!activeSession) return;
@@ -420,6 +433,66 @@ export default function SessionStatistics({
                     </span>
                   </div>
                 </div>
+              </div>
+
+              {/* Server-Side Historical Statistics */}
+              <div className="bg-white border border-gray-200 rounded-xl p-5">
+                <h3 className="text-base font-bold text-gray-900 mb-4 flex items-center gap-2">
+                  <svg className="w-5 h-5 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z" />
+                  </svg>
+                  Historical (All Sessions)
+                </h3>
+                {!isOnline ? (
+                  <p className="text-sm text-gray-400">Connect to the internet to view historical statistics</p>
+                ) : serverStatsLoading ? (
+                  <div className="flex items-center gap-2 text-sm text-gray-500">
+                    <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                    </svg>
+                    Loading server statistics...
+                  </div>
+                ) : serverStats ? (
+                  <div className="space-y-3">
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="bg-indigo-50 rounded-xl p-3 text-center">
+                        <p className="text-2xl font-bold text-indigo-700">{serverStats.totalSessions}</p>
+                        <p className="text-xs text-indigo-600">Total Sessions</p>
+                      </div>
+                      <div className="bg-green-50 rounded-xl p-3 text-center">
+                        <p className="text-2xl font-bold text-green-700">{serverStats.totalBuildingsEnumerated}</p>
+                        <p className="text-xs text-green-600">Total Buildings</p>
+                      </div>
+                      <div className="bg-blue-50 rounded-xl p-3 text-center">
+                        <p className="text-2xl font-bold text-blue-700">{Math.round(serverStats.averageBuildingsPerSession)}</p>
+                        <p className="text-xs text-blue-600">Avg per Session</p>
+                      </div>
+                      <div className="bg-purple-50 rounded-xl p-3 text-center">
+                        <p className="text-2xl font-bold text-purple-700">{Math.round(serverStats.averageDurationMinutes)}m</p>
+                        <p className="text-xs text-purple-600">Avg Duration</p>
+                      </div>
+                    </div>
+                    {Object.keys(serverStats.lotBreakdown).length > 0 && (
+                      <div className="mt-3">
+                        <p className="text-xs font-semibold text-gray-500 uppercase mb-2">Lot Breakdown</p>
+                        <div className="space-y-2">
+                          {Object.entries(serverStats.lotBreakdown).map(([lot, data]) => (
+                            <div key={lot} className="flex items-center justify-between text-sm">
+                              <span className="font-medium text-gray-700">{lot}</span>
+                              <div className="flex gap-3 text-xs text-gray-500">
+                                <span>{data.sessions} session{data.sessions !== 1 ? 's' : ''}</span>
+                                <span className="font-semibold text-gray-700">{data.buildings} bldgs</span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <p className="text-sm text-gray-400">Could not load server statistics</p>
+                )}
               </div>
             </>
           ) : (

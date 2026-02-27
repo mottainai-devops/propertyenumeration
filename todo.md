@@ -115,3 +115,28 @@
 - [x] Add "Sync All Pending" button to Statistics screen when online and pending > 0
 - [x] Add horizontal bar chart showing Residential/Commercial/Industrial breakdown
 - [x] Chart uses recentBuildings + pendingBuildings data, also shows total photos in Performance section
+
+---
+
+## 🔧 v1.22.0 - Session API, Buildings List, Server-Side Statistics
+
+### Session Start/End API
+- [x] Call sessionApi.start() when surveyor begins enumeration (capture GPS + lot code)
+- [x] Store server session ID in localStorage for subsequent calls
+- [x] Add "End Session" button in SessionBanner that calls sessionApi.end() with GPS
+- [x] Show session summary modal after ending (duration, buildings count, photos count)
+- [x] Update session buildingsRegistered count on each successful building submission
+
+### Buildings List Screen
+- [x] New BuildingsList screen showing all buildings registered in current session
+- [x] Each card shows: address, building name, property type, units, GPS, photo count, timestamp
+- [x] Photo thumbnails shown on each card (first photo)
+- [x] Filter by property type (All / Residential / Commercial / Industrial / Pending)
+- [x] Navigate to BuildingsList from session dashboard and success screen
+- [x] Add "View Registered Buildings" button to session dashboard
+
+### Server-Side Statistics
+- [x] Call sessionApi.getStatistics() in SessionStatistics screen
+- [x] Show server stats: total sessions, total buildings, average per session, avg duration
+- [x] Show lot breakdown table from server data
+- [x] Fallback to localStorage data when offline or API fails
