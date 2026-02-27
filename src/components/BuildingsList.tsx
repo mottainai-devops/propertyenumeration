@@ -1,6 +1,7 @@
-import { useState, useMemo, useEffect, useCallback } from 'react';
-import { buildingApi } from '../api/client';
+import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
+import { buildingApi, customerApi } from '../api/client';
 import type { Building } from '../api/client';
+import BuildingEdit from './BuildingEdit';
 
 interface LocalBuilding {
   _id?: string;
@@ -15,6 +16,9 @@ interface LocalBuilding {
   notes?: string;
   timestamp?: number;
   synced?: boolean;
+  // Customer link info (from server)
+  linkedCustomerId?: string;
+  linkedCustomerName?: string;
 }
 
 interface BuildingsListProps {
@@ -24,6 +28,8 @@ interface BuildingsListProps {
 }
 
 type FilterType = 'All' | 'Residential' | 'Commercial' | 'Industrial' | 'Mixed-Use' | 'Pending';
+
+const PAGE_SIZE = 20;
 
 // Normalise a server Building to our local shape
 function normaliseServerBuilding(b: Building): LocalBuilding {
@@ -51,6 +57,22 @@ export default function BuildingsList({ buildings, pendingBuildings, onClose }: 
   const [serverError, setServerError] = useState('');
   const [lastFetched, setLastFetched] = useState<Date | null>(null);
 
+  // Pagination
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+
+  // Expand / detail panel
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+
+  // Edit modal
+  const [editingBuilding, setEditingBuilding] = useState<Building | null>(null);
+
+  // Unlink state
+  const [unlinkingId, setUnlinkingId] = useState<string | null>(null);
+  const [unlinkError, setUnlinkError] = useState<Record<string, string>>({});
+
+  // Load-more sentinel
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
+
   const fetchFromServer = useCallback(async () => {
     setLoadingServer(true);
     setServerError('');
@@ -69,10 +91,30 @@ export default function BuildingsList({ buildings, pendingBuildings, onClose }: 
     fetchFromServer();
   }, [fetchFromServer]);
 
+  // Reset pagination when filter/search changes
+  useEffect(() => {
+    setVisibleCount(PAGE_SIZE);
+  }, [filter, search]);
+
+  // Infinite scroll via IntersectionObserver
+  useEffect(() => {
+    const el = sentinelRef.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      entries => {
+        if (entries[0].isIntersecting) {
+          setVisibleCount(v => v + PAGE_SIZE);
+        }
+      },
+      { threshold: 0.1 }
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
   // Merge: server data takes priority; pending (unsynced) always shown
   const allBuildings = useMemo(() => {
     const serverIds = new Set(serverBuildings.map(b => b._id).filter(Boolean));
-    // Local synced buildings not yet in server response (just submitted)
     const localSynced = buildings.filter(b => b.synced !== false && !serverIds.has(b._id));
     const pending = pendingBuildings.map(b => ({ ...b, synced: false as const }));
     return [...serverBuildings, ...localSynced, ...pending];
@@ -93,6 +135,9 @@ export default function BuildingsList({ buildings, pendingBuildings, onClose }: 
     });
   }, [allBuildings, filter, search]);
 
+  const visible = filtered.slice(0, visibleCount);
+  const hasMore = visibleCount < filtered.length;
+
   const getPhotoCount = (b: LocalBuilding) => {
     if (Array.isArray(b.photos)) return b.photos.length;
     if (typeof b.photoCount === 'number') return b.photoCount;
@@ -105,6 +150,13 @@ export default function BuildingsList({ buildings, pendingBuildings, onClose }: 
     if (typeof first === 'string') return first;
     if (first instanceof File) return URL.createObjectURL(first);
     return null;
+  };
+
+  const getPhotoStrings = (b: LocalBuilding): string[] => {
+    if (!Array.isArray(b.photos)) return [];
+    return b.photos
+      .map(p => (typeof p === 'string' ? p : p instanceof File ? URL.createObjectURL(p) : null))
+      .filter(Boolean) as string[];
   };
 
   const formatTime = (ts?: number) => {
@@ -132,8 +184,66 @@ export default function BuildingsList({ buildings, pendingBuildings, onClose }: 
 
   const filters: FilterType[] = ['All', 'Residential', 'Commercial', 'Industrial', 'Mixed-Use', 'Pending'];
 
+  // Handle unlink customer
+  const handleUnlink = async (b: LocalBuilding) => {
+    if (!b.linkedCustomerId || !b._id) return;
+    setUnlinkingId(b._id);
+    setUnlinkError(prev => ({ ...prev, [b._id!]: '' }));
+    try {
+      await customerApi.unlink(b.linkedCustomerId);
+      // Update local state to remove link
+      setServerBuildings(prev =>
+        prev.map(sb =>
+          sb._id === b._id ? { ...sb, linkedCustomerId: undefined, linkedCustomerName: undefined } : sb
+        )
+      );
+    } catch (err: any) {
+      const msg = err?.response?.data?.message ?? err?.message ?? 'Failed to unlink customer';
+      setUnlinkError(prev => ({ ...prev, [b._id!]: msg }));
+    } finally {
+      setUnlinkingId(null);
+    }
+  };
+
+  // Handle edit saved
+  const handleEditSaved = (updated: Building) => {
+    setServerBuildings(prev =>
+      prev.map(sb => (sb._id === updated._id ? normaliseServerBuilding(updated) : sb))
+    );
+    setEditingBuilding(null);
+  };
+
+  // Convert LocalBuilding to Building shape for edit modal (server buildings only)
+  const toBuilding = (b: LocalBuilding): Building | null => {
+    if (!b._id || b.synced === false) return null;
+    return {
+      _id: b._id,
+      address: b.address,
+      buildingName: b.buildingName,
+      lotCode: b.lotCode,
+      propertyType: b.propertyType as Building['propertyType'],
+      numberOfUnits: b.numberOfUnits,
+      gpsCoordinates: b.gpsCoordinates ?? { latitude: 0, longitude: 0 },
+      photos: (b.photos?.filter(p => typeof p === 'string') as string[]) ?? [],
+      notes: b.notes,
+      userId: '',
+      companyId: '',
+      createdAt: b.timestamp ? new Date(b.timestamp).toISOString() : new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+  };
+
   return (
     <div className="min-h-screen bg-gray-50">
+      {/* Edit modal */}
+      {editingBuilding && (
+        <BuildingEdit
+          building={editingBuilding}
+          onSaved={handleEditSaved}
+          onClose={() => setEditingBuilding(null)}
+        />
+      )}
+
       {/* Header */}
       <div className="bg-white shadow-sm sticky top-0 z-10">
         <div className="px-4 py-4">
@@ -157,7 +267,6 @@ export default function BuildingsList({ buildings, pendingBuildings, onClose }: 
                 </p>
               </div>
             </div>
-            {/* Refresh button */}
             <button
               onClick={fetchFromServer}
               disabled={loadingServer}
@@ -170,7 +279,6 @@ export default function BuildingsList({ buildings, pendingBuildings, onClose }: 
             </button>
           </div>
 
-          {/* Server error banner */}
           {serverError && (
             <div className="mb-3 bg-yellow-50 border border-yellow-200 rounded-lg px-3 py-2 flex items-center gap-2">
               <svg className="w-4 h-4 text-yellow-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -238,7 +346,7 @@ export default function BuildingsList({ buildings, pendingBuildings, onClose }: 
       )}
 
       {/* List */}
-      {!loadingServer || serverBuildings.length > 0 ? (
+      {(!loadingServer || serverBuildings.length > 0) && (
         <div className="px-4 py-3 space-y-3">
           {filtered.length === 0 && (
             <div className="text-center py-16">
@@ -254,20 +362,28 @@ export default function BuildingsList({ buildings, pendingBuildings, onClose }: 
             </div>
           )}
 
-          {filtered.map((b, i) => {
+          {visible.map((b, i) => {
             const thumb = getPhotoThumbnail(b);
             const photoCount = getPhotoCount(b);
             const typeKey = b.propertyType?.toLowerCase() || '';
             const colorClass = typeColor[typeKey] || 'bg-gray-100 text-gray-600';
+            const cardId = b._id || String(b.timestamp) || String(i);
+            const isExpanded = expandedId === cardId;
+            const canEdit = !!b._id && b.synced !== false;
+            const photoUrls = getPhotoStrings(b);
 
             return (
               <div
-                key={b._id || b.timestamp || i}
-                className={`bg-white rounded-xl shadow-sm border overflow-hidden ${
-                  b.synced === false ? 'border-yellow-300' : 'border-gray-100'
+                key={cardId}
+                className={`bg-white rounded-xl shadow-sm border overflow-hidden transition-all ${
+                  b.synced === false ? 'border-yellow-300' : isExpanded ? 'border-blue-300' : 'border-gray-100'
                 }`}
               >
-                <div className="flex">
+                {/* Card row — tap to expand */}
+                <div
+                  className="flex cursor-pointer active:bg-gray-50"
+                  onClick={() => setExpandedId(isExpanded ? null : cardId)}
+                >
                   {/* Photo thumbnail */}
                   <div className="w-20 h-20 shrink-0 bg-gray-100 flex items-center justify-center overflow-hidden">
                     {thumb ? (
@@ -289,11 +405,19 @@ export default function BuildingsList({ buildings, pendingBuildings, onClose }: 
                           <p className="text-xs text-gray-500 truncate">{b.buildingName}</p>
                         )}
                       </div>
-                      {b.synced === false ? (
-                        <span className="shrink-0 text-xs bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded-full font-medium">Pending</span>
-                      ) : (
-                        <span className="shrink-0 text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-medium">✓ Synced</span>
-                      )}
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        {b.synced === false ? (
+                          <span className="text-xs bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded-full font-medium">Pending</span>
+                        ) : (
+                          <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-medium">✓ Synced</span>
+                        )}
+                        <svg
+                          className={`w-4 h-4 text-gray-400 transition-transform ${isExpanded ? 'rotate-180' : ''}`}
+                          fill="none" stroke="currentColor" viewBox="0 0 24 24"
+                        >
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                        </svg>
+                      </div>
                     </div>
 
                     <div className="flex flex-wrap gap-1.5 mt-2">
@@ -337,13 +461,126 @@ export default function BuildingsList({ buildings, pendingBuildings, onClose }: 
                     </div>
                   </div>
                 </div>
+
+                {/* Expanded detail panel */}
+                {isExpanded && (
+                  <div className="border-t border-gray-100 bg-gray-50 px-4 py-4 space-y-4">
+                    {/* Photo gallery */}
+                    {photoUrls.length > 0 && (
+                      <div>
+                        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Photos ({photoUrls.length})</p>
+                        <div className="flex gap-2 overflow-x-auto pb-1">
+                          {photoUrls.map((url, pi) => (
+                            <img
+                              key={pi}
+                              src={url}
+                              alt={`Photo ${pi + 1}`}
+                              className="w-20 h-20 object-cover rounded-lg shrink-0 border border-gray-200"
+                            />
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Notes */}
+                    {b.notes && (
+                      <div>
+                        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Notes</p>
+                        <p className="text-sm text-gray-700">{b.notes}</p>
+                      </div>
+                    )}
+
+                    {/* GPS detail */}
+                    {b.gpsCoordinates && (
+                      <div>
+                        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">GPS Coordinates</p>
+                        <p className="text-sm font-mono text-gray-700">
+                          {b.gpsCoordinates.latitude.toFixed(6)}, {b.gpsCoordinates.longitude.toFixed(6)}
+                          {b.gpsCoordinates.accuracy != null && (
+                            <span className="text-gray-400"> ±{Math.round(b.gpsCoordinates.accuracy)}m</span>
+                          )}
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Customer link */}
+                    {b.linkedCustomerId && (
+                      <div className="bg-blue-50 border border-blue-200 rounded-xl px-4 py-3">
+                        <div className="flex items-start justify-between gap-2">
+                          <div>
+                            <p className="text-xs font-semibold text-blue-700 uppercase tracking-wide mb-0.5">Linked Customer</p>
+                            <p className="text-sm font-medium text-blue-900">{b.linkedCustomerName ?? b.linkedCustomerId}</p>
+                          </div>
+                          <button
+                            onClick={() => handleUnlink(b)}
+                            disabled={unlinkingId === b._id}
+                            className="shrink-0 px-3 py-1.5 bg-red-100 text-red-700 rounded-lg text-xs font-semibold hover:bg-red-200 transition disabled:opacity-50 flex items-center gap-1"
+                          >
+                            {unlinkingId === b._id ? (
+                              <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-red-600" />
+                            ) : (
+                              <>
+                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                                </svg>
+                                Unlink
+                              </>
+                            )}
+                          </button>
+                        </div>
+                        {unlinkError[b._id!] && (
+                          <p className="text-xs text-red-600 mt-2">{unlinkError[b._id!]}</p>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Action buttons */}
+                    <div className="flex gap-2 pt-1">
+                      {canEdit && (
+                        <button
+                          onClick={() => {
+                            const full = toBuilding(b);
+                            if (full) setEditingBuilding(full);
+                          }}
+                          className="flex-1 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-semibold hover:bg-blue-700 transition flex items-center justify-center gap-2"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                          </svg>
+                          Edit Building
+                        </button>
+                      )}
+                      <button
+                        onClick={() => setExpandedId(null)}
+                        className="py-2.5 px-4 bg-gray-100 text-gray-600 rounded-xl text-sm font-medium hover:bg-gray-200 transition"
+                      >
+                        Close
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             );
           })}
-        </div>
-      ) : null}
 
-      {/* Bottom padding */}
+          {/* Infinite scroll sentinel */}
+          {hasMore && (
+            <div ref={sentinelRef} className="py-4 flex justify-center">
+              <div className="flex items-center gap-2 text-sm text-gray-400">
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-400" />
+                Loading more…
+              </div>
+            </div>
+          )}
+
+          {!hasMore && filtered.length > PAGE_SIZE && (
+            <p className="text-center text-xs text-gray-400 py-4">
+              All {filtered.length} buildings loaded
+            </p>
+          )}
+        </div>
+      )}
+
       <div className="h-8" />
     </div>
   );

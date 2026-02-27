@@ -24,6 +24,7 @@ apiClient.interceptors.request.use((config) => {
 // Building Interface
 export interface Building {
   _id: string;
+  buildingId?: string; // Dedicated ArcGIS building ID field
   address: string;
   lotCode: string;
   propertyType: 'residential' | 'commercial' | 'industrial' | 'mixed-use';
@@ -38,6 +39,8 @@ export interface Building {
   photos: string[];
   userId: string;
   companyId: string;
+  linkedCustomerId?: string;
+  linkedCustomerName?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -54,8 +57,18 @@ export interface CreateBuildingRequest {
     accuracy?: number;
   };
   buildingName?: string;
+  buildingId?: string; // ArcGIS building polygon ID
   notes?: string;
   photos?: File[];
+}
+
+// Update Building Request
+export interface UpdateBuildingRequest {
+  address?: string;
+  buildingName?: string;
+  propertyType?: 'residential' | 'commercial' | 'industrial' | 'mixed-use';
+  numberOfUnits?: number;
+  notes?: string;
 }
 
 // Customer Interface
@@ -152,9 +165,14 @@ export const buildingApi = {
     return response.data.data.building;
   },
 
-  list: async (): Promise<Building[]> => {
-    const response = await apiClient.get('/property-enumeration/buildings');
+  list: async (params?: { page?: number; limit?: number }): Promise<Building[]> => {
+    const response = await apiClient.get('/property-enumeration/buildings', { params });
     return response.data.data.buildings;
+  },
+
+  update: async (id: string, data: UpdateBuildingRequest): Promise<Building> => {
+    const response = await apiClient.patch(`/property-enumeration/buildings/${id}`, data);
+    return response.data?.data?.building ?? response.data;
   },
 };
 
