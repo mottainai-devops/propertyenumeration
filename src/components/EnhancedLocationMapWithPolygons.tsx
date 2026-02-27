@@ -70,8 +70,18 @@ function MapClickHandler({
     const lat = e.latlng.lat;
     const lng = e.latlng.lng;
     
+    console.log('[MapClickHandler] Map clicked at:', { lat, lng });
+    console.log('[MapClickHandler] Checking', polygons.length, 'polygons');
+    
     // Check if click is on a polygon
     const tappedPolygon = findPolygonAtPoint({ lat, lon: lng }, polygons) || undefined;
+    
+    if (tappedPolygon) {
+      console.log('[MapClickHandler] Found polygon:', tappedPolygon.buildingId);
+    } else {
+      console.log('[MapClickHandler] No polygon found at click location');
+    }
+    
     onMapClick(lat, lng, tappedPolygon);
   };
   
@@ -244,6 +254,31 @@ export function EnhancedLocationMapWithPolygons({
         // Update cache
         savePolygonsToCache(freshPolygons, lat, lon);
         console.log(`[ArcGIS] Polygons set in state, cache updated`);
+        
+        // Check which polygon contains the current GPS location
+        const containingPolygon = findPolygonAtPoint({ lat, lon }, freshPolygons);
+        if (containingPolygon) {
+          console.log(`[GPS] Current location (${lat}, ${lon}) is inside polygon:`, containingPolygon.buildingId);
+          console.log('[GPS] Polygon details:', {
+            buildingId: containingPolygon.buildingId,
+            address: containingPolygon.address,
+            businessName: containingPolygon.businessName,
+            center: [containingPolygon.centerLat, containingPolygon.centerLon],
+          });
+        } else {
+          console.log(`[GPS] Current location (${lat}, ${lon}) is NOT inside any polygon`);
+          console.log('[GPS] Nearest polygons by center distance:');
+          const nearest = freshPolygons
+            .map(p => ({
+              id: p.buildingId,
+              distance: Math.sqrt(
+                Math.pow(p.centerLat - lat, 2) + Math.pow(p.centerLon - lon, 2)
+              ),
+            }))
+            .sort((a, b) => a.distance - b.distance)
+            .slice(0, 5);
+          nearest.forEach(n => console.log(`  - ${n.id}: ${(n.distance * 111000).toFixed(1)}m away`));
+        }
       } else if (cachedPolygons.length === 0) {
         // No polygons found in cache or from ArcGIS
         setPolygonError('No building data available for this area');
@@ -265,6 +300,7 @@ export function EnhancedLocationMapWithPolygons({
   };
 
   const handleMapClick = (lat: number, lng: number, polygon?: BuildingPolygon) => {
+    console.log('[Map] handleMapClick called:', { lat, lng, polygon: polygon?.buildingId });
     if (polygon) {
       // Polygon tapped - select it (confirming action)
       console.log('[Map] Polygon tapped:', polygon.buildingId);
@@ -277,9 +313,22 @@ export function EnhancedLocationMapWithPolygons({
       }
     } else {
       // Regular location selection
+      console.log('[Map] No polygon detected at click location');
       setSelectedPolygon(null);
       setPosition([lat, lng]);
       onLocationChange(lat, lng);
+    }
+  };
+
+  // Direct polygon click handler (backup method)
+  const handlePolygonClick = (polygon: BuildingPolygon) => {
+    console.log('[Map] Direct polygon click:', polygon.buildingId);
+    setSelectedPolygon(polygon);
+    setPosition([polygon.centerLat, polygon.centerLon]);
+    onLocationChange(polygon.centerLat, polygon.centerLon);
+    if (onBuildingSelected) {
+      console.log('[Map] Calling onBuildingSelected with:', polygon);
+      onBuildingSelected(polygon);
     }
   };
 
@@ -366,6 +415,13 @@ export function EnhancedLocationMapWithPolygons({
                     fillColor: color,
                     fillOpacity: isSelected ? 0.4 : 0.2,
                     weight: isSelected ? 3 : 2,
+                  }}
+                  eventHandlers={{
+                    click: (e) => {
+                      L.DomEvent.stopPropagation(e);
+                      console.log('[Polygon] Direct click on polygon:', polygon.buildingId);
+                      handlePolygonClick(polygon);
+                    },
                   }}
                 />
                 <ZoomDependentLabel polygon={polygon} minZoom={17} />
