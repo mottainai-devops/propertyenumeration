@@ -29,7 +29,7 @@
 - [x] Build web assets (753KB bundle, 206KB gzip)
 - [x] Sync to Android
 - [x] Update version to 1.10.0 (versionCode 1100)
-- [ ] Push to GitHub for automated build
+- [x] Push to GitHub for automated build (Build #68 triggered)
 
 ### Phase 5: User Testing
 - [ ] User tests Build #68 APK

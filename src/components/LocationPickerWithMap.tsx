@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { MapErrorBoundary } from './MapErrorBoundary';
-import { EnhancedLocationMap } from './EnhancedLocationMap';
+import { EnhancedLocationMapWithPolygons } from './EnhancedLocationMapWithPolygons';
 import SimpleLocationPicker from './SimpleLocationPicker';
 
 interface LocationData {
@@ -16,6 +16,7 @@ interface LocationPickerWithMapProps {
 export default function LocationPickerWithMap({ onLocationSelect }: LocationPickerWithMapProps) {
   const [location, setLocation] = useState<LocationData>({ latitude: 6.5244, longitude: 3.3792 }); // Default: Lagos
   const [useMap, setUseMap] = useState(true);
+
 
   // Get initial GPS location
   useEffect(() => {
@@ -73,10 +74,13 @@ export default function LocationPickerWithMap({ onLocationSelect }: LocationPick
                 📍 <strong>Drag the marker</strong> to adjust location or use GPS button below
               </p>
             </div>
-            <EnhancedLocationMap
+            <EnhancedLocationMapWithPolygons
               latitude={location.latitude}
               longitude={location.longitude}
               onLocationChange={handleMapLocationChange}
+              onBuildingSelected={(building) => {
+                console.log('Building selected:', building.buildingId, building.address);
+              }}
             />
             <button
               onClick={() => setUseMap(false)}
