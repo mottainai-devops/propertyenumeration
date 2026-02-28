@@ -591,21 +591,21 @@ The following endpoints will be needed for features currently in the frontend ba
 | 1 | `POST /api/mobile/users/login` | ✅ Working | None |
 | 2 | `POST /property-enumeration/buildings` | ✅ Working | Add `buildingId` field support; normalise `propertyType` to lowercase |
 | 3 | `GET /property-enumeration/buildings` | ✅ Working | Add `page`/`limit` query param support; include `linkedCustomerId` + `linkedCustomerName` in response |
-| 4 | `PATCH /property-enumeration/buildings/:id` | ⚠️ Pending confirmation | Partial update of address, name, type, units, notes |
+| 4 | `PATCH /property-enumeration/buildings/:id` | ✅ **Implemented (v4.0.0)** | Partial update confirmed working |
 | 5 | `GET /api/property-enumeration/customers` | ✅ Working | `search` query param confirmed |
 | 6 | `POST /api/property-enumeration/customers/:id/link` | ✅ Working | Building document updated with `linkedCustomerId` + `linkedCustomerName` (v3.0.0) |
-| 7 | `DELETE /api/property-enumeration/customers/:id/unlink` | ⚠️ Pending confirmation | Must clear link on both Customer and Building documents |
+| 7 | `DELETE /api/property-enumeration/customers/:id/unlink` | ✅ **Implemented (v4.0.0)** | Clears link on both Customer and Building documents |
 | 8 | `POST /property-enumeration/sessions/start` | ✅ Working | None |
 | 9 | `POST /property-enumeration/sessions/:id/end` | ✅ Working | None |
 | 10 | `GET /property-enumeration/sessions` | ✅ Working | None |
 | 11 | `GET /property-enumeration/sessions/:id` | ✅ Exists | Ensure `buildings` array is included in response |
 | 12 | `GET /property-enumeration/sessions/statistics` | ✅ Working | None |
-| 13 | `POST /property-enumeration/buildings/:id/photos` | ⚠️ Pending confirmation | Accept `multipart/form-data`, field `photos`, return updated Building |
-| 14 | `DELETE /property-enumeration/buildings/:id/photos/:ref` | ⚠️ Pending confirmation | `:ref` is URL-encoded photo URL |
+| 13 | `POST /property-enumeration/buildings/:id/photos` | ✅ **Implemented (v4.0.0)** | Returns `{ photoUrls, totalPhotos }` as required |
+| 14 | `DELETE /property-enumeration/buildings/:id/photos/:ref` | ✅ **Implemented (v4.0.0)** | `:ref` URL-decoded correctly; returns `{ photoUrls, totalPhotos }` |
 | 15 | `GET /api/mobile/users/me` | ✅ **Implemented (v3.0.0)** | Returns flat shape `{ id, fullName, companyId, companyName, ... }` — frontend normalises |
 | 16 | `PATCH /api/mobile/users/me/password` | ✅ **Implemented (v3.0.0)** | Accepts base64-encoded passwords |
 | 17 | `GET /property-enumeration/buildings?arcgisBuildingId=X` | ✅ **Implemented (v3.0.0)** | Filter by ArcGIS polygon ID for unit code assignment |
-| 18 | `GET /property-enumeration/sessions/:id/buildings` | 🔜 Planned | Implement for session detail screen |
+| 18 | `GET /property-enumeration/sessions/:id/buildings` | ✅ **Implemented (v4.0.0)** | Returns `{ sessionId, total, buildings[] }` — frontend wired in v1.37.0 |
 
 ---
 
@@ -756,4 +756,114 @@ Not the MongoDB `_id`. The backend must look up the building by its `buildingId`
 - `POST /property-enumeration/buildings/:id/photos` — add photos
 - `DELETE /property-enumeration/buildings/:id/photos/:ref` — delete photo
 
-*End of Backend Coordination Brief — updated for v1.36.0 / Backend v3.0.0*
+---
+
+## 13. v4.0.0 — 4 Remaining Endpoints to Implement
+
+All 4 endpoints below are **fully implemented on the frontend** and are the only remaining blockers. The frontend will silently fail or show error toasts on those screens until these are live.
+
+---
+
+### 13.1 `PATCH /property-enumeration/buildings/:id` — Edit Building
+
+**`:id`** = building `_id` (MongoDB ObjectId string)
+
+**Request body (JSON, all fields optional):**
+```json
+{
+  "address": "47 Test Street, Lagos",
+  "buildingName": "Updated Name",
+  "propertyType": "commercial",
+  "numberOfUnits": 5,
+  "landmarkDescription": "Near the market",
+  "contactPersonName": "Jane Doe",
+  "contactPhoneNumber": "08098765432",
+  "notes": "Updated notes"
+}
+```
+
+Apply only the fields present (partial update). Do **not** allow editing of `lotCode`, `gpsLatitude`, `gpsLongitude`, `unitCode`, `arcgisBuildingId`, `buildingId`, or `userId`.
+
+**Expected response:**
+```json
+{
+  "success": true,
+  "data": {
+    "building": { /* full updated Building object */ }
+  },
+  "message": "Building updated successfully"
+}
+```
+
+---
+
+### 13.2 `DELETE /api/property-enumeration/customers/:customerId/unlink`
+
+**`:customerId`** = customer `_id`
+
+**Request body (JSON):**
+```json
+{ "buildingId": "USRLOT6001" }
+```
+> `buildingId` is the **building code** (same as the link endpoint), not the MongoDB `_id`.
+
+**The backend must:**
+1. Clear `customer.linkedBuildingId` and `customer.linkedBuildingAddress`.
+2. Clear `building.linkedCustomerId` and `building.linkedCustomerName` on the corresponding Building document.
+
+**Expected response:**
+```json
+{ "success": true, "message": "Customer unlinked successfully" }
+```
+
+---
+
+### 13.3 `POST /property-enumeration/buildings/:id/photos`
+
+**`:id`** = building `_id`
+
+**Request:** `multipart/form-data`, field name `photos` (multiple files).
+
+**The backend must append** new photo URLs to the existing `photoUrls` array (do not replace).
+
+**Expected response:**
+```json
+{
+  "success": true,
+  "data": {
+    "photoUrls": ["https://...", "https://..."],
+    "totalPhotos": 2
+  },
+  "message": "Photos uploaded successfully"
+}
+```
+> Return `photoUrls` + `totalPhotos` — **not** a full Building object. The frontend reads `response.data.data.photoUrls` and `response.data.data.totalPhotos`.
+
+---
+
+### 13.4 `DELETE /property-enumeration/buildings/:id/photos/:photoRef`
+
+**`:id`** = building `_id`  
+**`:photoRef`** = URL-encoded photo URL (frontend calls `encodeURIComponent(url)` before inserting into path)
+
+**The backend must:**
+1. Decode `:photoRef` with `decodeURIComponent()`.
+2. Remove the matching URL from `photoUrls`.
+3. Delete the file from storage if applicable.
+
+**Expected response:**
+```json
+{
+  "success": true,
+  "data": {
+    "photoUrls": ["https://..."],
+    "totalPhotos": 1
+  },
+  "message": "Photo deleted successfully"
+}
+```
+> Same shape as add-photos response.
+
+---
+
+*End of Backend Coordination Brief — updated for v1.36.0 / Backend v3.0.0 / v4.0.0 instructions*

@@ -1,11 +1,11 @@
 # Integration State — Property Enumeration Mobile App
 
 **Last Updated:** February 28, 2026  
-**Current Version:** v1.36.0 (versionCode 98)  
+**Current Version:** v1.37.0 (versionCode 99)  
 **GitHub Repo:** https://github.com/mottainai-devops/propertyenumeration  
 **Backend API Base:** https://upwork.kowope.xyz  
-**Latest Build:** Build #98  
-**Webdev Checkpoint:** 35738cc8 (v1.35.0)
+**Latest Build:** Build #99  
+**Backend Version:** v4.0.0 (all endpoints confirmed)
 
 ---
 
@@ -148,6 +148,8 @@
 | POST | `/property-enumeration/sessions/:id/end` | SessionManagement |
 | GET | `/property-enumeration/sessions` | SessionHistory |
 | GET | `/property-enumeration/sessions/:id` | (available, not yet used in UI) |
+| GET | `/property-enumeration/sessions/:id/buildings` | BuildingsList (session drill-down) |
+| DELETE | `/property-enumeration/buildings/:id/photos/:ref` | BuildingEdit (delete photo) |
 | GET | `/property-enumeration/sessions/statistics` | SessionStatistics |
 | GET | `/api/property-enumeration/customers` | BuildingForm step 2 (search) |
 | POST | `/api/property-enumeration/customers/:id/link` | BuildingForm step 2 |
@@ -187,7 +189,7 @@
 - [ ] **Push notifications for sync failures** — Capacitor Local Notifications when offline sync fails after reconnect
 
 ### Medium Priority
-- [ ] **Session detail screen** — tap a past session in SessionHistory to see its buildings list
+- [x] **Session detail screen** — tap a past session in SessionHistory → `GET /sessions/:id/buildings` (v1.37.0)
 - [ ] **Supervisor / admin role** — role-based UI differences (admin sees all users' buildings, not just own)
 - [ ] **Building search from map** — show "already registered" buildings from server on map (not just current session)
 
@@ -203,6 +205,8 @@
 
 | Build | Version | Key Changes |
 |---|---|---|
+| #99 | v1.37.0 | Wire `GET /sessions/:id/buildings` for session detail drill-down; backend v4.0.0 reconciliation |
+| #98 | v1.36.0 | Backend v3.0.0 response shape reconciliation (authApi.me normalisation, fullName fallback) |
 | #97 | v1.35.0 | Remove v1.33.0 diagnostic logging; update integration_state.md |
 | #96 | v1.34.0 | **Critical fix:** Replace axios with CapacitorHttp (OkHttp) — resolves ERR_NETWORK on Android |
 | #95 | v1.33.0 | Diagnostic build: added detailed login error logging to identify ERR_NETWORK root cause |

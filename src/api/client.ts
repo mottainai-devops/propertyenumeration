@@ -509,6 +509,17 @@ export const sessionApi = {
     const response = await apiClient.get('/api/property-enumeration/sessions/statistics');
     return response.data?.data?.statistics ?? response.data?.data ?? {};
   },
+
+  // NEW in backend v4.0.0: get all buildings registered in a specific session
+  getBuildings: async (sessionId: string): Promise<{ buildings: Building[]; total: number }> => {
+    const response = await apiClient.get(`/api/property-enumeration/sessions/${sessionId}/buildings`);
+    const raw: RawBuilding[] = response.data?.data?.buildings ?? [];
+    const total: number = response.data?.data?.total ?? raw.length;
+    return {
+      buildings: raw.map(normaliseBuilding),
+      total,
+    };
+  },
 };
 
 export default apiClient;

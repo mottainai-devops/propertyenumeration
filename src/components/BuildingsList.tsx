@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
-import { buildingApi, customerApi } from '../api/client';
+import { buildingApi, customerApi, sessionApi } from '../api/client';
 import type { Building } from '../api/client';
 import BuildingEdit from './BuildingEdit';
 
@@ -84,16 +84,25 @@ export default function BuildingsList({ buildings, pendingBuildings, onClose, fi
   // Load-more sentinel
   const sentinelRef = useRef<HTMLDivElement | null>(null);
 
+  const [sessionTotal, setSessionTotal] = useState<number | null>(null);
+
   const fetchFromServer = useCallback(async () => {
     setLoadingServer(true);
     setServerError('');
     try {
-      const params = filterSessionId ? { sessionId: filterSessionId } : undefined;
-      const { buildings } = await buildingApi.list(params as any);
-      setServerBuildings(buildings.map(normaliseServerBuilding));
+      if (filterSessionId) {
+        // Use dedicated session buildings endpoint (backend v4.0.0)
+        const { buildings, total } = await sessionApi.getBuildings(filterSessionId);
+        setServerBuildings(buildings.map(normaliseServerBuilding));
+        setSessionTotal(total);
+      } else {
+        const { buildings } = await buildingApi.list();
+        setServerBuildings(buildings.map(normaliseServerBuilding));
+        setSessionTotal(null);
+      }
       setLastFetched(new Date());
     } catch (err: any) {
-      setServerError('Could not load server buildings — showing local data only');
+      setServerError('Could not load buildings — check your connection and try again');
     } finally {
       setLoadingServer(false);
     }
@@ -276,7 +285,12 @@ export default function BuildingsList({ buildings, pendingBuildings, onClose, fi
                   {filterSessionLabel ? `Session: ${filterSessionLabel}` : 'Registered Buildings'}
                 </h1>
                 <p className="text-xs text-gray-500">
-                  {loadingServer ? 'Loading from server…' : `${allBuildings.length} building${allBuildings.length !== 1 ? 's' : ''}${!filterSessionId ? ` · ${pendingBuildings.length} pending sync` : ''}`}
+                  {loadingServer
+                    ? 'Loading from server…'
+                    : filterSessionId
+                      ? `${sessionTotal ?? allBuildings.length} building${(sessionTotal ?? allBuildings.length) !== 1 ? 's' : ''} in this session`
+                      : `${allBuildings.length} building${allBuildings.length !== 1 ? 's' : ''} · ${pendingBuildings.length} pending sync`
+                  }
                   {lastFetched && !loadingServer && (
                     <span className="ml-1 text-gray-400">· synced {formatTime(lastFetched.getTime())}</span>
                   )}
