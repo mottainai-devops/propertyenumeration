@@ -10,7 +10,9 @@ export default function ProfileSettings({ onClose, onLogout }: ProfileSettingsPr
   const user = (() => {
     try { return JSON.parse(localStorage.getItem('user') || '{}'); } catch { return {}; }
   })();
-  const assignedLots: { lotCode: string; name?: string }[] = (() => {
+  // Backend v3.0.0 returns fullName; older cached data may use name — support both
+  const displayName: string = user.fullName || user.name || '';
+  const assignedLots: { lotCode: string; name?: string; lotName?: string }[] = (() => {
     try { return JSON.parse(localStorage.getItem('assignedLots') || '[]'); } catch { return []; }
   })();
 
@@ -83,10 +85,10 @@ export default function ProfileSettings({ onClose, onLogout }: ProfileSettingsPr
         {/* Avatar + name card */}
         <div className="bg-white rounded-2xl shadow-sm p-5 flex items-center gap-4">
           <div className="w-16 h-16 rounded-full bg-green-200 flex items-center justify-center flex-shrink-0">
-            <span className="text-green-800 font-bold text-2xl">{initials(user.name || user.email || 'U')}</span>
+            <span className="text-green-800 font-bold text-2xl">{initials(displayName || user.email || 'U')}</span>
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-base font-bold text-gray-900 truncate">{user.name || '—'}</p>
+            <p className="text-base font-bold text-gray-900 truncate">{displayName || '—'}</p>
             <p className="text-sm text-gray-500 truncate">{user.email || '—'}</p>
             {user.role && (
               <span className="inline-block mt-1 text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700 font-semibold capitalize">
@@ -107,7 +109,7 @@ export default function ProfileSettings({ onClose, onLogout }: ProfileSettingsPr
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
                   </svg>
                   <span className="text-xs font-semibold text-blue-800">{lot.lotCode}</span>
-                  {lot.name && <span className="text-xs text-blue-600">{lot.name}</span>}
+                  {(lot.lotName || lot.name) && <span className="text-xs text-blue-600">{lot.lotName || lot.name}</span>}
                 </div>
               ))}
             </div>
@@ -142,7 +144,7 @@ export default function ProfileSettings({ onClose, onLogout }: ProfileSettingsPr
           {/* Account Info tab */}
           {tab === 'profile' && (
             <div className="p-4 space-y-3">
-              <InfoRow label="Full Name" value={user.name || '—'} />
+              <InfoRow label="Full Name" value={displayName || '—'} />
               <InfoRow label="Email" value={user.email || '—'} />
               <InfoRow label="Role" value={user.role || '—'} />
               <InfoRow label="User ID" value={user._id || user.id || '—'} mono />

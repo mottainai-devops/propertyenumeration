@@ -1,7 +1,7 @@
 # Backend Coordination Brief — Property Enumeration Mobile App
 
-**Date:** February 28, 2026 (updated for v1.30.0)  
-**Frontend Version:** v1.30.0  
+**Date:** February 28, 2026 (updated for v1.36.0 / Backend v3.0.0)  
+**Frontend Version:** v1.36.0  
 **Backend Base URL:** `https://upwork.kowope.xyz`  
 **Prepared by:** Frontend AI Agent  
 **Audience:** Backend Developer AI
@@ -591,20 +591,21 @@ The following endpoints will be needed for features currently in the frontend ba
 | 1 | `POST /api/mobile/users/login` | ✅ Working | None |
 | 2 | `POST /property-enumeration/buildings` | ✅ Working | Add `buildingId` field support; normalise `propertyType` to lowercase |
 | 3 | `GET /property-enumeration/buildings` | ✅ Working | Add `page`/`limit` query param support; include `linkedCustomerId` + `linkedCustomerName` in response |
-| 4 | `PATCH /property-enumeration/buildings/:id` | ⚠️ New | **Must implement** — partial update of address, name, type, units, notes |
-| 5 | `GET /api/property-enumeration/customers` | ✅ Working | Confirm `search` query param key (not `q` or `query`) |
-| 6 | `POST /api/property-enumeration/customers/:id/link` | ✅ Working | Also update Building document with `linkedCustomerId` + `linkedCustomerName` |
-| 7 | `DELETE /api/property-enumeration/customers/:id/unlink` | ⚠️ New | **Must implement** — clear link on both Customer and Building documents |
+| 4 | `PATCH /property-enumeration/buildings/:id` | ⚠️ Pending confirmation | Partial update of address, name, type, units, notes |
+| 5 | `GET /api/property-enumeration/customers` | ✅ Working | `search` query param confirmed |
+| 6 | `POST /api/property-enumeration/customers/:id/link` | ✅ Working | Building document updated with `linkedCustomerId` + `linkedCustomerName` (v3.0.0) |
+| 7 | `DELETE /api/property-enumeration/customers/:id/unlink` | ⚠️ Pending confirmation | Must clear link on both Customer and Building documents |
 | 8 | `POST /property-enumeration/sessions/start` | ✅ Working | None |
-| 9 | `POST /property-enumeration/sessions/:id/end` | ✅ Working | Populate `buildingsEnumerated` + `photosUploaded` dynamically; accept `{lat:0,lng:0}` gracefully |
+| 9 | `POST /property-enumeration/sessions/:id/end` | ✅ Working | None |
 | 10 | `GET /property-enumeration/sessions` | ✅ Working | None |
 | 11 | `GET /property-enumeration/sessions/:id` | ✅ Exists | Ensure `buildings` array is included in response |
 | 12 | `GET /property-enumeration/sessions/statistics` | ✅ Working | None |
-| 13 | `POST /property-enumeration/buildings/:id/photos` | ✅ **Frontend live** | **Must implement** — accept `multipart/form-data`, field name `photos`, return updated Building |
-| 14 | `DELETE /property-enumeration/buildings/:id/photos/:ref` | ✅ **Frontend live** | **Must implement** — `:ref` is URL-encoded photo URL; decode it, remove from array, return updated Building |
-| 15 | `GET /api/mobile/users/me` | ✅ **Frontend live** | **Must implement** — return same user shape as login response |
-| 16 | `PATCH /api/mobile/users/me/password` | ✅ **Frontend live** | **Must implement** — accept `{ currentPassword, newPassword }` (both base64), verify, hash, store |
-| 17 | `GET /property-enumeration/sessions/:id/buildings` | 🔜 Planned | Implement for session detail screen |
+| 13 | `POST /property-enumeration/buildings/:id/photos` | ⚠️ Pending confirmation | Accept `multipart/form-data`, field `photos`, return updated Building |
+| 14 | `DELETE /property-enumeration/buildings/:id/photos/:ref` | ⚠️ Pending confirmation | `:ref` is URL-encoded photo URL |
+| 15 | `GET /api/mobile/users/me` | ✅ **Implemented (v3.0.0)** | Returns flat shape `{ id, fullName, companyId, companyName, ... }` — frontend normalises |
+| 16 | `PATCH /api/mobile/users/me/password` | ✅ **Implemented (v3.0.0)** | Accepts base64-encoded passwords |
+| 17 | `GET /property-enumeration/buildings?arcgisBuildingId=X` | ✅ **Implemented (v3.0.0)** | Filter by ArcGIS polygon ID for unit code assignment |
+| 18 | `GET /property-enumeration/sessions/:id/buildings` | 🔜 Planned | Implement for session detail screen |
 
 ---
 
@@ -725,4 +726,34 @@ Not the MongoDB `_id`. The backend must look up the building by its `buildingId`
 
 ---
 
-*End of Backend Coordination Brief — updated for v1.31.0*
+---
+
+## 12. v1.36.0 — Backend v3.0.0 Reconciliation
+
+### What the Backend Confirmed Implemented (v3.0.0)
+
+| Item | Status |
+|---|---|
+| `unitCode` field stored and returned on Building | ✅ Confirmed |
+| `arcgisBuildingId` field stored and returned on Building | ✅ Confirmed |
+| `GET /buildings?arcgisBuildingId=X` filter | ✅ Confirmed |
+| `linkedCustomerId` + `linkedCustomerName` in Building response | ✅ Confirmed |
+| `GET /api/mobile/users/me` | ✅ Confirmed — returns flat `{ id, fullName, companyId, companyName }` |
+| `PATCH /api/mobile/users/me/password` | ✅ Confirmed — accepts base64 passwords |
+
+### Frontend Changes in v1.36.0
+
+| Change | File | Reason |
+|---|---|---|
+| `authApi.me()` normalises `id → _id`, flat `companyName → company.companyName` | `src/api/client.ts` | Backend v3.0.0 returns flat shape, not nested |
+| `ProfileSettings` uses `displayName = fullName \|\| name` | `src/components/ProfileSettings.tsx` | Login response uses `fullName`; profile screen was reading `name` |
+| `assignedLots` now supports `lotName` field | `src/components/ProfileSettings.tsx` | Backend v3.0.0 returns `lotName` (not `name`) in assigned lots |
+
+### Still Pending Backend Confirmation
+
+- `PATCH /property-enumeration/buildings/:id` — building edit
+- `DELETE /api/property-enumeration/customers/:id/unlink` — customer unlink
+- `POST /property-enumeration/buildings/:id/photos` — add photos
+- `DELETE /property-enumeration/buildings/:id/photos/:ref` — delete photo
+
+*End of Backend Coordination Brief — updated for v1.36.0 / Backend v3.0.0*

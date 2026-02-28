@@ -213,7 +213,19 @@ export const authApi = {
 
   me: async (): Promise<LoginResponse['user']> => {
     const response = await apiClient.get('/api/mobile/users/me');
-    return response.data?.data?.user ?? response.data;
+    const raw = response.data?.data?.user ?? response.data;
+    // Backend v3.0.0 returns flat shape: { id, fullName, companyId, companyName, ... }
+    // Normalise to the canonical LoginResponse['user'] shape used throughout the app
+    return {
+      ...raw,
+      _id: raw._id ?? raw.id ?? '',
+      fullName: raw.fullName ?? raw.name ?? '',
+      company: raw.company ?? {
+        _id: raw.companyId ?? '',
+        companyName: raw.companyName ?? '',
+      },
+      assignedLots: raw.assignedLots ?? [],
+    };
   },
 
   changePassword: async (data: { currentPassword: string; newPassword: string }): Promise<void> => {

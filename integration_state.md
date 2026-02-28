@@ -1,11 +1,11 @@
 # Integration State — Property Enumeration Mobile App
 
 **Last Updated:** February 28, 2026  
-**Current Version:** v1.35.0 (versionCode 97)  
+**Current Version:** v1.36.0 (versionCode 98)  
 **GitHub Repo:** https://github.com/mottainai-devops/propertyenumeration  
 **Backend API Base:** https://upwork.kowope.xyz  
-**Latest Build:** Build #97  
-**Webdev Checkpoint:** 9c894afa (v1.34.0)
+**Latest Build:** Build #98  
+**Webdev Checkpoint:** 35738cc8 (v1.35.0)
 
 ---
 
