@@ -1,11 +1,11 @@
 # Integration State — Property Enumeration Mobile App
 
-**Last Updated:** February 27, 2026  
-**Current Version:** v1.26.0 (versionCode 1260)  
+**Last Updated:** February 28, 2026  
+**Current Version:** v1.27.0 (versionCode 1270)  
 **GitHub Repo:** https://github.com/mottainai-devops/propertyenumeration  
 **Backend API Base:** https://upwork.kowope.xyz  
-**Latest Build:** Build #87 (queued — GitHub Actions run 22502737560)  
-**Webdev Checkpoint:** ac762cc0
+**Latest Build:** Build #89 (pending push)  
+**Webdev Checkpoint:** ac762cc0 (v1.26.0) → new checkpoint after v1.27.0 commit
 
 ---
 
@@ -96,12 +96,23 @@
 - [x] **Tap to expand** detail panel: photo gallery, GPS, notes, customer link, action buttons
 - [x] **Infinite scroll** pagination (20 per page, IntersectionObserver sentinel)
 
-### Building Edit Screen *(new in v1.26.0)*
+### Building Edit Screen *(new in v1.26.0, updated v1.27.0)*
 - [x] Bottom-sheet modal opened from expanded card in BuildingsList
 - [x] Edit: address, building name, property type, number of units, notes
 - [x] Calls `PATCH /property-enumeration/buildings/:id`
 - [x] Read-only display: lot code, GPS coordinates, photo count, created date
 - [x] Inline error display; saving spinner
+- [x] **Photo management section** — shows existing photos, "Add Photos" button opens `BuildingPhotoUpload`
+- [x] `propertyType` normalised to title-case on save (matches backend expectation)
+
+### Photo Upload *(new in v1.27.0)*
+- [x] `BuildingPhotoUpload` component — bottom-sheet overlay
+- [x] Shows existing photos + new photo previews in 3-column grid
+- [x] Image compression (canvas, 1280px max, 75% JPEG quality) before upload
+- [x] Calls `POST /property-enumeration/buildings/:id/photos` (multipart/form-data)
+- [x] Enforces max 4 photos per building (slot counter)
+- [x] Per-photo remove button before upload
+- [x] Upload progress indicator; error display
 
 ### Customer Unlink UI *(new in v1.26.0)*
 - [x] "Unlink" button shown in expanded building card when `linkedCustomerId` is present
@@ -132,6 +143,7 @@
 | POST | `/property-enumeration/buildings` | BuildingForm (create) |
 | GET | `/property-enumeration/buildings` | BuildingsList |
 | PATCH | `/property-enumeration/buildings/:id` | BuildingEdit |
+| POST | `/property-enumeration/buildings/:id/photos` | BuildingPhotoUpload |
 | POST | `/property-enumeration/sessions/start` | SessionManagement |
 | POST | `/property-enumeration/sessions/:id/end` | SessionManagement |
 | GET | `/property-enumeration/sessions` | SessionHistory |
@@ -152,7 +164,8 @@
 | `src/components/EnhancedLocationMapWithPolygons.tsx` | Map, polygon layer, search, GPS badge, auto-select |
 | `src/components/LocationPickerWithMap.tsx` | Location screen wrapper, building confirmation card |
 | `src/components/BuildingForm.tsx` | 2-step registration form, photo capture, offline queue |
-| `src/components/BuildingEdit.tsx` | Edit building bottom-sheet (v1.26.0) |
+| `src/components/BuildingEdit.tsx` | Edit building bottom-sheet with photo management (v1.27.0) |
+| `src/components/BuildingPhotoUpload.tsx` | Photo upload overlay for existing buildings (v1.27.0) |
 | `src/components/BuildingsList.tsx` | Buildings list with server fetch, expand panel, edit, unlink, pagination |
 | `src/components/SessionManagement.tsx` | Session dashboard, daily target, clear history |
 | `src/components/SessionStatistics.tsx` | Stats screen, chart, CSV export, share |
@@ -168,7 +181,7 @@
 ## Remaining / Not Yet Implemented
 
 ### High Priority
-- [ ] **Photo management in BuildingEdit** — add/delete photos after submission (`POST /buildings/:id/photos`, `DELETE /buildings/:id/photos/:photoId`)
+- [x] **Photo management in BuildingEdit** — `BuildingPhotoUpload` component added in v1.27.0 (`POST /buildings/:id/photos`)
 - [ ] **Profile / Settings screen** — view name/email, change password (`PATCH /users/me`)
 - [ ] **Push notifications for sync failures** — Capacitor Local Notifications when offline sync fails after reconnect
 
@@ -189,6 +202,7 @@
 
 | Build | Version | Key Changes |
 |---|---|---|
+| #89 | v1.27.0 | Backend response shape reconciliation, `normaliseBuilding`/`normaliseSession`, photo upload, propertyType casing fix |
 | #87 | v1.26.0 | BuildingEdit, Customer Unlink, infinite scroll, buildingId field |
 | #86 | v1.25.0 | BuildingsList → server API, SessionHistory, success screen polish, offline queue GPS+photos |
 | #85 | v1.24.0 | Daily target tracker, GPS accuracy badge, native share button |
@@ -230,10 +244,24 @@ All secrets are injected automatically by the Manus platform. No `.env` file is 
 
 ---
 
+## Backend Reconciliation Summary (Feb 28, 2026)
+
+Backend developer AI delivered `BackendUpdateforFrontendDeveloper—February28,2026_.docx` confirming all 8 endpoints live. The following were fixed in v1.27.0:
+
+| Issue | Fix |
+|---|---|
+| `session.sessionId` vs `session._id` | `normaliseSession()` maps `sessionId → _id` |
+| `gpsLatitude`/`gpsLongitude` flat fields | `normaliseBuilding()` wraps into `gpsCoordinates` |
+| `photoUrls[]` vs `photos[]` | `normaliseBuilding()` maps `photoUrls → photos` |
+| `enumeratedAt` vs `createdAt` | Both retained; UI falls back gracefully |
+| `propertyType` casing | `BuildingEdit` sends title-case; `toTitleCase()` normaliser added |
+| Customer `search` param key | Fixed to send `search` only (removed duplicate `query`) |
+| Photo upload not implemented | `BuildingPhotoUpload` component added |
+
 ## Notes for Next Session
 
-1. Start from **v1.26.0** (checkpoint `ac762cc0`, GitHub commit `ac762cc`).
-2. Build #87 was queued at session end — check if it completed successfully before starting new work.
-3. The three suggested next steps from the last delivery were: photo management in BuildingEdit, Profile/Settings screen, and push notifications for sync failures.
+1. Start from **v1.27.0** (new checkpoint after Build #89 push).
+2. Verify Build #89 completed successfully before starting new work.
+3. Remaining high-priority items: Profile/Settings screen (`GET`/`PATCH /users/me`), push notifications for sync failures.
 4. Dependabot has flagged 6 high + 1 moderate vulnerabilities — worth reviewing before next major release.
-5. Bundle size is 893 KB (226 KB gzip) — consider lazy-loading Leaflet if size becomes a concern.
+5. Bundle size is ~911 KB (229 KB gzip) — consider lazy-loading Leaflet if size becomes a concern.
