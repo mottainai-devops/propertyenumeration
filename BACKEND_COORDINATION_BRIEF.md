@@ -1,7 +1,7 @@
 # Backend Coordination Brief — Property Enumeration Mobile App
 
-**Date:** February 28, 2026  
-**Frontend Version:** v1.26.0 (GitHub commit `ac762cc`)  
+**Date:** February 28, 2026 (updated for v1.30.0)  
+**Frontend Version:** v1.30.0  
 **Backend Base URL:** `https://upwork.kowope.xyz`  
 **Prepared by:** Frontend AI Agent  
 **Audience:** Backend Developer AI
@@ -513,10 +513,19 @@ The following endpoints will be needed for features currently in the frontend ba
 **Fields:** `photos` (File[], up to 4 additional photos)  
 **Response:** Updated Building object with new photo URLs appended to `photos[]`
 
+**Status as of v1.30.0:** ✅ **Frontend fully implemented.** The `BuildingPhotoUpload` component calls this endpoint. The backend must accept `multipart/form-data` with field name `photos` (multiple files), append the new URLs to the building's photo array, and return the updated Building object in the standard `{ success: true, data: { building: {...} } }` envelope.
+
 ### 7.2 Delete Photo from Building
 
-**Endpoint:** `DELETE /property-enumeration/buildings/:id/photos/:photoIndex` (or by URL)  
-**Response:** Updated Building object with photo removed
+**Endpoint:** `DELETE /property-enumeration/buildings/:id/photos/:photoRef`  
+**`:photoRef`:** URL-encoded photo URL (the frontend calls `encodeURIComponent(photoUrl)` before inserting into the path)  
+**Response:** Updated Building object with the photo removed
+
+**Status as of v1.30.0:** ✅ **Frontend fully implemented.** The `BuildingPhotoUpload` component shows a red × button on each existing photo. When tapped, it calls `buildingApi.deletePhoto(buildingId, photoUrl)` which sends `DELETE /property-enumeration/buildings/:id/photos/<encoded-url>`. The backend must:
+1. Decode the `:photoRef` path param with `decodeURIComponent()`.
+2. Remove the matching URL from the building's `photoUrls` array.
+3. Delete the file from storage (S3/GridFS/etc.) if applicable.
+4. Return the updated Building object in the standard envelope.
 
 ### 7.3 Get User Profile
 
@@ -539,16 +548,26 @@ The following endpoints will be needed for features currently in the frontend ba
 
 ### 7.4 Update User Profile / Change Password
 
-**Endpoint:** `PATCH /api/mobile/users/me`  
+**Endpoint:** `PATCH /api/mobile/users/me/password`  
 **Request body (JSON):**
 ```json
 {
-  "fullName": "string (optional)",
-  "currentPassword": "string (optional, base64-encoded)",
-  "newPassword": "string (optional, base64-encoded)"
+  "currentPassword": "string (base64-encoded, required)",
+  "newPassword": "string (base64-encoded, required)"
 }
 ```
-**Response:** Updated user object
+**Response:**
+```json
+{ "success": true, "message": "Password updated successfully" }
+```
+
+**Status as of v1.30.0:** ✅ **Frontend fully implemented.** The `ProfileSettings.tsx` screen is live. It shows the surveyor's name, email, company, and assigned lots. The change-password form calls `authApi.changePassword({ currentPassword, newPassword })` which sends `PATCH /api/mobile/users/me/password`. Both passwords are base64-encoded by the frontend (`btoa(plainText)`) before sending — consistent with the login endpoint. The backend must:
+1. Decode both passwords with `atob()` or equivalent.
+2. Verify `currentPassword` against the stored hash.
+3. Hash and store `newPassword`.
+4. Return `{ success: true, message: "Password updated successfully" }` on success, or a 400/401 with `{ message: "Current password is incorrect" }` on failure.
+
+**Also needed:** `GET /api/mobile/users/me` — the profile screen calls `authApi.getProfile()` to fetch the current user's full details. The login response already contains this data, but the profile screen needs to refresh it on mount. Expected response shape: same as the `user` object in the login response.
 
 ### 7.5 Get Buildings by Session ID
 
@@ -581,10 +600,10 @@ The following endpoints will be needed for features currently in the frontend ba
 | 10 | `GET /property-enumeration/sessions` | ✅ Working | None |
 | 11 | `GET /property-enumeration/sessions/:id` | ✅ Exists | Ensure `buildings` array is included in response |
 | 12 | `GET /property-enumeration/sessions/statistics` | ✅ Working | None |
-| 13 | `POST /property-enumeration/buildings/:id/photos` | 🔜 Planned | Implement for photo management feature |
-| 14 | `DELETE /property-enumeration/buildings/:id/photos/:ref` | 🔜 Planned | Implement for photo management feature |
-| 15 | `GET /api/mobile/users/me` | 🔜 Planned | Implement for profile screen |
-| 16 | `PATCH /api/mobile/users/me` | 🔜 Planned | Implement for profile/password change |
+| 13 | `POST /property-enumeration/buildings/:id/photos` | ✅ **Frontend live** | **Must implement** — accept `multipart/form-data`, field name `photos`, return updated Building |
+| 14 | `DELETE /property-enumeration/buildings/:id/photos/:ref` | ✅ **Frontend live** | **Must implement** — `:ref` is URL-encoded photo URL; decode it, remove from array, return updated Building |
+| 15 | `GET /api/mobile/users/me` | ✅ **Frontend live** | **Must implement** — return same user shape as login response |
+| 16 | `PATCH /api/mobile/users/me/password` | ✅ **Frontend live** | **Must implement** — accept `{ currentPassword, newPassword }` (both base64), verify, hash, store |
 | 17 | `GET /property-enumeration/sessions/:id/buildings` | 🔜 Planned | Implement for session detail screen |
 
 ---
@@ -602,4 +621,23 @@ The following are currently working in production and must not be changed in a b
 
 ---
 
-*End of Backend Coordination Brief — v1.26.0*
+---
+
+## 10. v1.27.0–v1.30.0 Changelog for Backend
+
+The following frontend changes since v1.26.0 affect the backend integration:
+
+| Version | Change | Backend Impact |
+|---|---|---|
+| v1.27.0 | Response normalisation layer added (`normaliseBuilding`, `normaliseSession`) | None — frontend now handles flat `gpsLatitude`/`gpsLongitude` and `photoUrls` → `photos` mapping internally |
+| v1.27.0 | `propertyType` now sent as title-case on all requests | Backend must accept title-case (`Residential`, `Commercial`, etc.) |
+| v1.27.0 | Customer search param corrected to `search` | Backend must read `req.query.search` |
+| v1.28.0 | Step 2 (Link Customer) UI redesigned — no functional API change | None |
+| v1.29.0 | ProfileSettings screen added — calls `GET /api/mobile/users/me` and `PATCH /api/mobile/users/me/password` | **Both endpoints must be implemented** |
+| v1.29.0 | SessionHistory drill-down added — calls `GET /property-enumeration/buildings?sessionId=<id>` | Backend must support `sessionId` as a filter query param on the buildings list endpoint |
+| v1.30.0 | Photo delete button added — calls `DELETE /property-enumeration/buildings/:id/photos/:ref` | **Must implement** |
+| v1.30.0 | All 13 Dependabot vulnerabilities resolved via pnpm overrides | None |
+
+---
+
+*End of Backend Coordination Brief — updated for v1.30.0*

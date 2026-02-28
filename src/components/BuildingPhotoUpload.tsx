@@ -40,8 +40,9 @@ async function compressImage(file: File, maxDimension = 1280, quality = 0.75): P
 }
 
 export default function BuildingPhotoUpload({ building, onUpdated, onClose }: BuildingPhotoUploadProps) {
-  const existingCount = building.photos.length;
-  const slotsAvailable = MAX_PHOTOS - existingCount;
+  // Local copy of existing photos so deletes update the UI immediately
+  const [existingPhotos, setExistingPhotos] = useState<string[]>(building.photos);
+  const [deletingUrl, setDeletingUrl] = useState<string | null>(null);
 
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [previews, setPreviews] = useState<string[]>([]);
@@ -50,14 +51,35 @@ export default function BuildingPhotoUpload({ building, onUpdated, onClose }: Bu
   const [progress, setProgress] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const slotsAvailable = MAX_PHOTOS - existingPhotos.length;
+  const totalAfterUpload = existingPhotos.length + selectedFiles.length;
+
+  // ── Delete an existing photo ──────────────────────────────────────────────
+  const handleDeleteExisting = async (url: string) => {
+    setDeletingUrl(url);
+    setError('');
+    try {
+      const updated = await buildingApi.deletePhoto(building._id, url);
+      setExistingPhotos(updated.photos);
+      onUpdated(updated);
+    } catch (err: any) {
+      const msg = err?.response?.data?.message ?? err?.message ?? 'Failed to delete photo';
+      setError(msg);
+    } finally {
+      setDeletingUrl(null);
+    }
+  };
+
+  // ── Select new photos ─────────────────────────────────────────────────────
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files ?? []);
     if (!files.length) return;
 
     setError('');
-    const allowed = files.slice(0, slotsAvailable - selectedFiles.length);
+    const remaining = slotsAvailable - selectedFiles.length;
+    const allowed = files.slice(0, remaining);
     if (files.length > allowed.length) {
-      setError(`You can only add ${slotsAvailable} more photo${slotsAvailable !== 1 ? 's' : ''} (max ${MAX_PHOTOS} per building).`);
+      setError(`You can only add ${remaining} more photo${remaining !== 1 ? 's' : ''} (max ${MAX_PHOTOS} per building).`);
     }
 
     const oversized = allowed.filter(f => f.size > MAX_FILE_SIZE_BYTES);
@@ -73,7 +95,6 @@ export default function BuildingPhotoUpload({ building, onUpdated, onClose }: Bu
     setSelectedFiles(prev => [...prev, ...compressed]);
     setPreviews(prev => [...prev, ...newPreviews]);
 
-    // Reset input so the same file can be re-selected if needed
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
@@ -83,6 +104,7 @@ export default function BuildingPhotoUpload({ building, onUpdated, onClose }: Bu
     setPreviews(prev => prev.filter((_, i) => i !== index));
   };
 
+  // ── Upload new photos ─────────────────────────────────────────────────────
   const handleUpload = async () => {
     if (!selectedFiles.length) return;
     setUploading(true);
@@ -91,6 +113,9 @@ export default function BuildingPhotoUpload({ building, onUpdated, onClose }: Bu
     try {
       const updated = await buildingApi.addPhotos(building._id, selectedFiles);
       previews.forEach(p => URL.revokeObjectURL(p));
+      setExistingPhotos(updated.photos);
+      setSelectedFiles([]);
+      setPreviews([]);
       onUpdated(updated);
     } catch (err: any) {
       const msg = err?.response?.data?.message ?? err?.message ?? 'Upload failed. Please try again.';
@@ -101,7 +126,7 @@ export default function BuildingPhotoUpload({ building, onUpdated, onClose }: Bu
     }
   };
 
-  const totalAfterUpload = existingCount + selectedFiles.length;
+  const isBusy = uploading || deletingUrl !== null;
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-60 z-50 flex items-end">
@@ -109,15 +134,16 @@ export default function BuildingPhotoUpload({ building, onUpdated, onClose }: Bu
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
           <div>
-            <h2 className="text-lg font-bold text-gray-900">Add Photos</h2>
+            <h2 className="text-lg font-bold text-gray-900">Manage Photos</h2>
             <p className="text-xs text-gray-500 mt-0.5">
-              {existingCount} existing · {slotsAvailable} slot{slotsAvailable !== 1 ? 's' : ''} remaining
+              {existingPhotos.length}/{MAX_PHOTOS} photos · {slotsAvailable} slot{slotsAvailable !== 1 ? 's' : ''} remaining
             </p>
           </div>
           <button
             onClick={onClose}
-            disabled={uploading}
+            disabled={isBusy}
             className="p-2 rounded-lg bg-gray-100 hover:bg-gray-200 transition disabled:opacity-50"
+            aria-label="Close"
           >
             <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -147,27 +173,45 @@ export default function BuildingPhotoUpload({ building, onUpdated, onClose }: Bu
             </div>
           )}
 
-          {/* Existing photos */}
-          {existingCount > 0 && (
+          {/* Existing photos — with delete button */}
+          {existingPhotos.length > 0 && (
             <div>
               <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
-                Existing Photos ({existingCount})
+                Existing Photos ({existingPhotos.length}) — tap × to delete
               </p>
               <div className="grid grid-cols-3 gap-2">
-                {building.photos.map((url, i) => (
-                  <div key={i} className="aspect-square rounded-lg overflow-hidden bg-gray-100">
+                {existingPhotos.map((url, i) => (
+                  <div key={url} className="relative aspect-square rounded-lg overflow-hidden bg-gray-100">
                     <img src={url} alt={`Photo ${i + 1}`} className="w-full h-full object-cover" />
+                    {/* Delete overlay */}
+                    <button
+                      onClick={() => handleDeleteExisting(url)}
+                      disabled={isBusy}
+                      className="absolute top-1 right-1 w-7 h-7 bg-red-500 hover:bg-red-600 rounded-full flex items-center justify-center shadow-lg transition disabled:opacity-50"
+                      aria-label={`Delete photo ${i + 1}`}
+                    >
+                      {deletingUrl === url ? (
+                        <svg className="w-3.5 h-3.5 text-white animate-spin" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                        </svg>
+                      ) : (
+                        <svg className="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      )}
+                    </button>
                   </div>
                 ))}
               </div>
             </div>
           )}
 
-          {/* New photos to upload */}
+          {/* New photos staged for upload */}
           {selectedFiles.length > 0 && (
             <div>
               <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
-                New Photos ({selectedFiles.length})
+                New Photos to Upload ({selectedFiles.length})
               </p>
               <div className="grid grid-cols-3 gap-2">
                 {previews.map((src, i) => (
@@ -176,10 +220,11 @@ export default function BuildingPhotoUpload({ building, onUpdated, onClose }: Bu
                     <button
                       onClick={() => removeSelected(i)}
                       disabled={uploading}
-                      className="absolute top-1 right-1 w-6 h-6 bg-red-500 rounded-full flex items-center justify-center shadow disabled:opacity-50"
+                      className="absolute top-1 right-1 w-7 h-7 bg-gray-800 bg-opacity-70 hover:bg-opacity-90 rounded-full flex items-center justify-center shadow disabled:opacity-50"
+                      aria-label="Remove staged photo"
                     >
-                      <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M6 18L18 6M6 6l12 12" />
+                      <svg className="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
                       </svg>
                     </button>
                   </div>
@@ -188,11 +233,11 @@ export default function BuildingPhotoUpload({ building, onUpdated, onClose }: Bu
             </div>
           )}
 
-          {/* Add more button */}
+          {/* Add more photos button */}
           {totalAfterUpload < MAX_PHOTOS && (
             <button
               onClick={() => fileInputRef.current?.click()}
-              disabled={uploading}
+              disabled={isBusy}
               className="w-full border-2 border-dashed border-gray-300 rounded-xl py-6 flex flex-col items-center gap-2 text-gray-500 hover:border-blue-400 hover:text-blue-500 transition disabled:opacity-50"
             >
               <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -200,7 +245,7 @@ export default function BuildingPhotoUpload({ building, onUpdated, onClose }: Bu
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
               </svg>
               <span className="text-sm font-medium">
-                Tap to add photo{slotsAvailable - selectedFiles.length !== 1 ? 's' : ''}
+                Add photo{slotsAvailable - selectedFiles.length !== 1 ? 's' : ''}
               </span>
               <span className="text-xs">
                 {slotsAvailable - selectedFiles.length} slot{slotsAvailable - selectedFiles.length !== 1 ? 's' : ''} remaining · max {MAX_FILE_SIZE_MB} MB each
@@ -208,9 +253,9 @@ export default function BuildingPhotoUpload({ building, onUpdated, onClose }: Bu
             </button>
           )}
 
-          {totalAfterUpload >= MAX_PHOTOS && (
+          {totalAfterUpload >= MAX_PHOTOS && selectedFiles.length === 0 && (
             <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-sm text-amber-700 text-center">
-              Maximum of {MAX_PHOTOS} photos reached for this building.
+              Maximum of {MAX_PHOTOS} photos reached. Delete a photo to add a new one.
             </div>
           )}
 
@@ -225,38 +270,44 @@ export default function BuildingPhotoUpload({ building, onUpdated, onClose }: Bu
           />
         </div>
 
-        {/* Footer */}
-        <div className="px-5 py-4 border-t border-gray-100 flex gap-3">
-          <button
-            onClick={onClose}
-            disabled={uploading}
-            className="flex-1 bg-white border-2 border-gray-300 text-gray-700 font-semibold py-3.5 rounded-xl transition hover:bg-gray-50 disabled:opacity-50"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={handleUpload}
-            disabled={uploading || selectedFiles.length === 0}
-            className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3.5 rounded-xl transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-          >
-            {uploading ? (
-              <>
-                <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                </svg>
-                Uploading…
-              </>
-            ) : (
-              <>
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
-                </svg>
-                Upload {selectedFiles.length} Photo{selectedFiles.length !== 1 ? 's' : ''}
-              </>
-            )}
-          </button>
-        </div>
+        {/* Footer — only shown when there are staged photos to upload */}
+        {selectedFiles.length > 0 && (
+          <div className="px-5 py-4 border-t border-gray-100 flex gap-3">
+            <button
+              onClick={() => {
+                previews.forEach(p => URL.revokeObjectURL(p));
+                setSelectedFiles([]);
+                setPreviews([]);
+              }}
+              disabled={uploading}
+              className="flex-1 bg-white border-2 border-gray-300 text-gray-700 font-semibold py-3.5 rounded-xl transition hover:bg-gray-50 disabled:opacity-50"
+            >
+              Discard New
+            </button>
+            <button
+              onClick={handleUpload}
+              disabled={uploading}
+              className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3.5 rounded-xl transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+            >
+              {uploading ? (
+                <>
+                  <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                  </svg>
+                  Uploading…
+                </>
+              ) : (
+                <>
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                  </svg>
+                  Upload {selectedFiles.length} Photo{selectedFiles.length !== 1 ? 's' : ''}
+                </>
+              )}
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

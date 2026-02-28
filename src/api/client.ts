@@ -244,6 +244,21 @@ export const buildingApi = {
     const raw: RawBuilding = response.data?.data?.building ?? response.data;
     return normaliseBuilding(raw);
   },
+
+  /**
+   * Delete a single photo from a building.
+   * @param buildingId  The building's _id
+   * @param photoRef    The photo URL or index (backend accepts either)
+   */
+  deletePhoto: async (buildingId: string, photoRef: string): Promise<Building> => {
+    // Encode the URL so it survives the path segment
+    const encoded = encodeURIComponent(photoRef);
+    const response = await apiClient.delete(
+      `/property-enumeration/buildings/${buildingId}/photos/${encoded}`
+    );
+    const raw: RawBuilding = response.data?.data?.building ?? response.data;
+    return normaliseBuilding(raw);
+  },
 };
 
 // ─── Customer API ──────────────────────────────────────────────────────────────
