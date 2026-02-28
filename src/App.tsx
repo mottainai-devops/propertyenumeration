@@ -12,7 +12,7 @@ import SessionHistory from './components/SessionHistory';
 import ProfileSettings from './components/ProfileSettings';
 import ErrorBoundary from './components/ErrorBoundary';
 import { useToast } from './components/Toast';
-import { authApi, buildingApi, customerApi, sessionApi, type Session } from './api/client';
+import { authApi, buildingApi, customerApi, sessionApi, type Session, type SessionConflictError } from './api/client';
 import { getOperationErrorMessage, logError, retryOperation } from './utils/errorHandler';
 
 type AppScreen = 'login' | 'session' | 'location' | 'building' | 'success' | 'offline-queue' | 'statistics' | 'buildings-list' | 'session-history' | 'profile-settings' | 'session-buildings';
@@ -155,14 +155,36 @@ function App() {
     if (isOnline) {
       try {
         const gps = await getCurrentGPS();
-        const session = await sessionApi.start({
+        const result = await sessionApi.start({
           lotCode: lotCode || getDefaultLotCode(),
           startLocation: gps,
         });
-        setActiveServerSession(session);
-        localStorage.setItem('serverSessionId', session._id);
-        sessionStartTimeRef.current = new Date(session.startTime);
-        showToast('Session started!', 'success');
+
+        // FIX #2: Handle 409 conflict — resume existing session automatically
+        if ((result as SessionConflictError).isConflict) {
+          const conflict = result as SessionConflictError;
+          const existingSession: Session = {
+            _id: conflict.existingSessionId,
+            lotCode: conflict.existingLotCode,
+            startTime: conflict.existingStartTime,
+            buildingsEnumerated: 0,
+            customersLinked: 0,
+            photosUploaded: 0,
+            areasCovered: [],
+            isActive: true,
+            startLocation: gps,
+          };
+          setActiveServerSession(existingSession);
+          localStorage.setItem('serverSessionId', conflict.existingSessionId);
+          sessionStartTimeRef.current = new Date(conflict.existingStartTime);
+          showToast('Resuming your existing active session', 'info');
+        } else {
+          const session = result as Session;
+          setActiveServerSession(session);
+          localStorage.setItem('serverSessionId', session._id);
+          sessionStartTimeRef.current = new Date(session.startTime);
+          showToast('Session started!', 'success');
+        }
       } catch (error) {
         logError('Session Start', error, {});
         // Continue offline — session will be local only
@@ -271,8 +293,11 @@ function App() {
 
   const handleBuildingSubmit = async (buildingData: any) => {
     const { linkedCustomerId, ...buildingFields } = buildingData;
+    // FIX #1: Always include the active sessionId in the create request
+    const activeSessionId = localStorage.getItem('serverSessionId') || activeServerSession?._id;
     const buildingWithLocation = {
       ...buildingFields,
+      sessionId: activeSessionId,
       gpsCoordinates: {
         latitude: location!.latitude,
         longitude: location!.longitude,
@@ -294,10 +319,12 @@ function App() {
 
         if (linkedCustomerId) {
           try {
-            await customerApi.link(linkedCustomerId, building._id);
+            // FIX #5: Use auto-generated buildingId CODE (not MongoDB _id) for customer link
+            const buildingIdCode = building.buildingId ?? building._id;
+            await customerApi.link(linkedCustomerId, buildingIdCode);
             showToast('Building registered and customer linked!', 'success');
           } catch (error) {
-            logError('Customer Linking', error, { linkedCustomerId, buildingId: building._id });
+            logError('Customer Linking', error, { linkedCustomerId, buildingId: building.buildingId });
             showToast('Building registered but customer linking failed', 'warning');
           }
         } else {

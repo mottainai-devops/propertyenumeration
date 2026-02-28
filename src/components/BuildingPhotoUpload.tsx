@@ -59,9 +59,10 @@ export default function BuildingPhotoUpload({ building, onUpdated, onClose }: Bu
     setDeletingUrl(url);
     setError('');
     try {
-      const updated = await buildingApi.deletePhoto(building._id, url);
-      setExistingPhotos(updated.photos);
-      onUpdated(updated);
+      const result = await buildingApi.deletePhoto(building._id, url);
+      setExistingPhotos(result.photoUrls);
+      // Rebuild a partial building shape so onUpdated can refresh the parent
+      onUpdated({ ...building, photos: result.photoUrls } as any);
     } catch (err: any) {
       const msg = err?.response?.data?.message ?? err?.message ?? 'Failed to delete photo';
       setError(msg);
@@ -111,12 +112,12 @@ export default function BuildingPhotoUpload({ building, onUpdated, onClose }: Bu
     setError('');
     setProgress(`Uploading ${selectedFiles.length} photo${selectedFiles.length !== 1 ? 's' : ''}…`);
     try {
-      const updated = await buildingApi.addPhotos(building._id, selectedFiles);
+      const result = await buildingApi.addPhotos(building._id, selectedFiles);
       previews.forEach(p => URL.revokeObjectURL(p));
-      setExistingPhotos(updated.photos);
+      setExistingPhotos(result.photoUrls);
       setSelectedFiles([]);
       setPreviews([]);
-      onUpdated(updated);
+      onUpdated({ ...building, photos: result.photoUrls } as any);
     } catch (err: any) {
       const msg = err?.response?.data?.message ?? err?.message ?? 'Upload failed. Please try again.';
       setError(msg);

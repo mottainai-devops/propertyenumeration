@@ -640,4 +640,89 @@ The following frontend changes since v1.26.0 affect the backend integration:
 
 ---
 
-*End of Backend Coordination Brief — updated for v1.30.0*
+---
+
+## 11. v1.31.0 — Multi-Customer Polygon Support & Backend Shape Fixes
+
+### New Fields on Building Document
+
+Starting v1.31.0, the frontend sends two additional fields in every `POST /api/property-enumeration/buildings` request:
+
+| Field | Type | Example | Description |
+|---|---|---|---|
+| `unitCode` | string (optional) | `R1`, `R2`, `C1` | Unit identifier within a polygon. **R = Residential**, **C = Commercial**. Auto-incremented per polygon per type. Surveyor can manually override. |
+| `arcgisBuildingId` | string (optional) | `POLYGON-ABC123` | The raw ArcGIS polygon feature ID from the GIS layer. **Distinct from the auto-generated `buildingId` code** (e.g. `URBAN-SPIRITLOT-6005`). |
+
+Both fields must be:
+1. Stored on the Building document.
+2. Returned in all building response objects (GET list, GET single, POST create, PATCH update).
+
+### New Query Param on `GET /property-enumeration/buildings`
+
+The frontend queries existing units before assigning the next unit code:
+
+```
+GET /api/property-enumeration/buildings?arcgisBuildingId=<polygon_id>
+```
+
+This must return all Building documents where `arcgisBuildingId` matches the given value. The frontend uses the response to count existing R-units and C-units and auto-assign the next code (e.g. if R1 and R2 exist, the next residential registration gets R3).
+
+**Unit code logic (for reference):**
+- R prefix = Residential (`propertyType === 'Residential'`)
+- C prefix = Commercial (`propertyType === 'Commercial'`)
+- Numbers are independent per prefix: R1, R2, R3 and C1, C2 can coexist on the same polygon
+- If the backend cannot be reached (offline), the frontend defaults to R1 or C1 as a safe fallback
+
+### 409 Session Conflict — Confirmed Response Shape
+
+The frontend now handles the 409 response from `POST /sessions/start`. The expected shape is:
+
+```json
+{
+  "success": false,
+  "message": "Active session already exists",
+  "details": {
+    "sessionId": "<existing_session_id>",
+    "startTime": "<ISO timestamp>"
+  }
+}
+```
+
+The app offers the surveyor two choices: **Resume** (uses the existing `sessionId`) or **End & Start New** (calls `POST /sessions/:id/end` then starts a new session).
+
+### Customer Unlink — Request Body Now Required
+
+As of v1.31.0, the frontend sends a request body with the unlink call:
+
+```
+DELETE /api/property-enumeration/customers/:customerId/unlink
+Content-Type: application/json
+
+{ "buildingId": "URBAN-SPIRITLOT-6005" }
+```
+
+The `buildingId` value is the auto-generated building code (not the MongoDB `_id`). The backend must accept this body and use it to clear the link on the Building document.
+
+### Customer Link — Uses Building Code, Not MongoDB `_id`
+
+The `POST /customers/:customerId/link` request body now sends the building code:
+
+```json
+{ "buildingId": "URBAN-SPIRITLOT-6005" }
+```
+
+Not the MongoDB `_id`. The backend must look up the building by its `buildingId` code field.
+
+### v1.31.0 Changelog Summary
+
+| Change | Backend Impact |
+|---|---|
+| `unitCode` field added to building create/update | Must store and return in all building responses |
+| `arcgisBuildingId` field added to building create | Must store and return; must support as filter on GET /buildings |
+| Customer unlink now sends `buildingId` in request body | Backend must read body on DELETE request |
+| Customer link now sends building code (not `_id`) as `buildingId` | Backend must look up by code field |
+| 409 session conflict handled with Resume/End options | Backend must return `details.sessionId` in 409 response |
+
+---
+
+*End of Backend Coordination Brief — updated for v1.31.0*

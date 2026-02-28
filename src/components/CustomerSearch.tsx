@@ -114,9 +114,9 @@ export default function CustomerSearch({ onSelect, placeholder = 'Search custome
               onClick={() => handleSelect(customer)}
               className="w-full px-4 py-3 text-left hover:bg-blue-50 transition border-b border-gray-100 last:border-b-0"
             >
-              <div className="font-medium text-gray-900">{customer.customerName}</div>
+              <div className="font-medium text-gray-900">{customer.name ?? customer.customerName}</div>
               <div className="text-sm text-gray-600 mt-1">
-                {customer.phoneNumber && <span className="mr-3">📞 {customer.phoneNumber}</span>}
+                {(customer.phone ?? customer.phoneNumber) && <span className="mr-3">📞 {customer.phone ?? customer.phoneNumber}</span>}
                 {customer.address && <span>📍 {customer.address}</span>}
               </div>
               {customer.linkedBuildingId && (

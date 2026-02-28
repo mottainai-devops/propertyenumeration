@@ -19,6 +19,10 @@ interface LocalBuilding {
   // Customer link info (from server)
   linkedCustomerId?: string;
   linkedCustomerName?: string;
+  // Multi-customer polygon fields
+  unitCode?: string;
+  buildingId?: string;          // Auto-generated code e.g. URBAN-SPIRITLOT-6005
+  arcgisBuildingId?: string;    // ArcGIS polygon feature ID
 }
 
 interface BuildingsListProps {
@@ -48,6 +52,11 @@ function normaliseServerBuilding(b: Building): LocalBuilding {
     notes: b.notes,
     timestamp: b.createdAt ? new Date(b.createdAt).getTime() : undefined,
     synced: true,
+    linkedCustomerId: b.linkedCustomerId,
+    linkedCustomerName: b.linkedCustomerName,
+    unitCode: b.unitCode,
+    buildingId: b.buildingId,
+    arcgisBuildingId: b.arcgisBuildingId,
   };
 }
 
@@ -80,8 +89,8 @@ export default function BuildingsList({ buildings, pendingBuildings, onClose, fi
     setServerError('');
     try {
       const params = filterSessionId ? { sessionId: filterSessionId } : undefined;
-      const data = await buildingApi.list(params as any);
-      setServerBuildings(data.map(normaliseServerBuilding));
+      const { buildings } = await buildingApi.list(params as any);
+      setServerBuildings(buildings.map(normaliseServerBuilding));
       setLastFetched(new Date());
     } catch (err: any) {
       setServerError('Could not load server buildings — showing local data only');
@@ -193,7 +202,9 @@ export default function BuildingsList({ buildings, pendingBuildings, onClose, fi
     setUnlinkingId(b._id);
     setUnlinkError(prev => ({ ...prev, [b._id!]: '' }));
     try {
-      await customerApi.unlink(b.linkedCustomerId);
+      // FIX #4: Pass buildingId CODE (not MongoDB _id) as second arg; backend requires it in request body
+      const buildingIdCode = b.buildingId ?? b._id ?? '';
+      await customerApi.unlink(b.linkedCustomerId, buildingIdCode);
       // Update local state to remove link
       setServerBuildings(prev =>
         prev.map(sb =>
@@ -426,6 +437,12 @@ export default function BuildingsList({ buildings, pendingBuildings, onClose, fi
                     </div>
 
                     <div className="flex flex-wrap gap-1.5 mt-2">
+                      {/* Unit code badge — prominent amber pill */}
+                      {b.unitCode && (
+                        <span className="text-xs bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full font-bold">
+                          {b.unitCode}
+                        </span>
+                      )}
                       <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${colorClass}`}>
                         {b.propertyType}
                       </span>

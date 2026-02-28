@@ -3,6 +3,7 @@ import { Camera, CameraResultType, CameraSource } from '@capacitor/camera';
 import CustomerSearch from './CustomerSearch';
 import LotDropdown from './LotDropdown';
 import type { Customer } from '../api/client';
+import { buildingApi } from '../api/client';
 import { validateAndPreparePhoto, formatFileSize } from '../utils/photoUtils';
 
 interface LocationData {
@@ -42,6 +43,10 @@ export default function BuildingForm({ onSubmit, location, selectedBuilding, onB
   const [error, setError] = useState('');
   const [photoLoading, setPhotoLoading] = useState(false);
   const [photoSizes, setPhotoSizes] = useState<number[]>([]);
+  // Multi-customer polygon: unit code (R1, R2, C1, C2…)
+  const [unitCode, setUnitCode] = useState<string>('');
+  const [unitCodeLoading, setUnitCodeLoading] = useState(false);
+  const [existingUnitCodes, setExistingUnitCodes] = useState<string[]>([]);
 
   // Auto-fill form when building is selected from map
   useEffect(() => {
@@ -54,6 +59,35 @@ export default function BuildingForm({ onSubmit, location, selectedBuilding, onB
       }));
     }
   }, [selectedBuilding]);
+
+  // Auto-assign unit code when propertyType or selectedBuilding changes
+  useEffect(() => {
+    if (!selectedBuilding?.buildingId) {
+      setUnitCode('');
+      setExistingUnitCodes([]);
+      return;
+    }
+    const arcgisBuildingId = selectedBuilding.buildingId;
+    setUnitCodeLoading(true);
+    buildingApi.list({ arcgisBuildingId })
+      .then(({ buildings }) => {
+        const prefix = formData.propertyType === 'Residential' ? 'R' : 'C';
+        const existing = buildings
+          .map(b => b.unitCode ?? '')
+          .filter(c => c.startsWith(prefix));
+        setExistingUnitCodes(buildings.map(b => b.unitCode ?? '').filter(Boolean));
+        // Find the next available number
+        const usedNums = existing.map(c => parseInt(c.slice(1))).filter(n => !isNaN(n));
+        const nextNum = usedNums.length > 0 ? Math.max(...usedNums) + 1 : 1;
+        setUnitCode(`${prefix}${nextNum}`);
+      })
+      .catch(() => {
+        // Offline or error — assign R1/C1 as safe default
+        const prefix = formData.propertyType === 'Residential' ? 'R' : 'C';
+        setUnitCode(`${prefix}1`);
+      })
+      .finally(() => setUnitCodeLoading(false));
+  }, [selectedBuilding?.buildingId, formData.propertyType]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
@@ -159,6 +193,9 @@ export default function BuildingForm({ onSubmit, location, selectedBuilding, onB
         ...formData,
         photos,
         linkedCustomerId: linkedCustomer?._id,
+        // Multi-customer polygon fields
+        unitCode: unitCode || undefined,
+        arcgisBuildingId: selectedBuilding?.buildingId || undefined,
       };
 
       await onSubmit(request);
@@ -243,6 +280,41 @@ export default function BuildingForm({ onSubmit, location, selectedBuilding, onB
                 <p className="text-xs text-green-700 mt-2 italic">
                   ℹ️ Form fields have been pre-filled. You can edit them if needed.
                 </p>
+              </div>
+            )}
+
+            {/* Unit Code Banner (multi-customer polygon) */}
+            {selectedBuilding && (
+              <div className="bg-amber-50 border-2 border-amber-400 rounded-lg p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs font-semibold text-amber-700 uppercase tracking-wide mb-1">Unit Code</p>
+                    {unitCodeLoading ? (
+                      <p className="text-sm text-amber-600">Checking existing units…</p>
+                    ) : (
+                      <div className="flex items-center gap-3">
+                        <span className="text-3xl font-black text-amber-800">{unitCode || '—'}</span>
+                        {existingUnitCodes.length > 0 && (
+                          <span className="text-xs text-amber-600">
+                            Existing: {existingUnitCodes.join(', ')}
+                          </span>
+                        )}
+                      </div>
+                    )}
+                    <p className="text-xs text-amber-600 mt-1">
+                      {formData.propertyType === 'Residential' ? 'R = Residential unit' : formData.propertyType === 'Commercial' ? 'C = Commercial unit' : 'Unit code auto-assigned'}
+                    </p>
+                  </div>
+                  {/* Allow manual override */}
+                  <input
+                    type="text"
+                    value={unitCode}
+                    onChange={e => setUnitCode(e.target.value.toUpperCase())}
+                    maxLength={5}
+                    className="w-20 text-center text-lg font-bold border-2 border-amber-400 rounded-lg px-2 py-2 bg-white focus:ring-2 focus:ring-amber-500 outline-none"
+                    placeholder="R1"
+                  />
+                </div>
               </div>
             )}
 
@@ -523,17 +595,17 @@ export default function BuildingForm({ onSubmit, location, selectedBuilding, onB
                   <div className="flex gap-3">
                     <div className="w-12 h-12 rounded-full bg-green-200 flex items-center justify-center flex-shrink-0">
                       <span className="text-green-800 font-semibold text-lg">
-                        {linkedCustomer.customerName.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
+                        {(linkedCustomer.name ?? linkedCustomer.customerName ?? '?').split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2)}
                       </span>
                     </div>
                     <div className="flex-1 space-y-2">
-                      <p className="text-base font-semibold text-gray-900">{linkedCustomer.customerName}</p>
-                      {linkedCustomer.phoneNumber && (
+                      <p className="text-base font-semibold text-gray-900">{linkedCustomer.name ?? linkedCustomer.customerName}</p>
+                      {(linkedCustomer.phone ?? linkedCustomer.phoneNumber) && (
                         <div className="flex items-center gap-2 text-sm text-gray-700">
                           <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
                           </svg>
-                          <span>{linkedCustomer.phoneNumber}</span>
+                          <span>{linkedCustomer.phone ?? linkedCustomer.phoneNumber}</span>
                         </div>
                       )}
                       {linkedCustomer.address && (
