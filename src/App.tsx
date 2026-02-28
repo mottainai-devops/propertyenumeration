@@ -117,6 +117,12 @@ function App() {
 
   const handleLogin = async (email: string, password: string) => {
     try {
+      // DIAGNOSTIC v1.33.0: log pre-request state
+      console.log('[Login] Attempting', {
+        url: 'https://upwork.kowope.xyz/api/mobile/users/login',
+        online: navigator.onLine,
+        ua: navigator.userAgent.slice(0, 80),
+      });
       const response = await retryOperation(
         () => authApi.login({ email, password }),
         {
@@ -132,8 +138,21 @@ function App() {
       showToast('Login successful!', 'success');
       setCurrentScreen('session');
     } catch (error: any) {
-      logError('Login', error, { email });
-      const errorMessage = getOperationErrorMessage('login', error);
+      // DIAGNOSTIC v1.33.0: capture full axios error details
+      const diag = {
+        msg: error?.message,
+        code: error?.code,
+        status: error?.response?.status,
+        data: JSON.stringify(error?.response?.data)?.slice(0, 200),
+        isAxios: !!error?.isAxiosError,
+        hasResp: !!error?.response,
+        online: navigator.onLine,
+      };
+      console.error('[Login] DIAG:', JSON.stringify(diag));
+      logError('Login', error, { email, diag });
+      const baseMsg = getOperationErrorMessage('login', error);
+      // Append diagnostic code to message so it shows on screen
+      const errorMessage = `${baseMsg} [${diag.code || 'NO_CODE'} / HTTP${diag.status || 'none'} / online:${diag.online}]`;
       showToast(errorMessage, 'error');
       throw new Error(errorMessage);
     }
