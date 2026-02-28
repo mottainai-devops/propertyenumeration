@@ -1,11 +1,11 @@
 # Integration State — Property Enumeration Mobile App
 
 **Last Updated:** February 28, 2026  
-**Current Version:** v1.27.0 (versionCode 1270)  
+**Current Version:** v1.35.0 (versionCode 97)  
 **GitHub Repo:** https://github.com/mottainai-devops/propertyenumeration  
 **Backend API Base:** https://upwork.kowope.xyz  
-**Latest Build:** Build #89 (pending push)  
-**Webdev Checkpoint:** ac762cc0 (v1.26.0) → new checkpoint after v1.27.0 commit
+**Latest Build:** Build #97  
+**Webdev Checkpoint:** 9c894afa (v1.34.0)
 
 ---
 
@@ -21,7 +21,7 @@
 | Offline queue | localStorage |
 | Styling | Tailwind CSS |
 | Icons | Lucide React |
-| HTTP client | Axios (src/api/client.ts) |
+| HTTP client | CapacitorHttp / OkHttp (src/api/nativeHttp.ts + client.ts) |
 
 ---
 
@@ -182,7 +182,8 @@
 
 ### High Priority
 - [x] **Photo management in BuildingEdit** — `BuildingPhotoUpload` component added in v1.27.0 (`POST /buildings/:id/photos`)
-- [ ] **Profile / Settings screen** — view name/email, change password (`PATCH /users/me`)
+- [x] **Profile / Settings screen** — `ProfileSettings.tsx` implemented in v1.29.0 (`GET`/`PATCH /api/mobile/users/me`)
+- [x] **ERR_NETWORK on Android** — Fixed in v1.34.0 by replacing axios with CapacitorHttp (OkHttp native stack)
 - [ ] **Push notifications for sync failures** — Capacitor Local Notifications when offline sync fails after reconnect
 
 ### Medium Priority
@@ -202,6 +203,10 @@
 
 | Build | Version | Key Changes |
 |---|---|---|
+| #97 | v1.35.0 | Remove v1.33.0 diagnostic logging; update integration_state.md |
+| #96 | v1.34.0 | **Critical fix:** Replace axios with CapacitorHttp (OkHttp) — resolves ERR_NETWORK on Android |
+| #95 | v1.33.0 | Diagnostic build: added detailed login error logging to identify ERR_NETWORK root cause |
+| #94 | v1.32.0 | androidScheme → https, network security config update |
 | #89 | v1.27.0 | Backend response shape reconciliation, `normaliseBuilding`/`normaliseSession`, photo upload, propertyType casing fix |
 | #87 | v1.26.0 | BuildingEdit, Customer Unlink, infinite scroll, buildingId field |
 | #86 | v1.25.0 | BuildingsList → server API, SessionHistory, success screen polish, offline queue GPS+photos |
@@ -260,8 +265,9 @@ Backend developer AI delivered `BackendUpdateforFrontendDeveloper—February28,2
 
 ## Notes for Next Session
 
-1. Start from **v1.27.0** (new checkpoint after Build #89 push).
-2. Verify Build #89 completed successfully before starting new work.
-3. Remaining high-priority items: Profile/Settings screen (`GET`/`PATCH /users/me`), push notifications for sync failures.
-4. Dependabot has flagged 6 high + 1 moderate vulnerabilities — worth reviewing before next major release.
-5. Bundle size is ~911 KB (229 KB gzip) — consider lazy-loading Leaflet if size becomes a concern.
+1. Start from **v1.35.0** (Build #97).
+2. **ERR_NETWORK is fully resolved** — login confirmed working on Android device (v1.34.0).
+3. All high-priority features are complete. Remaining items are medium/low priority.
+4. Next recommended work: **Session detail screen** (`GET /property-enumeration/sessions/:id/buildings`) and **push notifications for sync failures** (Capacitor Local Notifications).
+5. Dependabot has flagged 6 high + 1 moderate vulnerabilities — worth reviewing before next major release.
+6. Bundle size is ~911 KB (229 KB gzip) — consider lazy-loading Leaflet if size becomes a concern.
