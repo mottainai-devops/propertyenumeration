@@ -1,10 +1,10 @@
 # Integration State — Property Enumeration Mobile App
 
 **Last Updated:** February 28, 2026  
-**Current Version:** v1.37.0 (versionCode 99)  
+**Current Version:** v1.38.0 (versionCode 100)  
 **GitHub Repo:** https://github.com/mottainai-devops/propertyenumeration  
 **Backend API Base:** https://upwork.kowope.xyz  
-**Latest Build:** Build #99  
+**Latest Build:** Build #100  
 **Backend Version:** v4.0.0 (all endpoints confirmed)
 
 ---
@@ -22,6 +22,7 @@
 | Styling | Tailwind CSS |
 | Icons | Lucide React |
 | HTTP client | CapacitorHttp / OkHttp (src/api/nativeHttp.ts + client.ts) |
+| Notifications | @capacitor/local-notifications@8.0.1 |
 
 ---
 
@@ -186,7 +187,7 @@
 - [x] **Photo management in BuildingEdit** — `BuildingPhotoUpload` component added in v1.27.0 (`POST /buildings/:id/photos`)
 - [x] **Profile / Settings screen** — `ProfileSettings.tsx` implemented in v1.29.0 (`GET`/`PATCH /api/mobile/users/me`)
 - [x] **ERR_NETWORK on Android** — Fixed in v1.34.0 by replacing axios with CapacitorHttp (OkHttp native stack)
-- [ ] **Push notifications for sync failures** — Capacitor Local Notifications when offline sync fails after reconnect
+- [x] **Push notifications for sync failures** — `@capacitor/local-notifications` installed in v1.38.0; fires "Sync Failed" notification when offline queue fails to sync after reconnect
 
 ### Medium Priority
 - [x] **Session detail screen** — tap a past session in SessionHistory → `GET /sessions/:id/buildings` (v1.37.0)
@@ -195,7 +196,7 @@
 
 ### Low Priority / Polish
 - [ ] **Code splitting** — bundle is 893 KB; split Leaflet and ArcGIS service into lazy chunks
-- [ ] **Dependabot security alerts** — 6 high + 1 moderate vulnerability flagged on GitHub (review and update deps)
+- [ ] **Dependabot security alerts** — 8 alerts (7 high + 1 moderate) are from Android Gradle/Java deps, not Node.js; `pnpm audit` confirms zero Node.js vulnerabilities. Gradle deps require Android-side update.
 - [ ] **Session end GPS fallback** — if GPS unavailable on session end, use last known position instead of failing
 - [ ] **Offline customer search** — cache recent customer search results in IndexedDB
 
@@ -205,6 +206,7 @@
 
 | Build | Version | Key Changes |
 |---|---|---|
+| #100 | v1.38.0 | Add `@capacitor/local-notifications` for sync failure alerts; update Capacitor plugins to 8.1.x; pnpm audit — zero Node.js vulnerabilities |
 | #99 | v1.37.0 | Wire `GET /sessions/:id/buildings` for session detail drill-down; backend v4.0.0 reconciliation |
 | #98 | v1.36.0 | Backend v3.0.0 response shape reconciliation (authApi.me normalisation, fullName fallback) |
 | #97 | v1.35.0 | Remove v1.33.0 diagnostic logging; update integration_state.md |
