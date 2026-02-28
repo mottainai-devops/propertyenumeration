@@ -9,12 +9,13 @@ import OfflineQueue from './components/OfflineQueue';
 import SessionStatistics from './components/SessionStatistics';
 import BuildingsList from './components/BuildingsList';
 import SessionHistory from './components/SessionHistory';
+import ProfileSettings from './components/ProfileSettings';
 import ErrorBoundary from './components/ErrorBoundary';
 import { useToast } from './components/Toast';
 import { authApi, buildingApi, customerApi, sessionApi, type Session } from './api/client';
 import { getOperationErrorMessage, logError, retryOperation } from './utils/errorHandler';
 
-type AppScreen = 'login' | 'session' | 'location' | 'building' | 'success' | 'offline-queue' | 'statistics' | 'buildings-list' | 'session-history';
+type AppScreen = 'login' | 'session' | 'location' | 'building' | 'success' | 'offline-queue' | 'statistics' | 'buildings-list' | 'session-history' | 'profile-settings' | 'session-buildings';
 
 interface LocationData {
   latitude: number;
@@ -50,6 +51,7 @@ function App() {
     const saved = localStorage.getItem('dailyTarget');
     return saved ? parseInt(saved) : 50;
   });
+  const [sessionDrillDown, setSessionDrillDown] = useState<{ sessionId: string; lotCode: string } | null>(null);
   const sessionStartTimeRef = useRef<Date | null>(null);
   const { showToast, ToastContainer } = useToast();
 
@@ -92,8 +94,10 @@ function App() {
       backButtonHandler = await CapacitorApp.addListener('backButton', ({ canGoBack }) => {
         if (currentScreen === 'building' || currentScreen === 'location') {
           setCurrentScreen('session');
-        } else if (currentScreen === 'buildings-list' || currentScreen === 'statistics' || currentScreen === 'offline-queue' || currentScreen === 'session-history') {
+        } else if (currentScreen === 'buildings-list' || currentScreen === 'statistics' || currentScreen === 'offline-queue' || currentScreen === 'session-history' || currentScreen === 'profile-settings') {
           setCurrentScreen('session');
+        } else if (currentScreen === 'session-buildings') {
+          setCurrentScreen('session-history');
         } else if (currentScreen === 'success') {
           setCurrentScreen('location');
         } else if (currentScreen === 'session') {
@@ -449,6 +453,7 @@ function App() {
             onViewStats={() => setCurrentScreen('statistics')}
             onViewBuildings={() => setCurrentScreen('buildings-list')}
             onViewSessionHistory={() => setCurrentScreen('session-history')}
+            onViewProfile={() => setCurrentScreen('profile-settings')}
             surveyedCount={surveyedBuildingIds.size}
             recentBuildingsCount={recentBuildings.length}
             onClearSurveyedHistory={() => {
@@ -495,6 +500,27 @@ function App() {
         {currentScreen === 'session-history' && (
           <SessionHistory
             onClose={() => setCurrentScreen('session')}
+            onViewSessionBuildings={(sessionId, lotCode) => {
+              setSessionDrillDown({ sessionId, lotCode });
+              setCurrentScreen('session-buildings');
+            }}
+          />
+        )}
+
+        {currentScreen === 'session-buildings' && sessionDrillDown && (
+          <BuildingsList
+            buildings={[]}
+            pendingBuildings={[]}
+            onClose={() => setCurrentScreen('session-history')}
+            filterSessionId={sessionDrillDown.sessionId}
+            filterSessionLabel={sessionDrillDown.lotCode}
+          />
+        )}
+
+        {currentScreen === 'profile-settings' && (
+          <ProfileSettings
+            onClose={() => setCurrentScreen('session')}
+            onLogout={handleLogout}
           />
         )}
 

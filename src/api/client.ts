@@ -184,6 +184,13 @@ export const authApi = {
     });
     return response.data;
   },
+
+  changePassword: async (data: { currentPassword: string; newPassword: string }): Promise<void> => {
+    await apiClient.patch('/api/mobile/users/me/password', {
+      currentPassword: btoa(data.currentPassword),
+      newPassword: btoa(data.newPassword),
+    });
+  },
 };
 
 // ─── Building API ──────────────────────────────────────────────────────────────

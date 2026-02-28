@@ -4,9 +4,10 @@ import type { Session } from '../api/client';
 
 interface SessionHistoryProps {
   onClose: () => void;
+  onViewSessionBuildings?: (sessionId: string, lotCode: string) => void;
 }
 
-export default function SessionHistory({ onClose }: SessionHistoryProps) {
+export default function SessionHistory({ onClose, onViewSessionBuildings }: SessionHistoryProps) {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -218,6 +219,19 @@ export default function SessionHistory({ onClose }: SessionHistoryProps) {
                     </div>
                   )}
                   <p className="text-xs text-gray-400 pt-1">Session ID: {session._id}</p>
+
+                  {/* Drill-down CTA */}
+                  {onViewSessionBuildings && (
+                    <button
+                      onClick={() => onViewSessionBuildings(session._id, session.lotCode)}
+                      className="w-full mt-2 flex items-center justify-center gap-2 bg-blue-50 hover:bg-blue-100 border border-blue-200 text-blue-700 font-semibold text-sm py-2.5 px-4 rounded-xl transition"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                      </svg>
+                      View Buildings from This Session
+                    </button>
+                  )}
                 </div>
               )}
             </div>

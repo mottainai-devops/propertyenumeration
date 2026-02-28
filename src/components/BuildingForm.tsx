@@ -209,7 +209,11 @@ export default function BuildingForm({ onSubmit, location, selectedBuilding, onB
 
         {/* Step 1: Building Details */}
         {currentStep === 'building-details' && (
-          <form onSubmit={handleNextStep} className="flex-1 overflow-y-auto flex flex-col">
+          <form
+            onSubmit={handleNextStep}
+            className="flex-1 overflow-y-auto"
+            style={{ paddingBottom: 'calc(24px + var(--sab, env(safe-area-inset-bottom, 0px)))' }}
+          >
             <div className="p-6 space-y-6">
             {error && (
               <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
@@ -428,25 +432,23 @@ export default function BuildingForm({ onSubmit, location, selectedBuilding, onB
               />
             </div>
 
-            </div>
-
-            {/* Action Area - Zone 3: Outside scroll, safe-area aware */}
-            <div className="shrink-0 px-6 pt-3 pb-[calc(16px+var(--sab))] bg-white border-t border-gray-200">
-              <div className="space-y-3">
+              {/* ── Step 1 CTAs — inline, no sticky footer ── */}
+              <div className="space-y-3 pt-2">
                 <button
                   type="submit"
-                  className="w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-3 px-4 rounded-lg transition"
+                  className="w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-3 px-4 rounded-xl transition"
                 >
                   Next: Link Customer
                 </button>
                 <button
                   type="button"
-                  onClick={() => window.history.back()}
-                  className="w-full bg-gray-200 hover:bg-gray-300 text-gray-700 font-semibold py-3 px-4 rounded-lg transition"
+                  onClick={onBack}
+                  className="w-full border-2 border-gray-300 bg-white hover:bg-gray-50 text-gray-700 font-semibold py-3 px-4 rounded-xl transition"
                 >
                   Cancel
                 </button>
               </div>
+
             </div>
           </form>
         )}

@@ -25,6 +25,8 @@ interface BuildingsListProps {
   buildings: LocalBuilding[];
   pendingBuildings: LocalBuilding[];
   onClose: () => void;
+  filterSessionId?: string;   // When set, fetches only buildings for this session
+  filterSessionLabel?: string; // e.g. lot code for display in header
 }
 
 type FilterType = 'All' | 'Residential' | 'Commercial' | 'Industrial' | 'Mixed-Use' | 'Pending';
@@ -49,7 +51,7 @@ function normaliseServerBuilding(b: Building): LocalBuilding {
   };
 }
 
-export default function BuildingsList({ buildings, pendingBuildings, onClose }: BuildingsListProps) {
+export default function BuildingsList({ buildings, pendingBuildings, onClose, filterSessionId, filterSessionLabel }: BuildingsListProps) {
   const [filter, setFilter] = useState<FilterType>('All');
   const [search, setSearch] = useState('');
   const [serverBuildings, setServerBuildings] = useState<LocalBuilding[]>([]);
@@ -77,7 +79,8 @@ export default function BuildingsList({ buildings, pendingBuildings, onClose }: 
     setLoadingServer(true);
     setServerError('');
     try {
-      const data = await buildingApi.list();
+      const params = filterSessionId ? { sessionId: filterSessionId } : undefined;
+      const data = await buildingApi.list(params as any);
       setServerBuildings(data.map(normaliseServerBuilding));
       setLastFetched(new Date());
     } catch (err: any) {
@@ -85,7 +88,7 @@ export default function BuildingsList({ buildings, pendingBuildings, onClose }: 
     } finally {
       setLoadingServer(false);
     }
-  }, []);
+  }, [filterSessionId]);
 
   useEffect(() => {
     fetchFromServer();
@@ -258,9 +261,11 @@ export default function BuildingsList({ buildings, pendingBuildings, onClose }: 
                 </svg>
               </button>
               <div>
-                <h1 className="text-lg font-bold text-gray-900">Registered Buildings</h1>
+                <h1 className="text-lg font-bold text-gray-900">
+                  {filterSessionLabel ? `Session: ${filterSessionLabel}` : 'Registered Buildings'}
+                </h1>
                 <p className="text-xs text-gray-500">
-                  {loadingServer ? 'Loading from server…' : `${allBuildings.length} total · ${pendingBuildings.length} pending sync`}
+                  {loadingServer ? 'Loading from server…' : `${allBuildings.length} building${allBuildings.length !== 1 ? 's' : ''}${!filterSessionId ? ` · ${pendingBuildings.length} pending sync` : ''}`}
                   {lastFetched && !loadingServer && (
                     <span className="ml-1 text-gray-400">· synced {formatTime(lastFetched.getTime())}</span>
                   )}
