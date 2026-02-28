@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { App as CapacitorApp } from '@capacitor/app';
+import { LocalNotifications } from '@capacitor/local-notifications';
 import Login from './components/Login';
 import SessionManagement from './components/SessionManagement';
 import SessionBanner from './components/SessionBanner';
@@ -54,6 +55,13 @@ function App() {
   const [sessionDrillDown, setSessionDrillDown] = useState<{ sessionId: string; lotCode: string } | null>(null);
   const sessionStartTimeRef = useRef<Date | null>(null);
   const { showToast, ToastContainer } = useToast();
+
+  // Request notification permission on mount (Android 13+)
+  useEffect(() => {
+    LocalNotifications.requestPermissions().catch(() => {
+      // Silently ignore if notifications are not supported (e.g., web browser)
+    });
+  }, []);
 
   // Monitor network status
   useEffect(() => {
@@ -376,7 +384,26 @@ function App() {
     localStorage.setItem('pendingBuildings', JSON.stringify(remaining));
     setIsSyncing(false);
     if (syncedCount > 0) showToast(`Successfully synced ${syncedCount} building${syncedCount > 1 ? 's' : ''}!`, 'success');
-    if (remaining.length > 0) showToast(`${remaining.length} building${remaining.length > 1 ? 's' : ''} failed to sync`, 'error');
+    if (remaining.length > 0) {
+      showToast(`${remaining.length} building${remaining.length > 1 ? 's' : ''} failed to sync`, 'error');
+      // Fire a local notification so the surveyor is alerted even if the app is backgrounded
+      try {
+        const perm = await LocalNotifications.checkPermissions();
+        if (perm.display === 'granted') {
+          await LocalNotifications.schedule({
+            notifications: [{
+              id: Date.now() % 2147483647, // must fit in a 32-bit int
+              title: 'Sync Failed',
+              body: `${remaining.length} building${remaining.length > 1 ? 's' : ''} could not be synced. Open the app to retry.`,
+              smallIcon: 'ic_stat_icon_config_sample',
+              channelId: 'sync_failures',
+            }],
+          });
+        }
+      } catch {
+        // Notification scheduling is best-effort; do not block the sync flow
+      }
+    }
   };
 
   const handleRemovePendingBuilding = (index: number) => {
