@@ -1,25 +1,29 @@
-import axios from 'axios';
+import { nativeHttp } from './nativeHttp';
 
-// API Base URL
-const API_BASE_URL = 'https://upwork.kowope.xyz';
+// ─── API client: uses CapacitorHttp (OkHttp on Android) to bypass WebView
+// SSL/CORS restrictions that cause ERR_NETWORK on Android devices.
+// The nativeHttp adapter mirrors the axios interface used throughout this file.
 
-// Create axios instance
-const apiClient = axios.create({
-  baseURL: API_BASE_URL,
-  timeout: 30000,
-  headers: {
-    'Content-Type': 'application/json',
-  },
-});
-
-// Add auth token to requests
-apiClient.interceptors.request.use((config) => {
+// Inject auth token before every request by patching the common headers
+// (nativeHttp reads defaultHeaders.common on each request)
+const getApiClient = () => {
   const token = localStorage.getItem('authToken');
   if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
+    nativeHttp.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+  } else {
+    delete nativeHttp.defaults.headers.common['Authorization'];
   }
-  return config;
-});
+  return nativeHttp;
+};
+
+// Alias so all existing code that calls `apiClient.get/post/...` works unchanged
+const apiClient = {
+  get: (url: string, config?: any) => { getApiClient(); return nativeHttp.get(url, config); },
+  post: (url: string, data?: any, config?: any) => { getApiClient(); return nativeHttp.post(url, data, config); },
+  put: (url: string, data?: any, config?: any) => { getApiClient(); return nativeHttp.put(url, data, config); },
+  patch: (url: string, data?: any, config?: any) => { getApiClient(); return nativeHttp.patch(url, data, config); },
+  delete: (url: string, config?: any) => { getApiClient(); return nativeHttp.delete(url, config); },
+};
 
 // ─── Building Interface ────────────────────────────────────────────────────────
 // NOTE: The backend returns flat gpsLatitude/gpsLongitude and photoUrls[].
