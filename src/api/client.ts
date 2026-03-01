@@ -344,15 +344,35 @@ export interface BulkCustomer {
 // ─── Customer API ──────────────────────────────────────────────────────────────
 export const customerApi = {
   search: async (params: CustomerSearchParams): Promise<Customer[]> => {
-    const response = await apiClient.get('/api/property-enumeration/customers', {
-      params: {
-        search: params.query,   // Backend uses 'search' key
-        lotCode: params.lotCode,
-        limit: params.limit,
-        page: params.page,
-      },
-    });
-    const raw: any[] = response.data?.data?.customers ?? [];
+    let response: any;
+    try {
+      response = await apiClient.get('/api/property-enumeration/customers', {
+        params: {
+          search: params.query,   // Backend uses 'search' key
+          lotCode: params.lotCode,
+          limit: params.limit,
+          page: params.page,
+        },
+      });
+    } catch (err: any) {
+      // nativeHttp throws for non-2xx. Read status from err.response
+      const status: number = err?.response?.status ?? 0;
+      const backendMsg: string = err?.response?.data?.message || err?.response?.data?.error || err?.message || 'Unknown error';
+      console.error(`[customerApi.search] HTTP ${status}: ${backendMsg}`);
+      // 404 = no customers loaded yet for this company — treat as empty list
+      if (status === 404) return [];
+      // Re-throw with a clear message including the HTTP status
+      const rethrow = new Error(backendMsg) as any;
+      rethrow.httpStatus = status;
+      throw rethrow;
+    }
+    // Also handle cases where backend returns success:false with 200
+    if (response.data?.success === false) {
+      const msg = response.data?.message || 'Search failed';
+      console.error(`[customerApi.search] success:false — ${msg}`);
+      return [];
+    }
+    const raw: any[] = response.data?.data?.customers ?? response.data?.customers ?? [];
     return raw.map(normaliseCustomer);
   },
 

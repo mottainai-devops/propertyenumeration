@@ -38,7 +38,19 @@ export default function CustomerSearch({ onSelect, placeholder = 'Search custome
         setResults(customers);
         setShowDropdown(true);
       } catch (err: any) {
-        setError('Failed to search customers');
+        const httpStatus: number = err?.httpStatus ?? 0;
+        const errMsg: string = err?.message || '';
+        console.error('[CustomerSearch] search error:', httpStatus, errMsg);
+        // Show a helpful message distinguishing API errors from "no data yet"
+        if (httpStatus === 403 || errMsg.toLowerCase().includes('forbidden')) {
+          setError('Access denied — contact your administrator to set up customer data.');
+        } else if (httpStatus === 401) {
+          setError('Session expired — please log out and log in again.');
+        } else if (httpStatus === 0 || errMsg.toLowerCase().includes('network')) {
+          setError('No internet connection. You can continue without linking.');
+        } else {
+          setError('Could not load customers. Try again or continue without linking.');
+        }
         setResults([]);
       } finally {
         setLoading(false);
