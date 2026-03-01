@@ -157,6 +157,8 @@ export default function CustomerImport({ user, onBack }: CustomerImportProps) {
     setStep('importing');
     setImportError('');
 
+    if (!file) return;
+
     try {
       const result = await customerApi.importCsv(file, ownerCompanyId.trim());
       setImportResult(result);
