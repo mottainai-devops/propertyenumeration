@@ -246,22 +246,18 @@ export default function CustomerImport({ user, onBack }: CustomerImportProps) {
                 <label className="block text-sm font-semibold text-gray-700 mb-1.5">
                   Company ID (ownerCompanyId)
                 </label>
-                {isSuperAdmin ? (
-                  <>
-                    <input
-                      type="text"
-                      value={ownerCompanyId}
-                      onChange={e => setOwnerCompanyId(e.target.value)}
-                      placeholder="e.g. URBAN-SPIRIT"
-                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-sm"
-                    />
-                    <p className="text-xs text-gray-500 mt-1">Enter the target franchisee's company string identifier.</p>
-                  </>
-                ) : (
-                  <div className="px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-700 font-mono">
-                    {ownerCompanyId || <span className="text-gray-400 italic">Not available — contact support</span>}
-                  </div>
-                )}
+                <input
+                  type="text"
+                  value={ownerCompanyId}
+                  onChange={e => setOwnerCompanyId(e.target.value)}
+                  placeholder="e.g. URBAN-SPIRIT"
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-sm font-mono"
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  {isSuperAdmin
+                    ? "Enter the target franchisee's company string identifier."
+                    : 'Auto-filled from your company name. Edit if incorrect (e.g. URBAN-SPIRIT).'}
+                </p>
               </div>
 
               {/* Step 1: Download template */}

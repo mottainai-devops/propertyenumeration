@@ -213,7 +213,15 @@ export const authApi = {
     // Backend envelope: { success: true, data: { token, user } }
     // parseData() in nativeHttp now correctly parses the response body,
     // so response.data is the full envelope — we need the inner data object.
-    return response.data?.data ?? response.data;
+    const result: LoginResponse = response.data?.data ?? response.data;
+    // Derive ownerCompanyId from company name if not explicitly set by backend
+    if (result?.user && !result.user.ownerCompanyId) {
+      const cName: string = result.user.company?.companyName ?? '';
+      result.user.ownerCompanyId =
+        result.user.company?.companyId ||
+        (cName ? cName.trim().toUpperCase().replace(/\s+/g, '-') : undefined);
+    }
+    return result;
   },
 
   me: async (): Promise<LoginResponse['user']> => {
@@ -221,11 +229,24 @@ export const authApi = {
     const raw = response.data?.data?.user ?? response.data;
     // Backend v3.0.0 returns flat shape: { id, fullName, companyId, companyName, ... }
     // Normalise to the canonical LoginResponse['user'] shape used throughout the app
+
+    // Derive ownerCompanyId from multiple possible backend fields.
+    // Priority: explicit ownerCompanyId > company.companyId > company.companyName converted to slug
+    const companyName: string =
+      raw.company?.companyName ?? raw.companyName ?? '';
+    const derivedCompanyId: string | undefined =
+      raw.ownerCompanyId ||
+      raw.company?.companyId ||
+      raw.company?.ownerCompanyId ||
+      raw.ownerCompanyId ||
+      // Convert company name to uppercase slug: "Urban Spirit" → "URBAN-SPIRIT"
+      (companyName ? companyName.trim().toUpperCase().replace(/\s+/g, '-') : undefined);
+
     return {
       ...raw,
       _id: raw._id ?? raw.id ?? '',
       fullName: raw.fullName ?? raw.name ?? '',
-      ownerCompanyId: raw.ownerCompanyId ?? raw.company?.companyId ?? undefined,
+      ownerCompanyId: derivedCompanyId,
       company: raw.company ?? {
         _id: raw.companyId ?? '',
         companyName: raw.companyName ?? '',
