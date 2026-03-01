@@ -415,28 +415,60 @@ export const customerApi = {
   },
 
   // v4.2.1: CSV file bulk import — admin/cherry_picker/superadmin only
-  // NOTE: Uses native fetch() instead of CapacitorHttp because CapacitorHttp on Android
-  // does not correctly serialize FormData objects — the multipart body is malformed,
-  // causing the backend to return 403 "Company not found" even with a valid companyId.
+  // Uses CapacitorHttp (bypasses CORS) with a manually constructed multipart/form-data body.
+  // We cannot use fetch() from the WebView because it is blocked by CORS on Android.
+  // We cannot pass FormData to CapacitorHttp because it does not properly serialize it.
+  // Solution: read the file as text, build the multipart body manually as a string,
+  // and set the correct Content-Type header with the boundary ourselves.
   importCsv: async (file: File, ownerCompanyId: string): Promise<ImportResult> => {
     const token = localStorage.getItem('authToken');
-    const formData = new FormData();
-    formData.append('file', file);
-    formData.append('ownerCompanyId', ownerCompanyId);
-    const res = await fetch(
-      'https://upwork.kowope.xyz/api/property-enumeration/customers/import',
-      {
-        method: 'POST',
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-        body: formData,
-        // Do NOT set Content-Type — browser sets it with the correct multipart boundary
-      }
-    );
-    const json = await res.json();
-    if (!res.ok) {
-      const msg = json?.message ?? json?.error ?? `HTTP ${res.status}`;
+
+    // Read the CSV file content as text
+    const csvText = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (e) => resolve(e.target?.result as string ?? '');
+      reader.onerror = () => reject(new Error('Failed to read file'));
+      reader.readAsText(file);
+    });
+
+    // Build multipart/form-data body manually
+    const boundary = '----CapacitorBoundary' + Date.now().toString(16);
+    const CRLF = '\r\n';
+    let body = '';
+    // ownerCompanyId field
+    body += `--${boundary}${CRLF}`;
+    body += `Content-Disposition: form-data; name="ownerCompanyId"${CRLF}`;
+    body += CRLF;
+    body += `${ownerCompanyId}${CRLF}`;
+    // file field
+    body += `--${boundary}${CRLF}`;
+    body += `Content-Disposition: form-data; name="file"; filename="${file.name}"${CRLF}`;
+    body += `Content-Type: text/csv${CRLF}`;
+    body += CRLF;
+    body += `${csvText}${CRLF}`;
+    // closing boundary
+    body += `--${boundary}--${CRLF}`;
+
+    const { CapacitorHttp } = await import('@capacitor/core');
+    const response = await CapacitorHttp.request({
+      method: 'POST',
+      url: 'https://upwork.kowope.xyz/api/property-enumeration/customers/import',
+      headers: {
+        'Content-Type': `multipart/form-data; boundary=${boundary}`,
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      data: body,
+    });
+
+    let json: any = response.data;
+    if (typeof json === 'string') {
+      try { json = JSON.parse(json); } catch { /* leave as string */ }
+    }
+
+    if (response.status < 200 || response.status >= 300) {
+      const msg = json?.message ?? json?.error ?? `HTTP ${response.status}`;
       const err: any = new Error(msg);
-      err.response = { status: res.status, data: json };
+      err.response = { status: response.status, data: json };
       throw err;
     }
     return json?.results ?? json?.data?.results ?? json;
