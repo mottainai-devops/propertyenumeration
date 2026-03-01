@@ -1,11 +1,11 @@
 # Integration State — Property Enumeration Mobile App
 
 **Last Updated:** February 28, 2026  
-**Current Version:** v1.38.0 (versionCode 100)  
+**Current Version:** v1.39.0 (versionCode 101)  
 **GitHub Repo:** https://github.com/mottainai-devops/propertyenumeration  
 **Backend API Base:** https://upwork.kowope.xyz  
-**Latest Build:** Build #100  
-**Backend Version:** v4.0.0 (all endpoints confirmed)
+**Latest Build:** Build #101  
+**Backend Version:** v4.2.1 (customer bulk import + company scoping live)
 
 ---
 
@@ -188,6 +188,7 @@
 - [x] **Profile / Settings screen** — `ProfileSettings.tsx` implemented in v1.29.0 (`GET`/`PATCH /api/mobile/users/me`)
 - [x] **ERR_NETWORK on Android** — Fixed in v1.34.0 by replacing axios with CapacitorHttp (OkHttp native stack)
 - [x] **Push notifications for sync failures** — `@capacitor/local-notifications` installed in v1.38.0; fires "Sync Failed" notification when offline queue fails to sync after reconnect
+- [x] **Customer bulk import** — `CustomerImport.tsx` screen added in v1.39.0; CSV upload + template download + result summary; accessible from Profile (admin/cherry_picker/superadmin only)
 
 ### Medium Priority
 - [x] **Session detail screen** — tap a past session in SessionHistory → `GET /sessions/:id/buildings` (v1.37.0)
@@ -206,6 +207,7 @@
 
 | Build | Version | Key Changes |
 |---|---|---|
+| #101 | v1.39.0 | Customer bulk import screen (CSV upload + template download + result summary); `ownerCompanyId` in login response; backend v4.2.1 company scoping |
 | #100 | v1.38.0 | Add `@capacitor/local-notifications` for sync failure alerts; update Capacitor plugins to 8.1.x; pnpm audit — zero Node.js vulnerabilities |
 | #99 | v1.37.0 | Wire `GET /sessions/:id/buildings` for session detail drill-down; backend v4.0.0 reconciliation |
 | #98 | v1.36.0 | Backend v3.0.0 response shape reconciliation (authApi.me normalisation, fullName fallback) |

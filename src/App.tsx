@@ -11,12 +11,13 @@ import SessionStatistics from './components/SessionStatistics';
 import BuildingsList from './components/BuildingsList';
 import SessionHistory from './components/SessionHistory';
 import ProfileSettings from './components/ProfileSettings';
+import CustomerImport from './components/CustomerImport';
 import ErrorBoundary from './components/ErrorBoundary';
 import { useToast } from './components/Toast';
 import { authApi, buildingApi, customerApi, sessionApi, type Session, type SessionConflictError } from './api/client';
 import { getOperationErrorMessage, logError, retryOperation } from './utils/errorHandler';
 
-type AppScreen = 'login' | 'session' | 'location' | 'building' | 'success' | 'offline-queue' | 'statistics' | 'buildings-list' | 'session-history' | 'profile-settings' | 'session-buildings';
+type AppScreen = 'login' | 'session' | 'location' | 'building' | 'success' | 'offline-queue' | 'statistics' | 'buildings-list' | 'session-history' | 'profile-settings' | 'session-buildings' | 'customer-import';
 
 interface LocationData {
   latitude: number;
@@ -106,6 +107,8 @@ function App() {
           setCurrentScreen('session');
         } else if (currentScreen === 'session-buildings') {
           setCurrentScreen('session-history');
+        } else if (currentScreen === 'customer-import') {
+          setCurrentScreen('profile-settings');
         } else if (currentScreen === 'success') {
           setCurrentScreen('location');
         } else if (currentScreen === 'session') {
@@ -575,8 +578,25 @@ function App() {
           <ProfileSettings
             onClose={() => setCurrentScreen('session')}
             onLogout={handleLogout}
+            onLoadCustomers={() => setCurrentScreen('customer-import')}
           />
         )}
+
+        {currentScreen === 'customer-import' && (() => {
+          const savedUser = localStorage.getItem('user');
+          const u = savedUser ? JSON.parse(savedUser) : {};
+          return (
+            <CustomerImport
+              user={{
+                role: u.role ?? 'user',
+                ownerCompanyId: u.ownerCompanyId ?? u.company?.companyId ?? undefined,
+                company: u.company,
+                fullName: u.fullName,
+              }}
+              onBack={() => setCurrentScreen('profile-settings')}
+            />
+          );
+        })()}
 
         {currentScreen === 'location' && (
           <div className="container mx-auto px-4 pt-4 pb-4">

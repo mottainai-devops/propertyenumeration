@@ -192,8 +192,10 @@ export interface LoginResponse {
     email: string;
     fullName: string;
     role: string;
+    ownerCompanyId?: string;    // v4.2.1: string identifier for bulk import (e.g. "URBAN-SPIRIT")
     company: {
       _id: string;
+      companyId?: string;         // v4.2.1: string identifier also nested here
       companyName: string;
     };
     assignedLots: Lot[];
@@ -220,6 +222,7 @@ export const authApi = {
       ...raw,
       _id: raw._id ?? raw.id ?? '',
       fullName: raw.fullName ?? raw.name ?? '',
+      ownerCompanyId: raw.ownerCompanyId ?? raw.company?.companyId ?? undefined,
       company: raw.company ?? {
         _id: raw.companyId ?? '',
         companyName: raw.companyName ?? '',
@@ -320,6 +323,24 @@ export const buildingApi = {
   },
 };
 
+// ─── Customer Import Interfaces ──────────────────────────────────────────────
+export interface ImportResult {
+  created: number;
+  updated: number;
+  failed: number;
+  errors: string[];
+}
+
+export interface BulkCustomer {
+  customerName: string;
+  address: string;
+  lotCode: string;
+  phone?: string;
+  email?: string;
+  customerType?: 'residential' | 'commercial';
+  customerId?: string;
+}
+
 // ─── Customer API ──────────────────────────────────────────────────────────────
 export const customerApi = {
   search: async (params: CustomerSearchParams): Promise<Customer[]> => {
@@ -347,6 +368,28 @@ export const customerApi = {
     await apiClient.delete(`/api/property-enumeration/customers/${customerId}/unlink`, {
       data: { buildingId: buildingIdCode },
     });
+  },
+
+  // v4.2.1: CSV file bulk import — admin/cherry_picker/superadmin only
+  importCsv: async (file: File, ownerCompanyId: string): Promise<ImportResult> => {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('ownerCompanyId', ownerCompanyId);
+    const response = await apiClient.post(
+      '/api/property-enumeration/customers/import',
+      formData,
+      { headers: { 'Content-Type': 'multipart/form-data' } }
+    );
+    return response.data?.results ?? response.data;
+  },
+
+  // v4.2.1: JSON bulk import — admin/cherry_picker/superadmin only
+  bulkImport: async (customers: BulkCustomer[], ownerCompanyId: string): Promise<ImportResult> => {
+    const response = await apiClient.post('/api/property-enumeration/customers/bulk', {
+      ownerCompanyId,
+      customers,
+    });
+    return response.data?.results ?? response.data;
   },
 };
 

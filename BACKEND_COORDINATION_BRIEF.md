@@ -866,4 +866,76 @@ Apply only the fields present (partial update). Do **not** allow editing of `lot
 
 ---
 
-*End of Backend Coordination Brief — updated for v1.36.0 / Backend v3.0.0 / v4.0.0 instructions*
+---
+
+## Section 14 — Customer Bulk Import (Backend v4.2.1 — Deployed 2026-03-01)
+
+All items in this section are **confirmed live** in backend v4.2.1.
+
+### 14.1 Company Scoping on Customer Search
+
+`GET /api/property-enumeration/customers` now returns only customers belonging to the authenticated user's company (resolved from JWT token). Admins, cherry_pickers, and superadmins see all companies. Admins may pass `?companyId=URBAN-SPIRIT` to filter. **No frontend change required** — scoping is transparent.
+
+### 14.2 `POST /api/property-enumeration/customers/import` — CSV Bulk Import
+
+**Auth:** Bearer JWT with `admin`, `cherry_picker`, or `superadmin` role. Regular `user` tokens receive 403.
+
+**Request:** `multipart/form-data`
+- `file` — CSV file (max 5 MB)
+- `ownerCompanyId` — company string identifier (e.g. `URBAN-SPIRIT`)
+
+**CSV columns:** `customerName` (required), `address` (required), `lotCode` (required), `phone`, `email`, `customerType`, `customerId`
+
+**Response:**
+```json
+{
+  "success": true,
+  "results": {
+    "created": 47,
+    "updated": 3,
+    "failed": 2,
+    "errors": ["Invalid lot code \"999\" for customer \"John Doe\""]
+  }
+}
+```
+
+**Status:** ✅ Live.
+
+### 14.3 `POST /api/property-enumeration/customers/bulk` — JSON Bulk Import
+
+**Auth:** Bearer JWT with `admin`, `cherry_picker`, or `superadmin` role.
+
+**Request body:**
+```json
+{
+  "ownerCompanyId": "URBAN-SPIRIT",
+  "customers": [
+    { "customerName": "...", "address": "...", "lotCode": "27", "phone": "...", "email": "...", "customerType": "residential", "customerId": "EXT-001" }
+  ]
+}
+```
+
+**Batch limit:** 5,000 customers per request.
+
+**Response:** Same `{ success, results: { created, updated, failed, errors[] } }` shape.
+
+**Status:** ✅ Live.
+
+### 14.4 `ownerCompanyId` in Login Response (v4.2.1)
+
+Both `POST /api/mobile/users/login` and `GET /api/mobile/users/me` now return:
+```json
+{
+  "user": {
+    "ownerCompanyId": "URBAN-SPIRIT",
+    "company": { "companyId": "URBAN-SPIRIT", "companyName": "URBAN SPIRIT" }
+  }
+}
+```
+Frontend reads `user.ownerCompanyId` and pre-fills it in the import request. Superadmins have `ownerCompanyId: null` and must enter it manually.
+
+**Status:** ✅ Live.
+
+---
+
+*End of Backend Coordination Brief — updated for v1.39.0 / Backend v4.2.1 / 2026-03-01*

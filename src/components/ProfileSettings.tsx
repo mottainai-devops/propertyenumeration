@@ -4,9 +4,12 @@ import { authApi } from '../api/client';
 interface ProfileSettingsProps {
   onClose: () => void;
   onLogout: () => void;
+  onLoadCustomers?: () => void;
 }
 
-export default function ProfileSettings({ onClose, onLogout }: ProfileSettingsProps) {
+const ADMIN_ROLES = ['admin', 'cherry_picker', 'superadmin'];
+
+export default function ProfileSettings({ onClose, onLogout, onLoadCustomers }: ProfileSettingsProps) {
   const user = (() => {
     try { return JSON.parse(localStorage.getItem('user') || '{}'); } catch { return {}; }
   })();
@@ -204,6 +207,30 @@ export default function ProfileSettings({ onClose, onLogout }: ProfileSettingsPr
             </form>
           )}
         </div>
+
+        {/* Load Customers — admin/cherry_picker/superadmin only */}
+        {ADMIN_ROLES.includes(user.role) && onLoadCustomers && (
+          <div className="bg-white rounded-2xl shadow-sm p-4">
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Data Management</p>
+            <button
+              onClick={onLoadCustomers}
+              className="w-full flex items-center gap-3 bg-blue-50 hover:bg-blue-100 border border-blue-200 text-blue-800 font-semibold py-3.5 px-4 rounded-xl transition"
+            >
+              <div className="w-9 h-9 bg-blue-600 rounded-lg flex items-center justify-center flex-shrink-0">
+                <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 11l3 3 3-3" />
+                </svg>
+              </div>
+              <div className="text-left">
+                <p className="text-sm font-bold text-blue-900">Load Customers</p>
+                <p className="text-xs text-blue-600 font-normal">Import franchisee customer data via CSV</p>
+              </div>
+              <svg className="w-4 h-4 text-blue-500 ml-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+              </svg>
+            </button>
+          </div>
+        )}
 
         {/* Logout */}
         <button
