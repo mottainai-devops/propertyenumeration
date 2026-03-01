@@ -59,6 +59,27 @@ type ResponseInterceptor = {
 
 const BASE_URL = 'https://upwork.kowope.xyz';
 
+/**
+ * CapacitorHttp on Android auto-parses JSON only when Content-Type is exactly
+ * 'application/json'. When the server sends 'application/json; charset=utf-8'
+ * (or any variant with parameters), the native layer may return data as a raw
+ * string. This helper ensures data is always a parsed object.
+ */
+function parseData(data: any): any {
+  if (typeof data === 'string') {
+    const trimmed = data.trim();
+    if ((trimmed.startsWith('{') && trimmed.endsWith('}')) ||
+        (trimmed.startsWith('[') && trimmed.endsWith(']'))) {
+      try {
+        return JSON.parse(trimmed);
+      } catch {
+        // Not valid JSON — return as-is
+      }
+    }
+  }
+  return data;
+}
+
 const defaultHeaders: Record<string, string> = {
   'Content-Type': 'application/json',
 };
@@ -138,7 +159,7 @@ async function request(
   }
 
   const nativeRes: NativeResponse = {
-    data: response.data,
+    data: parseData(response.data),
     status: response.status,
     headers: response.headers || {},
   };
@@ -148,7 +169,7 @@ async function request(
     const err = makeError(
       `Request failed with status code ${response.status}`,
       'ERR_BAD_RESPONSE',
-      response.data,
+      parseData(response.data),
       response.status
     );
     for (const interceptor of responseInterceptors) {
