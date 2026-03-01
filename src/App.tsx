@@ -585,11 +585,18 @@ function App() {
         {currentScreen === 'customer-import' && (() => {
           const savedUser = localStorage.getItem('user');
           const u = savedUser ? JSON.parse(savedUser) : {};
+          // Derive ownerCompanyId: explicit field > company.companyId > company name slug
+          const cName: string = u.company?.companyName ?? u.companyName ?? '';
+          const derivedCompanyId: string | undefined =
+            u.ownerCompanyId ||
+            u.company?.companyId ||
+            u.company?.ownerCompanyId ||
+            (cName ? cName.trim().toUpperCase().replace(/\s+/g, '-') : undefined);
           return (
             <CustomerImport
               user={{
                 role: u.role ?? 'user',
-                ownerCompanyId: u.ownerCompanyId ?? u.company?.companyId ?? undefined,
+                ownerCompanyId: derivedCompanyId,
                 company: u.company,
                 fullName: u.fullName,
               }}

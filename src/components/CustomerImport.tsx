@@ -152,13 +152,25 @@ export default function CustomerImport({ user, onBack }: CustomerImportProps) {
       setImportError('Company ID is required. Please enter your company identifier (e.g. URBAN-SPIRIT).');
       return;
     }
-    if (!file) return;
+    if (validRows.length === 0) return;
 
     setStep('importing');
     setImportError('');
 
     try {
-      const result = await customerApi.importCsv(file, ownerCompanyId.trim());
+      // Use JSON bulk import instead of multipart CSV upload.
+      // CapacitorHttp (OkHttp) has known issues with multipart/form-data boundary
+      // encoding that causes 403 on some backends. Sending parsed JSON is more reliable.
+      const customers = validRows.map(r => ({
+        customerName: r.customerName,
+        address: r.address,
+        lotCode: r.lotCode,
+        ...(r.phone ? { phone: r.phone } : {}),
+        ...(r.email ? { email: r.email } : {}),
+        ...(r.customerType ? { customerType: r.customerType as 'residential' | 'commercial' } : {}),
+        ...(r.customerId ? { customerId: r.customerId } : {}),
+      }));
+      const result = await customerApi.bulkImport(customers, ownerCompanyId.trim());
       setImportResult(result);
       setStep('result');
     } catch (err: any) {
