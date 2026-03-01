@@ -158,24 +158,23 @@ export default function CustomerImport({ user, onBack }: CustomerImportProps) {
     setImportError('');
 
     try {
-      // Use JSON bulk import instead of multipart CSV upload.
-      // CapacitorHttp (OkHttp) has known issues with multipart/form-data boundary
-      // encoding that causes 403 on some backends. Sending parsed JSON is more reliable.
-      const customers = validRows.map(r => ({
-        customerName: r.customerName,
-        address: r.address,
-        lotCode: r.lotCode,
-        ...(r.phone ? { phone: r.phone } : {}),
-        ...(r.email ? { email: r.email } : {}),
-        ...(r.customerType ? { customerType: r.customerType as 'residential' | 'commercial' } : {}),
-        ...(r.customerId ? { customerId: r.customerId } : {}),
-      }));
-      const result = await customerApi.bulkImport(customers, ownerCompanyId.trim());
+      const result = await customerApi.importCsv(file, ownerCompanyId.trim());
       setImportResult(result);
       setStep('result');
     } catch (err: any) {
-      const msg = err.response?.data?.message ?? err.message ?? 'Import failed. Please try again.';
-      setImportError(msg);
+      const status: number = err.response?.status ?? 0;
+      const backendMsg: string =
+        err.response?.data?.message ??
+        err.response?.data?.error ??
+        err.message ??
+        'Import failed. Please try again.';
+      let displayMsg = `[HTTP ${status}] ${backendMsg}`;
+      if (status === 403) {
+        displayMsg = `Permission denied (403): Your account role does not have permission to import customers. Ask your system administrator to grant you the \'cherry_picker\' or \'superadmin\' role. (Backend: ${backendMsg})`;
+      } else if (status === 404) {
+        displayMsg = `Import endpoint not found (404). The server may not support this feature. (Backend: ${backendMsg})`;
+      }
+      setImportError(displayMsg);
       setStep('preview');
     }
   };
