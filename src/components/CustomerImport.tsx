@@ -1,11 +1,11 @@
-import { useState, useRef } from 'react';
-import { customerApi, type ImportResult } from '../api/client';
+import { useState, useRef, useEffect } from 'react';
+import { authApi, customerApi, type ImportResult } from '../api/client';
 
 interface CustomerImportProps {
   user: {
     role: string;
     ownerCompanyId?: string;
-    company?: { companyName?: string };
+    company?: { _id?: string; companyId?: string; companyName?: string };
     fullName?: string;
   };
   onBack: () => void;
@@ -105,7 +105,30 @@ export default function CustomerImport({ user, onBack }: CustomerImportProps) {
   const [importError, setImportError] = useState('');
   const [ownerCompanyId, setOwnerCompanyId] = useState(user.ownerCompanyId ?? '');
   const [showErrors, setShowErrors] = useState(false);
+  const [rawUserDebug, setRawUserDebug] = useState<string>('');
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Fetch fresh user profile on mount to get the exact company identifier from the backend
+  useEffect(() => {
+    authApi.me().then(freshUser => {
+      const debugInfo = JSON.stringify({
+        ownerCompanyId: freshUser.ownerCompanyId,
+        company_id: (freshUser.company as any)?._id,
+        company_companyId: (freshUser.company as any)?.companyId,
+        company_name: freshUser.company?.companyName,
+      }, null, 2);
+      setRawUserDebug(debugInfo);
+      // Use the most specific identifier available from the fresh backend response
+      const freshId =
+        (freshUser as any)._rawOwnerCompanyId ||
+        (freshUser.company as any)?.companyId ||
+        (freshUser.company as any)?._id ||
+        freshUser.ownerCompanyId;
+      if (freshId && !ownerCompanyId) {
+        setOwnerCompanyId(freshId);
+      }
+    }).catch(() => {});
+  }, []);
 
   const isAdminRole = ADMIN_ROLES.includes(user.role);
   const isSuperAdmin = user.role === 'superadmin';
@@ -271,6 +294,13 @@ export default function CustomerImport({ user, onBack }: CustomerImportProps) {
                     ? "Enter the target franchisee's company string identifier."
                     : 'Auto-filled from your company name. Edit if incorrect (e.g. URBAN-SPIRIT).'}
                 </p>
+                {/* DEBUG: show raw user company fields */}
+                {rawUserDebug ? (
+                  <pre className="mt-2 p-2 bg-yellow-50 border border-yellow-300 rounded text-xs text-yellow-900 overflow-x-auto">
+                    {`DEBUG user.company fields:
+${rawUserDebug}`}
+                  </pre>
+                ) : null}
               </div>
 
               {/* Step 1: Download template */}
