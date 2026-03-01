@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react';
-import { customerApi, type ImportResult, type BulkCustomer } from '../api/client';
+import { customerApi, type ImportResult } from '../api/client';
 
 interface CustomerImportProps {
   user: {
