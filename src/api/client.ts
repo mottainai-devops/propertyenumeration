@@ -210,7 +210,10 @@ export const authApi = {
       email: credentials.email,
       password: encodedPassword,
     });
-    return response.data;
+    // Backend envelope: { success: true, data: { token, user } }
+    // parseData() in nativeHttp now correctly parses the response body,
+    // so response.data is the full envelope — we need the inner data object.
+    return response.data?.data ?? response.data;
   },
 
   me: async (): Promise<LoginResponse['user']> => {
