@@ -95,13 +95,15 @@ function buildHeaders(extra?: Record<string, string>): Record<string, string> {
   return { ...defaultHeaders, ...(extra || {}) };
 }
 
-function buildParams(params?: Record<string, string | number | boolean>): Record<string, string> | undefined {
+function buildParams(params?: Record<string, string | number | boolean | undefined | null>): Record<string, string> | undefined {
   if (!params) return undefined;
   const result: Record<string, string> = {};
   for (const [k, v] of Object.entries(params)) {
+    // Skip undefined and null — never send them as the string 'undefined' or 'null'
+    if (v === undefined || v === null) continue;
     result[k] = String(v);
   }
-  return result;
+  return Object.keys(result).length > 0 ? result : undefined;
 }
 
 function makeError(message: string, code: string, responseData?: any, status?: number): NativeError {

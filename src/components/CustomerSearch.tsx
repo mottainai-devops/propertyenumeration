@@ -12,6 +12,7 @@ export default function CustomerSearch({ onSelect, placeholder = 'Search custome
   const [loading, setLoading] = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
   const [error, setError] = useState('');
+  const [debugInfo, setDebugInfo] = useState<string>('');
   const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -32,15 +33,20 @@ export default function CustomerSearch({ onSelect, placeholder = 'Search custome
     searchTimeoutRef.current = setTimeout(async () => {
       setLoading(true);
       setError('');
+      setDebugInfo('');
 
       try {
         const customers = await customerApi.search({ query: query.trim(), limit: 10 });
+        setDebugInfo(`OK: ${customers.length} results`);
         setResults(customers);
         setShowDropdown(true);
       } catch (err: any) {
-        const httpStatus: number = err?.httpStatus ?? 0;
-        const errMsg: string = err?.message || '';
-        console.error('[CustomerSearch] search error:', httpStatus, errMsg);
+        const httpStatus: number = err?.httpStatus ?? err?.response?.status ?? 0;
+        const errMsg: string = err?.message || 'unknown';
+        const rawData: string = JSON.stringify(err?.response?.data ?? err?.data ?? null);
+        const debugStr = `HTTP:${httpStatus} | msg:${errMsg} | raw:${rawData.substring(0, 200)}`;
+        setDebugInfo(debugStr);
+        console.error('[CustomerSearch] search error:', debugStr);
         // Show a helpful message distinguishing API errors from "no data yet"
         if (httpStatus === 403 || errMsg.toLowerCase().includes('forbidden')) {
           setError('Access denied — contact your administrator to set up customer data.');
@@ -109,6 +115,13 @@ export default function CustomerSearch({ onSelect, placeholder = 'Search custome
           )}
         </div>
       </div>
+
+      {/* Debug Panel — remove after diagnosis */}
+      {debugInfo && (
+        <div className="mt-2 p-2 bg-yellow-50 border border-yellow-300 rounded text-xs text-yellow-900 break-all">
+          <strong>DEBUG:</strong> {debugInfo}
+        </div>
+      )}
 
       {/* Error Message */}
       {error && (
