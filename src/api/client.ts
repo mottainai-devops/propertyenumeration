@@ -414,73 +414,27 @@ export const customerApi = {
     });
   },
 
-  // v4.2.1: CSV file bulk import — admin/cherry_picker/superadmin only
-  // Uses CapacitorHttp (bypasses CORS) with a manually constructed multipart/form-data body.
-  // We cannot use fetch() from the WebView because it is blocked by CORS on Android.
-  // We cannot pass FormData to CapacitorHttp because it does not properly serialize it.
-  // Solution: read the file as text, build the multipart body manually as a string,
-  // and set the correct Content-Type header with the boundary ourselves.
-  importCsv: async (file: File, ownerCompanyId: string): Promise<ImportResult> => {
-    const token = localStorage.getItem('authToken');
-
-    // Read the CSV file content as text
-    const csvText = await new Promise<string>((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = (e) => resolve(e.target?.result as string ?? '');
-      reader.onerror = () => reject(new Error('Failed to read file'));
-      reader.readAsText(file);
+  // v4.2.1: CSV import via JSON bulk endpoint.
+  // The app parses the CSV locally (already done in CustomerImport.tsx) and POSTs
+  // the rows as a JSON array to /customers/bulk via CapacitorHttp (bypasses CORS).
+  // This avoids all multipart/file-upload edge cases on Android.
+  importCsv: async (customers: BulkCustomer[], ownerCompanyId: string): Promise<ImportResult> => {
+    const response = await apiClient.post('/api/property-enumeration/customers/bulk', {
+      ownerCompanyId,
+      customers,
     });
-
-    // Build multipart/form-data body manually
-    const boundary = '----CapacitorBoundary' + Date.now().toString(16);
-    const CRLF = '\r\n';
-    let body = '';
-    // ownerCompanyId field
-    body += `--${boundary}${CRLF}`;
-    body += `Content-Disposition: form-data; name="ownerCompanyId"${CRLF}`;
-    body += CRLF;
-    body += `${ownerCompanyId}${CRLF}`;
-    // file field
-    body += `--${boundary}${CRLF}`;
-    body += `Content-Disposition: form-data; name="file"; filename="${file.name}"${CRLF}`;
-    body += `Content-Type: text/csv${CRLF}`;
-    body += CRLF;
-    body += `${csvText}${CRLF}`;
-    // closing boundary
-    body += `--${boundary}--${CRLF}`;
-
-    const { CapacitorHttp } = await import('@capacitor/core');
-    const response = await CapacitorHttp.request({
-      method: 'POST',
-      url: 'https://upwork.kowope.xyz/api/property-enumeration/customers/import',
-      headers: {
-        'Content-Type': `multipart/form-data; boundary=${boundary}`,
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-      data: body,
-    });
-
-    let json: any = response.data;
-    if (typeof json === 'string') {
-      try { json = JSON.parse(json); } catch { /* leave as string */ }
-    }
-
-    if (response.status < 200 || response.status >= 300) {
-      const msg = json?.message ?? json?.error ?? `HTTP ${response.status}`;
-      const err: any = new Error(msg);
-      err.response = { status: response.status, data: json };
-      throw err;
-    }
-    return json?.results ?? json?.data?.results ?? json;
+    const json = response.data;
+    // Backend may wrap result: { success, data: { results } } or { results } directly
+    return json?.data?.results ?? json?.results ?? json;
   },
 
-  // v4.2.1: JSON bulk import — admin/cherry_picker/superadmin only
+  // v4.2.1: JSON bulk import (alias kept for direct use)
   bulkImport: async (customers: BulkCustomer[], ownerCompanyId: string): Promise<ImportResult> => {
     const response = await apiClient.post('/api/property-enumeration/customers/bulk', {
       ownerCompanyId,
       customers,
     });
-    return response.data?.results ?? response.data;
+    return response.data?.data?.results ?? response.data?.results ?? response.data;
   },
 };
 

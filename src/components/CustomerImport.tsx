@@ -188,10 +188,18 @@ export default function CustomerImport({ user, onBack }: CustomerImportProps) {
     setStep('importing');
     setImportError('');
 
-    if (!file) return;
-
     try {
-      const result = await customerApi.importCsv(file, ownerCompanyId.trim());
+      // Map parsed rows to BulkCustomer shape expected by the JSON bulk endpoint
+      const bulkCustomers = validRows.map(r => ({
+        customerName: r.customerName,
+        address: r.address,
+        lotCode: r.lotCode,
+        phone: r.phone,
+        email: r.email,
+        customerType: r.customerType as 'residential' | 'commercial' | undefined,
+        customerId: r.customerId,
+      }));
+      const result = await customerApi.importCsv(bulkCustomers, ownerCompanyId.trim());
       setImportResult(result);
       setStep('result');
     } catch (err: any) {
@@ -203,9 +211,9 @@ export default function CustomerImport({ user, onBack }: CustomerImportProps) {
         'Import failed. Please try again.';
       let displayMsg = `[HTTP ${status}] ${backendMsg}`;
       if (status === 403) {
-        displayMsg = `Permission denied (403): Your account role does not have permission to import customers. Ask your system administrator to grant you the \'cherry_picker\' or \'superadmin\' role. (Backend: ${backendMsg})`;
+        displayMsg = `Permission denied (403): Your account role does not have permission to import customers. Backend: ${backendMsg}`;
       } else if (status === 404) {
-        displayMsg = `Import endpoint not found (404). The server may not support this feature. (Backend: ${backendMsg})`;
+        displayMsg = `Import endpoint not found (404). The server may not support this feature. Backend: ${backendMsg}`;
       }
       setImportError(displayMsg);
       setStep('preview');
