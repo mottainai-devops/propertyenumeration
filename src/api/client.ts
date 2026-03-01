@@ -415,16 +415,31 @@ export const customerApi = {
   },
 
   // v4.2.1: CSV file bulk import — admin/cherry_picker/superadmin only
+  // NOTE: Uses native fetch() instead of CapacitorHttp because CapacitorHttp on Android
+  // does not correctly serialize FormData objects — the multipart body is malformed,
+  // causing the backend to return 403 "Company not found" even with a valid companyId.
   importCsv: async (file: File, ownerCompanyId: string): Promise<ImportResult> => {
+    const token = localStorage.getItem('authToken');
     const formData = new FormData();
     formData.append('file', file);
     formData.append('ownerCompanyId', ownerCompanyId);
-    const response = await apiClient.post(
-      '/api/property-enumeration/customers/import',
-      formData,
-      { headers: { 'Content-Type': 'multipart/form-data' } }
+    const res = await fetch(
+      'https://upwork.kowope.xyz/api/property-enumeration/customers/import',
+      {
+        method: 'POST',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        body: formData,
+        // Do NOT set Content-Type — browser sets it with the correct multipart boundary
+      }
     );
-    return response.data?.results ?? response.data;
+    const json = await res.json();
+    if (!res.ok) {
+      const msg = json?.message ?? json?.error ?? `HTTP ${res.status}`;
+      const err: any = new Error(msg);
+      err.response = { status: res.status, data: json };
+      throw err;
+    }
+    return json?.results ?? json?.data?.results ?? json;
   },
 
   // v4.2.1: JSON bulk import — admin/cherry_picker/superadmin only

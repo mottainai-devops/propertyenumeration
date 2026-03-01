@@ -105,29 +105,37 @@ export default function CustomerImport({ user, onBack }: CustomerImportProps) {
   const [importError, setImportError] = useState('');
   const [ownerCompanyId, setOwnerCompanyId] = useState(user.ownerCompanyId ?? '');
   const [showErrors, setShowErrors] = useState(false);
-  const [rawUserDebug, setRawUserDebug] = useState<string>('');
+  const KNOWN_COMPANIES = [
+    { label: 'URBAN SPIRIT', value: 'URBAN-SPIRIT' },
+    { label: 'W ABDULSALAM MECH', value: 'WAS-061' },
+    { label: 'SAYOTOM', value: 'SAYOTOM' },
+    { label: 'MAIA RECYCLING', value: 'MAIA-RECYCLING' },
+    { label: 'ECO SOLUTIONS', value: 'ECO-SOLUTIONS' },
+    { label: 'CUMMINGTONITE', value: 'CUMMINGTONITE' },
+    { label: 'MOTTAINAI', value: 'MOTTAINAI' },
+    { label: 'MORTAD', value: 'MORTAD' },
+    { label: 'AFT OKULEYE', value: 'AFT-OKULEYE' },
+    { label: 'TINKUB', value: 'TINKUB' },
+    { label: 'ADESKUNLAR', value: 'ADESKUNLAR' },
+    { label: 'DIC', value: 'DIC' },
+    { label: 'EOA PEST CONTROL', value: 'EOA-PEST-CONTROL' },
+    { label: 'TEST FRANCHISOR', value: 'TEST-FRANCHISOR' },
+    { label: 'TEST FRANCHISEE', value: 'TEST-FRANCHISEE' },
+    { label: 'TEST COMPANY', value: 'TESTCO' },
+  ];
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Fetch fresh user profile on mount to get the exact company identifier from the backend
+  // For non-admin users, try to derive company ID from their profile on mount
   useEffect(() => {
-    authApi.me().then(freshUser => {
-      const debugInfo = JSON.stringify({
-        ownerCompanyId: freshUser.ownerCompanyId,
-        company_id: (freshUser.company as any)?._id,
-        company_companyId: (freshUser.company as any)?.companyId,
-        company_name: freshUser.company?.companyName,
-      }, null, 2);
-      setRawUserDebug(debugInfo);
-      // Use the most specific identifier available from the fresh backend response
-      const freshId =
-        (freshUser as any)._rawOwnerCompanyId ||
-        (freshUser.company as any)?.companyId ||
-        (freshUser.company as any)?._id ||
-        freshUser.ownerCompanyId;
-      if (freshId && !ownerCompanyId) {
-        setOwnerCompanyId(freshId);
-      }
-    }).catch(() => {});
+    if (!ownerCompanyId) {
+      authApi.me().then(freshUser => {
+        const freshId =
+          freshUser.ownerCompanyId ||
+          (freshUser.company as any)?.companyId ||
+          (freshUser.company as any)?._id;
+        if (freshId) setOwnerCompanyId(freshId);
+      }).catch(() => {});
+    }
   }, []);
 
   const isAdminRole = ADMIN_ROLES.includes(user.role);
@@ -282,6 +290,16 @@ export default function CustomerImport({ user, onBack }: CustomerImportProps) {
                 <label className="block text-sm font-semibold text-gray-700 mb-1.5">
                   Company ID (ownerCompanyId)
                 </label>
+                <select
+                  value={KNOWN_COMPANIES.some(c => c.value === ownerCompanyId) ? ownerCompanyId : ''}
+                  onChange={e => { if (e.target.value) setOwnerCompanyId(e.target.value); }}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-sm bg-white mb-2"
+                >
+                  <option value="">— Select a company —</option>
+                  {KNOWN_COMPANIES.map(c => (
+                    <option key={c.value} value={c.value}>{c.label} ({c.value})</option>
+                  ))}
+                </select>
                 <input
                   type="text"
                   value={ownerCompanyId}
@@ -290,17 +308,8 @@ export default function CustomerImport({ user, onBack }: CustomerImportProps) {
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-sm font-mono"
                 />
                 <p className="text-xs text-gray-500 mt-1">
-                  {isSuperAdmin
-                    ? "Enter the target franchisee's company string identifier."
-                    : 'Auto-filled from your company name. Edit if incorrect (e.g. URBAN-SPIRIT).'}
+                  Select from the list or type the exact Company ID. Must match exactly (case-sensitive).
                 </p>
-                {/* DEBUG: show raw user company fields */}
-                {rawUserDebug ? (
-                  <pre className="mt-2 p-2 bg-yellow-50 border border-yellow-300 rounded text-xs text-yellow-900 overflow-x-auto">
-                    {`DEBUG user.company fields:
-${rawUserDebug}`}
-                  </pre>
-                ) : null}
               </div>
 
               {/* Step 1: Download template */}
