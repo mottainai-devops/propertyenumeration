@@ -27,8 +27,8 @@ interface ParsedRow {
 const ADMIN_ROLES = ['admin', 'cherry_picker', 'superadmin'];
 const CSV_TEMPLATE_HEADERS = 'customerName,address,lotCode,phone,email,customerType,customerId';
 const CSV_TEMPLATE_ROWS = [
-  'Adewale Okafor,14 Bode Thomas Street Ibadan,27,08012345678,adewale@example.com,residential,',
-  'Funke Adeyemi,22 Ring Road Ibadan,27,08098765432,,commercial,EXT-002',
+  'Adewale Okafor,14 Bode Thomas Street Ibadan,27,08012345678,adewale@example.com,Residential,',
+  'Funke Adeyemi,22 Ring Road Ibadan,27,08098765432,,Commercial,EXT-002',
 ];
 
 /** Normalise a CSV header to a known field name */
@@ -189,14 +189,22 @@ export default function CustomerImport({ user, onBack }: CustomerImportProps) {
     setImportError('');
 
     try {
-      // Map parsed rows to BulkCustomer shape expected by the JSON bulk endpoint
+      // Map parsed rows to BulkCustomer shape expected by the JSON bulk endpoint.
+      // Backend enum requires capitalised customerType: 'Residential' | 'Commercial'.
+      const capitaliseType = (t?: string): 'Residential' | 'Commercial' | undefined => {
+        if (!t) return undefined;
+        const lower = t.toLowerCase().trim();
+        if (lower === 'commercial') return 'Commercial';
+        if (lower === 'residential') return 'Residential';
+        return undefined; // unknown value — omit rather than send invalid
+      };
       const bulkCustomers = validRows.map(r => ({
         customerName: r.customerName,
         address: r.address,
         lotCode: r.lotCode,
         phone: r.phone,
         email: r.email,
-        customerType: r.customerType as 'residential' | 'commercial' | undefined,
+        customerType: capitaliseType(r.customerType),
         customerId: r.customerId,
       }));
       const result = await customerApi.importCsv(bulkCustomers, ownerCompanyId.trim());
@@ -210,8 +218,10 @@ export default function CustomerImport({ user, onBack }: CustomerImportProps) {
         err.message ??
         'Import failed. Please try again.';
       let displayMsg = `[HTTP ${status}] ${backendMsg}`;
-      if (status === 403) {
-        displayMsg = `Permission denied (403): Your account role does not have permission to import customers. Backend: ${backendMsg}`;
+      if (status === 401) {
+        displayMsg = `Session expired (401). Please log out and log back in to refresh your token, then try again.`;
+      } else if (status === 403) {
+        displayMsg = `Permission denied (403): Your account does not have permission to import customers, or your account has no company assigned. Backend: ${backendMsg}`;
       } else if (status === 404) {
         displayMsg = `Import endpoint not found (404). The server may not support this feature. Backend: ${backendMsg}`;
       }
@@ -387,7 +397,7 @@ export default function CustomerImport({ user, onBack }: CustomerImportProps) {
                         ['lotCode', '✅', 'Lot number (e.g. 27)'],
                         ['phone', 'Optional', 'Contact number'],
                         ['email', 'Optional', 'Email address'],
-                        ['customerType', 'Optional', 'residential or commercial'],
+                        ['customerType', 'Optional', 'Residential or Commercial'],
                         ['customerId', 'Optional', 'Your own reference ID'],
                       ].map(([col, req, note]) => (
                         <tr key={col} className="border-t border-gray-100">

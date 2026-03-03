@@ -361,7 +361,8 @@ export interface BulkCustomer {
   lotCode: string;
   phone?: string;
   email?: string;
-  customerType?: 'residential' | 'commercial';
+  // Backend enum requires capitalised values: 'Residential' | 'Commercial'
+  customerType?: 'Residential' | 'Commercial';
   customerId?: string;
 }
 
@@ -414,27 +415,38 @@ export const customerApi = {
     });
   },
 
-  // v4.2.1: CSV import via JSON bulk endpoint.
-  // The app parses the CSV locally (already done in CustomerImport.tsx) and POSTs
-  // the rows as a JSON array to /customers/bulk via CapacitorHttp (bypasses CORS).
-  // This avoids all multipart/file-upload edge cases on Android.
+  // v4.3.0: CSV import via JSON bulk endpoint (backend v4.3.0 fixed).
+  // Parses CSV locally, capitalises customerType, POSTs JSON array via CapacitorHttp.
   importCsv: async (customers: BulkCustomer[], ownerCompanyId: string): Promise<ImportResult> => {
     const response = await apiClient.post('/api/property-enumeration/customers/bulk', {
       ownerCompanyId,
       customers,
     });
     const json = response.data;
-    // Backend may wrap result: { success, data: { results } } or { results } directly
-    return json?.data?.results ?? json?.results ?? json;
+    // Backend v4.3.0 returns: { success, data: { created, updated, failed, errors } }
+    // Fallback covers older shapes: { results } or flat { created, updated, failed, errors }
+    const d = json?.data ?? json?.results ?? json;
+    return {
+      created: d?.created ?? 0,
+      updated: d?.updated ?? 0,
+      failed: d?.failed ?? d?.skipped ?? 0,
+      errors: d?.errors ?? [],
+    };
   },
 
-  // v4.2.1: JSON bulk import (alias kept for direct use)
+  // Alias kept for direct use
   bulkImport: async (customers: BulkCustomer[], ownerCompanyId: string): Promise<ImportResult> => {
     const response = await apiClient.post('/api/property-enumeration/customers/bulk', {
       ownerCompanyId,
       customers,
     });
-    return response.data?.data?.results ?? response.data?.results ?? response.data;
+    const d = response.data?.data ?? response.data?.results ?? response.data;
+    return {
+      created: d?.created ?? 0,
+      updated: d?.updated ?? 0,
+      failed: d?.failed ?? d?.skipped ?? 0,
+      errors: d?.errors ?? [],
+    };
   },
 };
 
