@@ -143,34 +143,22 @@ export default function CustomerImport({ user, onBack }: CustomerImportProps) {
   const validRows = rows.filter(r => !r._error);
   const invalidRows = rows.filter(r => r._error);
 
-  const handleDownloadTemplate = async () => {
+  const handleDownloadTemplate = () => {
     const content = [CSV_TEMPLATE_HEADERS, ...CSV_TEMPLATE_ROWS].join('\n');
     const filename = 'customer_import_template.csv';
-
-    // Try Android share sheet first (most reliable on Android WebView)
-    if (navigator.share && navigator.canShare) {
-      try {
-        const file = new File([content], filename, { type: 'text/csv' });
-        if (navigator.canShare({ files: [file] })) {
-          await navigator.share({ title: 'Customer Import Template', files: [file] });
-          return;
-        }
-      } catch (err: any) {
-        if (err?.name === 'AbortError') return; // user cancelled share sheet
-        // fall through to blob download
-      }
-    }
-
-    // Fallback: blob download (works on desktop, may be silent on some Android versions)
-    const blob = new Blob([content], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
+    // Use a data: URI — this is the most reliable download method in Android WebView.
+    // navigator.share with File objects and createObjectURL both fail silently on some
+    // Android versions. A data: URI with the download attribute works without any async
+    // operations or gesture-context loss.
+    const dataUri = 'data:text/csv;charset=utf-8,' + encodeURIComponent(content);
     const a = document.createElement('a');
-    a.href = url;
+    a.href = dataUri;
     a.download = filename;
+    a.style.display = 'none';
     document.body.appendChild(a);
     a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    // Small delay before cleanup so the browser has time to register the click
+    setTimeout(() => { document.body.removeChild(a); }, 100);
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {

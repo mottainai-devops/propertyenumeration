@@ -19,6 +19,24 @@ import { getOperationErrorMessage, logError, retryOperation } from './utils/erro
 
 type AppScreen = 'login' | 'session' | 'location' | 'building' | 'success' | 'offline-queue' | 'statistics' | 'buildings-list' | 'session-history' | 'profile-settings' | 'session-buildings' | 'customer-import';
 
+// ---------------------------------------------------------------------------
+// Per-user localStorage key helpers
+// All building/session data is keyed by userId so multiple accounts on the
+// same device do not share each other's pending queue or recent history.
+// ---------------------------------------------------------------------------
+function getUserId(): string {
+  try {
+    const u = localStorage.getItem('user');
+    if (u) {
+      const parsed = JSON.parse(u);
+      return parsed._id || parsed.id || parsed.email || 'default';
+    }
+  } catch {}
+  return 'default';
+}
+const userKey = (base: string) => `${base}_${getUserId()}`;
+// ---------------------------------------------------------------------------
+
 interface LocationData {
   latitude: number;
   longitude: number;
@@ -80,37 +98,47 @@ function App() {
   }, []);
 
   // Load pending buildings and recent buildings from localStorage.
-  // One-time migration (v1.53+): deduplicate recentBuildings that were stored with
-  // synced:false by pre-v1.53 builds (those builds added offline buildings to both
-  // pendingBuildings AND recentBuildings, causing duplicate entries in the list).
+  // Keys are scoped per-user (v1.55+) so multiple accounts on the same device
+  // do not share each other's pending queue or recent history.
+  // On first load after upgrade, we migrate data from the old unscoped keys.
   useEffect(() => {
-    const pending = localStorage.getItem('pendingBuildings');
-    if (pending) setPendingBuildings(JSON.parse(pending));
+    const uid = getUserId();
+    const pendingKey = `pendingBuildings_${uid}`;
+    const recentKey = `recentBuildings_${uid}`;
+    const migrationKey = `buildings_migrated_v155_${uid}`;
 
-    const recent = localStorage.getItem('recentBuildings');
-    if (recent) {
-      const parsed: any[] = JSON.parse(recent);
-      const migrationKey = 'recentBuildings_deduped_v153';
-      if (!localStorage.getItem(migrationKey)) {
-        // Remove any entries that have synced:false — those are now tracked in pendingBuildings only.
-        // Also deduplicate by _id and by address+lotCode fingerprint.
-        const seen = new Set<string>();
-        const deduped = parsed.filter((b: any) => {
-          if (b.synced === false) return false; // was double-stored pre-v1.53
-          const key = b._id || (b.address && b.lotCode ? `${b.address.trim().toLowerCase()}|${b.lotCode}` : null);
-          if (key) {
-            if (seen.has(key)) return false;
-            seen.add(key);
-          }
-          return true;
-        });
-        setRecentBuildings(deduped);
-        try { localStorage.setItem('recentBuildings', JSON.stringify(deduped)); } catch {}
-        localStorage.setItem(migrationKey, '1');
-      } else {
-        setRecentBuildings(parsed);
+    // One-time migration: copy unscoped data into user-scoped keys, then clear
+    if (!localStorage.getItem(migrationKey)) {
+      const oldPending = localStorage.getItem('pendingBuildings');
+      const oldRecent = localStorage.getItem('recentBuildings');
+      if (oldPending && !localStorage.getItem(pendingKey)) {
+        localStorage.setItem(pendingKey, oldPending);
       }
+      if (oldRecent && !localStorage.getItem(recentKey)) {
+        // Also deduplicate and strip synced:false entries from pre-v1.53 builds
+        try {
+          const parsed: any[] = JSON.parse(oldRecent);
+          const seen = new Set<string>();
+          const deduped = parsed.filter((b: any) => {
+            if (b.synced === false) return false;
+            const key = b._id || (b.address && b.lotCode ? `${b.address.trim().toLowerCase()}|${b.lotCode}` : null);
+            if (key) { if (seen.has(key)) return false; seen.add(key); }
+            return true;
+          });
+          localStorage.setItem(recentKey, JSON.stringify(deduped));
+        } catch { localStorage.setItem(recentKey, oldRecent); }
+      }
+      // Clear the old unscoped keys so they don't pollute other users' migrations
+      localStorage.removeItem('pendingBuildings');
+      localStorage.removeItem('recentBuildings');
+      localStorage.setItem(migrationKey, '1');
     }
+
+    const pending = localStorage.getItem(pendingKey);
+    if (pending) { try { setPendingBuildings(JSON.parse(pending)); } catch {} }
+
+    const recent = localStorage.getItem(recentKey);
+    if (recent) { try { setRecentBuildings(JSON.parse(recent)); } catch {} }
   }, []);
 
   // Check if user is already logged in
@@ -325,7 +353,7 @@ function App() {
   const addToRecentBuildings = (buildingData: any) => {
     const updated = [{ ...buildingData, timestamp: Date.now(), synced: true }, ...recentBuildings].slice(0, 50);
     setRecentBuildings(updated);
-    try { localStorage.setItem('recentBuildings', JSON.stringify(updated)); } catch {}
+    try { localStorage.setItem(userKey('recentBuildings'), JSON.stringify(updated)); } catch {}
   };
 
   const handleBuildingSubmit = async (buildingData: any) => {
@@ -392,7 +420,7 @@ function App() {
   const saveBuildingOffline = (buildingData: any) => {
     const pending = [...pendingBuildings, { ...buildingData, timestamp: Date.now() }];
     setPendingBuildings(pending);
-    localStorage.setItem('pendingBuildings', JSON.stringify(pending));
+    localStorage.setItem(userKey('pendingBuildings'), JSON.stringify(pending));
   };
 
   const syncPendingBuildings = async () => {
@@ -417,12 +445,12 @@ function App() {
     if (justSynced.length > 0) {
       setRecentBuildings(prev => {
         const updated = [...justSynced, ...prev].slice(0, 50);
-        try { localStorage.setItem('recentBuildings', JSON.stringify(updated)); } catch {}
+        try { localStorage.setItem(userKey('recentBuildings'), JSON.stringify(updated)); } catch {}
         return updated;
       });
     }
     setPendingBuildings(remaining);
-    localStorage.setItem('pendingBuildings', JSON.stringify(remaining));
+    localStorage.setItem(userKey('pendingBuildings'), JSON.stringify(remaining));
     setIsSyncing(false);
     if (syncedCount > 0) showToast(`Successfully synced ${syncedCount} building${syncedCount > 1 ? 's' : ''}!`, 'success');
     if (remaining.length > 0) {
@@ -451,7 +479,7 @@ function App() {
     if (confirm('Are you sure you want to remove this building from the queue? This action cannot be undone.')) {
       const updated = pendingBuildings.filter((_, i) => i !== index);
       setPendingBuildings(updated);
-      localStorage.setItem('pendingBuildings', JSON.stringify(updated));
+      localStorage.setItem(userKey('pendingBuildings'), JSON.stringify(updated));
     }
   };
 
