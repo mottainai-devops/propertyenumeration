@@ -79,12 +79,38 @@ function App() {
     };
   }, []);
 
-  // Load pending buildings and recent buildings from localStorage
+  // Load pending buildings and recent buildings from localStorage.
+  // One-time migration (v1.53+): deduplicate recentBuildings that were stored with
+  // synced:false by pre-v1.53 builds (those builds added offline buildings to both
+  // pendingBuildings AND recentBuildings, causing duplicate entries in the list).
   useEffect(() => {
     const pending = localStorage.getItem('pendingBuildings');
     if (pending) setPendingBuildings(JSON.parse(pending));
+
     const recent = localStorage.getItem('recentBuildings');
-    if (recent) setRecentBuildings(JSON.parse(recent));
+    if (recent) {
+      const parsed: any[] = JSON.parse(recent);
+      const migrationKey = 'recentBuildings_deduped_v153';
+      if (!localStorage.getItem(migrationKey)) {
+        // Remove any entries that have synced:false — those are now tracked in pendingBuildings only.
+        // Also deduplicate by _id and by address+lotCode fingerprint.
+        const seen = new Set<string>();
+        const deduped = parsed.filter((b: any) => {
+          if (b.synced === false) return false; // was double-stored pre-v1.53
+          const key = b._id || (b.address && b.lotCode ? `${b.address.trim().toLowerCase()}|${b.lotCode}` : null);
+          if (key) {
+            if (seen.has(key)) return false;
+            seen.add(key);
+          }
+          return true;
+        });
+        setRecentBuildings(deduped);
+        try { localStorage.setItem('recentBuildings', JSON.stringify(deduped)); } catch {}
+        localStorage.setItem(migrationKey, '1');
+      } else {
+        setRecentBuildings(parsed);
+      }
+    }
   }, []);
 
   // Check if user is already logged in
@@ -451,11 +477,21 @@ function App() {
           </div>
         )}
         {isOnline && pendingBuildings.length > 0 && !isSyncing && (
-          <div
-            className="bg-green-500 text-white px-4 pt-safe py-2 text-center font-medium cursor-pointer hover:bg-green-600 transition"
-            onClick={() => setCurrentScreen('offline-queue')}
-          >
-            ✅ Online - {pendingBuildings.length} building(s) waiting to sync (Tap to view)
+          <div className="bg-green-500 text-white px-4 pt-safe py-2 flex items-center justify-between gap-3">
+            <button
+              type="button"
+              className="flex-1 text-left font-medium text-sm"
+              onClick={() => setCurrentScreen('offline-queue')}
+            >
+              ✅ {pendingBuildings.length} building{pendingBuildings.length !== 1 ? 's' : ''} waiting to sync
+            </button>
+            <button
+              type="button"
+              onClick={syncPendingBuildings}
+              className="shrink-0 bg-white text-green-700 font-semibold text-xs px-3 py-1.5 rounded-full hover:bg-green-50 active:scale-95 transition"
+            >
+              Sync Now
+            </button>
           </div>
         )}
 

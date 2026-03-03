@@ -27,8 +27,8 @@ interface ParsedRow {
 const ADMIN_ROLES = ['admin', 'cherry_picker', 'superadmin'];
 const CSV_TEMPLATE_HEADERS = 'customerName,address,lotCode,phone,email,customerType,customerId';
 const CSV_TEMPLATE_ROWS = [
-  'Adewale Okafor,14 Bode Thomas Street Ibadan,27,08012345678,adewale@example.com,Residential,',
-  'Funke Adeyemi,22 Ring Road Ibadan,27,08098765432,,Commercial,EXT-002',
+  'Adewale Okafor,14 Bode Thomas Street Ibadan,LOT-27,08012345678,adewale@example.com,Residential,',
+  'Funke Adeyemi,22 Ring Road Ibadan,LOT-27,08098765432,,Commercial,EXT-002',
 ];
 
 /** Normalise a CSV header to a known field name */
