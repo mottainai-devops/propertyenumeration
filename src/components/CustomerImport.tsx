@@ -143,15 +143,30 @@ export default function CustomerImport({ user, onBack }: CustomerImportProps) {
   const validRows = rows.filter(r => !r._error);
   const invalidRows = rows.filter(r => r._error);
 
-  const handleDownloadTemplate = () => {
+  const handleDownloadTemplate = async () => {
     const content = [CSV_TEMPLATE_HEADERS, ...CSV_TEMPLATE_ROWS].join('\n');
-    const blob = new Blob([content], { type: 'text/csv' });
+    const filename = 'customer_import_template.csv';
+
+    // Try Android share sheet first (most reliable on Android WebView)
+    if (navigator.share && navigator.canShare) {
+      try {
+        const file = new File([content], filename, { type: 'text/csv' });
+        if (navigator.canShare({ files: [file] })) {
+          await navigator.share({ title: 'Customer Import Template', files: [file] });
+          return;
+        }
+      } catch (err: any) {
+        if (err?.name === 'AbortError') return; // user cancelled share sheet
+        // fall through to blob download
+      }
+    }
+
+    // Fallback: blob download (works on desktop, may be silent on some Android versions)
+    const blob = new Blob([content], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = 'customer_import_template.csv';
-    // Must append to DOM before clicking — Android WebView silently ignores
-    // programmatic clicks on detached elements.
+    a.download = filename;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);

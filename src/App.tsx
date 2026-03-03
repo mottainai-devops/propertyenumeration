@@ -350,14 +350,15 @@ function App() {
         saveBuildingOffline(buildingWithLocation);
         showToast('Building saved offline. Will sync when online.', 'info');
         if (buildingWithLocation.buildingId) markBuildingSurveyed(buildingWithLocation.buildingId);
-        addToRecentBuildings({ ...buildingWithLocation, synced: false });
+        // Do NOT add to recentBuildings here — pendingBuildings already tracks this building.
+        // Adding to both causes duplicates in BuildingsList (one synced, one not synced).
         setCurrentScreen('success');
       }
     } else {
       saveBuildingOffline(buildingWithLocation);
       showToast('Building saved offline. Will sync when online.', 'info');
       if (buildingWithLocation.buildingId) markBuildingSurveyed(buildingWithLocation.buildingId);
-      addToRecentBuildings({ ...buildingWithLocation, synced: false });
+      // Do NOT add to recentBuildings here — pendingBuildings already tracks this building.
       setCurrentScreen('success');
     }
   };
@@ -373,15 +374,26 @@ function App() {
     setIsSyncing(true);
     showToast(`Syncing ${pendingBuildings.length} building(s)...`, 'info');
     const remaining: any[] = [];
+    const justSynced: any[] = [];
     let syncedCount = 0;
     for (const building of pendingBuildings) {
       try {
-        await retryOperation(() => buildingApi.create(building), { maxRetries: 1 });
+        const result = await retryOperation(() => buildingApi.create(building), { maxRetries: 1 });
         syncedCount++;
+        // Move to recentBuildings so it shows as synced (not duplicate of server fetch)
+        justSynced.push({ ...building, _id: result?._id ?? building._id, synced: true, timestamp: building.timestamp ?? Date.now() });
       } catch (error) {
         logError('Building Sync', error, building);
         remaining.push(building);
       }
+    }
+    // Add newly synced buildings to recentBuildings
+    if (justSynced.length > 0) {
+      setRecentBuildings(prev => {
+        const updated = [...justSynced, ...prev].slice(0, 50);
+        try { localStorage.setItem('recentBuildings', JSON.stringify(updated)); } catch {}
+        return updated;
+      });
     }
     setPendingBuildings(remaining);
     localStorage.setItem('pendingBuildings', JSON.stringify(remaining));
