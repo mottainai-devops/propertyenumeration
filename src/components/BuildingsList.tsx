@@ -133,10 +133,34 @@ export default function BuildingsList({ buildings, pendingBuildings, onClose, fi
     return () => observer.disconnect();
   }, []);
 
-  // Merge: server data takes priority; pending (unsynced) always shown
+  // Merge: server data takes priority; pending (unsynced) always shown.
+  // Deduplication strategy:
+  //   1. Server buildings are the source of truth.
+  //   2. A local building is suppressed if ANY of these match a server building:
+  //      a. _id matches (building was synced and we have its server _id)
+  //      b. arcgisBuildingId matches (same polygon captured twice)
+  //      c. address+lotCode fingerprint matches (same address in same lot)
+  //   3. Pending (unsynced) buildings are always shown — they have no server record yet.
   const allBuildings = useMemo(() => {
     const serverIds = new Set(serverBuildings.map(b => b._id).filter(Boolean));
-    const localSynced = buildings.filter(b => b.synced !== false && !serverIds.has(b._id));
+    const serverArcgisIds = new Set(
+      serverBuildings.map(b => (b as any).arcgisBuildingId).filter(Boolean)
+    );
+    const serverFingerprints = new Set(
+      serverBuildings
+        .map(b => b.address && b.lotCode ? `${b.address.trim().toLowerCase()}|${b.lotCode}` : null)
+        .filter(Boolean)
+    );
+
+    const localSynced = buildings.filter(b => {
+      if (b.synced === false) return false; // pending handled separately
+      if (b._id && serverIds.has(b._id)) return false; // already on server by _id
+      if ((b as any).arcgisBuildingId && serverArcgisIds.has((b as any).arcgisBuildingId)) return false;
+      const fp = b.address && b.lotCode ? `${b.address.trim().toLowerCase()}|${b.lotCode}` : null;
+      if (fp && serverFingerprints.has(fp)) return false;
+      return true;
+    });
+
     const pending = pendingBuildings.map(b => ({ ...b, synced: false as const }));
     return [...serverBuildings, ...localSynced, ...pending];
   }, [serverBuildings, buildings, pendingBuildings]);

@@ -113,14 +113,21 @@ export default function SessionHistory({ onClose, onViewSessionBuildings }: Sess
 
         {/* Empty state */}
         {!loading && sessions.length === 0 && !error && (
-          <div className="text-center py-16">
+          <div className="text-center py-16 px-6">
             <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
               <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
             </div>
-            <p className="text-gray-500 font-medium">No sessions yet</p>
-            <p className="text-gray-400 text-sm mt-1">Start an enumeration session to see history here</p>
+            <p className="text-gray-700 font-semibold">No sessions found</p>
+            <p className="text-gray-500 text-sm mt-1 leading-relaxed">
+              Sessions you complete will appear here.
+            </p>
+            <p className="text-gray-400 text-xs mt-3 leading-relaxed">
+              If you have completed sessions but see nothing here, your account may not be
+              linked to a company yet. Please log out, log back in, and try again.
+              If the issue persists, contact your administrator to verify your company assignment.
+            </p>
           </div>
         )}
 

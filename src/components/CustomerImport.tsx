@@ -150,7 +150,11 @@ export default function CustomerImport({ user, onBack }: CustomerImportProps) {
     const a = document.createElement('a');
     a.href = url;
     a.download = 'customer_import_template.csv';
+    // Must append to DOM before clicking — Android WebView silently ignores
+    // programmatic clicks on detached elements.
+    document.body.appendChild(a);
     a.click();
+    document.body.removeChild(a);
     URL.revokeObjectURL(url);
   };
 
