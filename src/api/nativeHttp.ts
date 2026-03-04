@@ -55,6 +55,49 @@ type ResponseInterceptor = {
   onRejected?: (err: NativeError) => any;
 };
 
+// ─── FormData serialization ─────────────────────────────────────────────────
+
+/**
+ * CapacitorHttp.request does NOT accept a FormData object directly on Android.
+ * It only accepts plain objects or strings. We must convert FormData to a plain
+ * object where file/Blob entries are base64-encoded strings.
+ *
+ * The native side then reconstructs the multipart request correctly.
+ */
+async function serializeFormData(formData: FormData): Promise<Record<string, any>> {
+  const result: Record<string, any> = {};
+  const entries = Array.from((formData as any).entries ? (formData as any).entries() : []);
+  for (const [key, value] of entries as [string, any][]) {
+    if (value instanceof Blob || value instanceof File) {
+      // Convert Blob/File to base64 data URI
+      const base64 = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(reader.result as string);
+        reader.onerror = reject;
+        reader.readAsDataURL(value);
+      });
+      // If the same key already exists, make it an array
+      if (result[key] !== undefined) {
+        result[key] = Array.isArray(result[key])
+          ? [...result[key], base64]
+          : [result[key], base64];
+      } else {
+        result[key] = base64;
+      }
+    } else {
+      // Plain string field
+      if (result[key] !== undefined) {
+        result[key] = Array.isArray(result[key])
+          ? [...result[key], String(value)]
+          : [result[key], String(value)];
+      } else {
+        result[key] = String(value);
+      }
+    }
+  }
+  return result;
+}
+
 // ─── Core request function ────────────────────────────────────────────────────
 
 const BASE_URL = 'https://upwork.kowope.xyz';
@@ -126,14 +169,16 @@ async function request(
   const headers = buildHeaders(config?.headers);
   const params = buildParams(config?.params);
 
-  // Determine body: CapacitorHttp expects `data` as object for JSON,
-  // or FormData for multipart. For DELETE with body, pass as data.
+  // Determine body: CapacitorHttp does NOT accept FormData objects directly.
+  // We must serialize FormData to a plain object (with base64 for files).
+  // CapacitorHttp will then reconstruct the multipart request natively.
   let body: any = undefined;
   if (data !== undefined) {
     if (data instanceof FormData) {
+      // Serialize FormData to plain object with base64-encoded files
       // Remove Content-Type so CapacitorHttp sets the correct multipart boundary
       delete headers['Content-Type'];
-      body = data;
+      body = await serializeFormData(data);
     } else {
       body = data;
     }
