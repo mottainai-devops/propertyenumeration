@@ -299,6 +299,19 @@ export const buildingApi = {
       data.photos.forEach((photo) => formData.append('photo', photo));
     }
 
+    // Debug: Log what we're sending
+    console.log('[BuildingAPI] Creating building with data:', {
+      address: data.address,
+      lotCode: data.lotCode,
+      propertyType: data.propertyType,
+      numberOfUnits: data.numberOfUnits,
+      gpsLatitude: data.gpsCoordinates.latitude,
+      gpsLongitude: data.gpsCoordinates.longitude,
+      sessionId: data.sessionId,
+      buildingName: data.buildingName,
+      photoCount: data.photos?.length ?? 0,
+    });
+
     // Let CapacitorHttp automatically set Content-Type with proper boundary
     const response = await apiClient.post('/api/property-enumeration/buildings', formData);
     const raw: RawBuilding = response.data?.data?.building ?? response.data;
