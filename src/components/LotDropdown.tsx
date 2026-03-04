@@ -31,7 +31,17 @@ export default function LotDropdown({
 
   const loadAssignedLots = () => {
     try {
-      const storedLots = localStorage.getItem('assignedLots');
+      // v1.56.0: assignedLots is now scoped by userId to prevent cross-account leakage
+      const userId = (() => {
+        try {
+          const user = JSON.parse(localStorage.getItem('user') || '{}');
+          return user._id || user.id || user.email || 'default';
+        } catch {
+          return 'default';
+        }
+      })();
+      const key = `assignedLots_${userId}`;
+      const storedLots = localStorage.getItem(key);
       if (storedLots) {
         const parsedLots: Lot[] = JSON.parse(storedLots);
         setLots(parsedLots);

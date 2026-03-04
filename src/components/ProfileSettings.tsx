@@ -16,7 +16,17 @@ export default function ProfileSettings({ onClose, onLogout, onLoadCustomers }: 
   // Backend v3.0.0 returns fullName; older cached data may use name — support both
   const displayName: string = user.fullName || user.name || '';
   const assignedLots: { lotCode: string; name?: string; lotName?: string }[] = (() => {
-    try { return JSON.parse(localStorage.getItem('assignedLots') || '[]'); } catch { return []; }
+    try {
+      const userId = (() => {
+        try { const u = JSON.parse(localStorage.getItem('user') || '{}'); return u._id || u.id || u.email || 'default'; } catch { return 'default'; }
+      })();
+      const key = `assignedLots_${userId}`;
+      let lots = JSON.parse(localStorage.getItem(key) || '[]');
+      if (lots.length === 0) {
+        lots = JSON.parse(localStorage.getItem('assignedLots') || '[]');
+      }
+      return lots;
+    } catch { return []; }
   })();
 
   const [tab, setTab] = useState<'profile' | 'password'>('profile');

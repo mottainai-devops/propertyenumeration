@@ -209,3 +209,12 @@
 - [x] Update integration_state.md with v1.56.0 changes
 - [x] Sign off Joint API Contract on behalf of frontend team
 - [x] Copy Joint API Contract to project directory
+
+## 🔧 v1.56.1 - Lot Code Regression Fix
+
+- [x] Fix LotDropdown to read from user-scoped assignedLots_<userId> key (regression from v1.56.0)
+- [x] Fix App.tsx getDefaultLotCode to read from user-scoped key with backwards compatibility
+- [x] Fix ProfileSettings to read from user-scoped key with backwards compatibility
+- [x] Add backwards compatibility fallback to unscoped key for existing data
+- [x] Rebuild and sync web assets to Android
+

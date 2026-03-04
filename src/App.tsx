@@ -194,7 +194,18 @@ function App() {
       );
       localStorage.setItem('authToken', response.token);
       localStorage.setItem('user', JSON.stringify(response.user));
+      // v1.56.0: scope assignedLots by userId to prevent cross-account leakage
+      const userId = response.user._id || response.user.id || response.user.email || 'default';
+      localStorage.setItem(`assignedLots_${userId}`, JSON.stringify(response.user.assignedLots || []));
+      // Also set unscoped key for backwards compatibility with old data
       localStorage.setItem('assignedLots', JSON.stringify(response.user.assignedLots || []));
+      // Clear old unscoped keys from other users
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && key.startsWith('assignedLots_') && key !== `assignedLots_${userId}`) {
+          // Keep other user's scoped data but don't load it
+        }
+      }
       showToast('Login successful!', 'success');
       setCurrentScreen('session');
     } catch (error: any) {
@@ -332,7 +343,17 @@ function App() {
 
   const getDefaultLotCode = (): string => {
     try {
-      const lots = JSON.parse(localStorage.getItem('assignedLots') || '[]');
+      const userId = (() => {
+        try {
+          const u = JSON.parse(localStorage.getItem('user') || '{}');
+          return u._id || u.id || u.email || 'default';
+        } catch { return 'default'; }
+      })();
+      const key = `assignedLots_${userId}`;
+      let lots = JSON.parse(localStorage.getItem(key) || '[]');
+      if (lots.length === 0) {
+        lots = JSON.parse(localStorage.getItem('assignedLots') || '[]');
+      }
       return lots[0]?.lotCode || 'UNKNOWN';
     } catch { return 'UNKNOWN'; }
   };
