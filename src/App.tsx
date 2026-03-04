@@ -474,9 +474,26 @@ function App() {
     const currentSessionId = localStorage.getItem(userKey('serverSessionId')) || activeServerSession?._id;
     for (const building of pendingBuildings) {
       try {
+        // Validate GPS coordinates before syncing
+        let gpsCoordinates = building.gpsCoordinates;
+        if (!gpsCoordinates || !gpsCoordinates.latitude || !gpsCoordinates.longitude) {
+          // Try to reconstruct from flat fields
+          gpsCoordinates = {
+            latitude: building.gpsLatitude || building.latitude || 0,
+            longitude: building.gpsLongitude || building.longitude || 0,
+          };
+        }
+        // Skip if still no valid GPS
+        if (!gpsCoordinates.latitude || !gpsCoordinates.longitude) {
+          const buildingLabel = building.buildingName || building.address || 'Building';
+          showToast(`Skipping "${buildingLabel}": Missing GPS coordinates`, 'error');
+          remaining.push(building);
+          continue;
+        }
         // Include sessionId when syncing offline buildings (may not have been set when created offline)
         const buildingToSync = {
           ...building,
+          gpsCoordinates,
           sessionId: building.sessionId || currentSessionId,
         };
         const result = await retryOperation(() => buildingApi.create(buildingToSync), { maxRetries: 1 });
