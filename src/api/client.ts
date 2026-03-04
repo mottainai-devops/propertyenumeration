@@ -294,8 +294,9 @@ export const buildingApi = {
     if (data.contactPersonName) formData.append('contactPersonName', data.contactPersonName);
     if (data.contactPhoneNumber) formData.append('contactPhoneNumber', data.contactPhoneNumber);
     if (data.notes) formData.append('notes', data.notes);
+    // Contract v1.0.0 §3.5: Photo field name is 'photo' (singular), not 'photos'
     if (data.photos) {
-      data.photos.forEach((photo) => formData.append('photos', photo));
+      data.photos.forEach((photo) => formData.append('photo', photo));
     }
 
     const response = await apiClient.post('/api/property-enumeration/buildings', formData, {
