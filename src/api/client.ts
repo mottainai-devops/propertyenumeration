@@ -275,32 +275,50 @@ export const authApi = {
 // ─── Building API ──────────────────────────────────────────────────────────────
 export const buildingApi = {
   create: async (data: CreateBuildingRequest): Promise<Building> => {
-    const formData = new FormData();
-    formData.append('address', data.address);
-    formData.append('lotCode', data.lotCode);
-    formData.append('propertyType', data.propertyType);
-    formData.append('numberOfUnits', data.numberOfUnits.toString());
-    // Backend expects flat gpsLatitude / gpsLongitude fields
-    formData.append('gpsLatitude', data.gpsCoordinates.latitude.toString());
-    formData.append('gpsLongitude', data.gpsCoordinates.longitude.toString());
+    const hasPhotos = data.photos && data.photos.length > 0;
 
-    // FIX #1: Include sessionId so the backend can count buildings per session
-    if (data.sessionId) formData.append('sessionId', data.sessionId);
-    if (data.buildingName) formData.append('buildingName', data.buildingName);
-    // FIX: Send ArcGIS polygon ID as arcgisBuildingId (separate from auto-generated buildingId)
-    if (data.arcgisBuildingId) formData.append('arcgisBuildingId', data.arcgisBuildingId);
-    if (data.unitCode) formData.append('unitCode', data.unitCode);
-    if (data.landmarkDescription) formData.append('landmarkDescription', data.landmarkDescription);
-    if (data.contactPersonName) formData.append('contactPersonName', data.contactPersonName);
-    if (data.contactPhoneNumber) formData.append('contactPhoneNumber', data.contactPhoneNumber);
-    if (data.notes) formData.append('notes', data.notes);
-    // Contract v1.0.0 §3.5: Photo field name is 'photo' (singular), not 'photos'
-    if (data.photos) {
-      data.photos.forEach((photo) => formData.append('photo', photo));
+    let response: any;
+    if (hasPhotos) {
+      // Use FormData (multipart) only when photos are present
+      const formData = new FormData();
+      formData.append('address', data.address);
+      formData.append('lotCode', data.lotCode);
+      formData.append('propertyType', data.propertyType);
+      formData.append('numberOfUnits', data.numberOfUnits.toString());
+      formData.append('gpsLatitude', data.gpsCoordinates.latitude.toString());
+      formData.append('gpsLongitude', data.gpsCoordinates.longitude.toString());
+      if (data.sessionId) formData.append('sessionId', data.sessionId);
+      if (data.buildingName) formData.append('buildingName', data.buildingName);
+      if (data.arcgisBuildingId) formData.append('arcgisBuildingId', data.arcgisBuildingId);
+      if (data.unitCode) formData.append('unitCode', data.unitCode);
+      if (data.landmarkDescription) formData.append('landmarkDescription', data.landmarkDescription);
+      if (data.contactPersonName) formData.append('contactPersonName', data.contactPersonName);
+      if (data.contactPhoneNumber) formData.append('contactPhoneNumber', data.contactPhoneNumber);
+      if (data.notes) formData.append('notes', data.notes);
+      // Contract v1.0.0 §3.5: Photo field name is 'photo' (singular)
+      data.photos!.forEach((photo) => formData.append('photo', photo));
+      response = await apiClient.post('/api/property-enumeration/buildings', formData);
+    } else {
+      // No photos — send as JSON (more reliable with CapacitorHttp than empty FormData)
+      const jsonBody: Record<string, any> = {
+        address: data.address,
+        lotCode: data.lotCode,
+        propertyType: data.propertyType,
+        numberOfUnits: data.numberOfUnits,
+        gpsLatitude: data.gpsCoordinates.latitude,
+        gpsLongitude: data.gpsCoordinates.longitude,
+      };
+      if (data.sessionId) jsonBody.sessionId = data.sessionId;
+      if (data.buildingName) jsonBody.buildingName = data.buildingName;
+      if (data.arcgisBuildingId) jsonBody.arcgisBuildingId = data.arcgisBuildingId;
+      if (data.unitCode) jsonBody.unitCode = data.unitCode;
+      if (data.landmarkDescription) jsonBody.landmarkDescription = data.landmarkDescription;
+      if (data.contactPersonName) jsonBody.contactPersonName = data.contactPersonName;
+      if (data.contactPhoneNumber) jsonBody.contactPhoneNumber = data.contactPhoneNumber;
+      if (data.notes) jsonBody.notes = data.notes;
+      response = await apiClient.post('/api/property-enumeration/buildings', jsonBody);
     }
 
-    // Let CapacitorHttp automatically set Content-Type with proper boundary
-    const response = await apiClient.post('/api/property-enumeration/buildings', formData);
     const raw: RawBuilding = response.data?.data?.building ?? response.data;
     return normaliseBuilding(raw);
   },
