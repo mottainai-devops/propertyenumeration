@@ -299,9 +299,8 @@ export const buildingApi = {
       data.photos.forEach((photo) => formData.append('photo', photo));
     }
 
-    const response = await apiClient.post('/api/property-enumeration/buildings', formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-    });
+    // Let CapacitorHttp automatically set Content-Type with proper boundary
+    const response = await apiClient.post('/api/property-enumeration/buildings', formData);
     const raw: RawBuilding = response.data?.data?.building ?? response.data;
     return normaliseBuilding(raw);
   },
@@ -333,10 +332,10 @@ export const buildingApi = {
   addPhotos: async (buildingId: string, photos: File[]): Promise<{ photoUrls: string[]; totalPhotos: number }> => {
     const formData = new FormData();
     photos.forEach((photo) => formData.append('photo', photo));
+    // Let CapacitorHttp automatically set Content-Type with proper boundary
     const response = await apiClient.post(
       `/api/property-enumeration/buildings/${buildingId}/photos`,
-      formData,
-      { headers: { 'Content-Type': 'multipart/form-data' } }
+      formData
     );
     return {
       photoUrls: response.data?.data?.photoUrls ?? [],
