@@ -196,9 +196,25 @@ function App() {
       localStorage.setItem('user', JSON.stringify(response.user));
       // v1.56.0: scope assignedLots by userId to prevent cross-account leakage
       const userId = response.user._id || response.user.id || response.user.email || 'default';
-      localStorage.setItem(`assignedLots_${userId}`, JSON.stringify(response.user.assignedLots || []));
+      let assignedLots = response.user.assignedLots || [];
+      
+      // v1.56.1: If backend doesn't return assignedLots in login response,
+      // fetch active session and extract lotCode from it
+      if (assignedLots.length === 0) {
+        try {
+          const sessions = await sessionApi.list();
+          const activeSession = sessions.find(s => s.isActive);
+          if (activeSession && activeSession.lotCode) {
+            assignedLots = [{ lotCode: activeSession.lotCode, lotName: activeSession.lotCode }];
+          }
+        } catch (err) {
+          console.warn('Could not fetch active session to populate assignedLots:', err);
+        }
+      }
+      
+      localStorage.setItem(`assignedLots_${userId}`, JSON.stringify(assignedLots));
       // Also set unscoped key for backwards compatibility with old data
-      localStorage.setItem('assignedLots', JSON.stringify(response.user.assignedLots || []));
+      localStorage.setItem('assignedLots', JSON.stringify(assignedLots));
       // Clear old unscoped keys from other users
       for (let i = 0; i < localStorage.length; i++) {
         const key = localStorage.key(i);
