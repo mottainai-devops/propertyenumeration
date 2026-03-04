@@ -478,6 +478,18 @@ function App() {
         justSynced.push({ ...building, _id: result?._id ?? building._id, synced: true, timestamp: building.timestamp ?? Date.now() });
       } catch (error) {
         logError('Building Sync', error, building);
+        let errorMsg = 'Unknown error';
+        if (error instanceof Error) {
+          errorMsg = error.message;
+          if ('response' in error && typeof error.response === 'object' && error.response !== null) {
+            const resp = error.response as any;
+            if (resp.data?.error) errorMsg = resp.data.error;
+            else if (resp.data?.message) errorMsg = resp.data.message;
+            else if (resp.statusText) errorMsg = resp.statusText;
+          }
+        }
+        const buildingLabel = building.buildingName || building.address || 'Building';
+        showToast(`Failed to sync "${buildingLabel}": ${errorMsg}`, 'error');
         remaining.push(building);
       }
     }
