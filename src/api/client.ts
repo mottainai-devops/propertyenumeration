@@ -185,20 +185,28 @@ export interface Lot {
   companyName?: string;
 }
 
+// Contract v1.0.0 §2.1: Login response shape (flat user object)
 export interface LoginResponse {
   token: string;
   user: {
-    _id: string;
+    _id: string;                  // Normalised from 'id' if needed
+    id?: string;                  // Backend may return 'id' instead of '_id'
     email: string;
     fullName: string;
-    role: string;
-    ownerCompanyId?: string;    // v4.2.1: string identifier for bulk import (e.g. "URBAN-SPIRIT")
-    company: {
+    phone?: string;
+    role: string;                 // 'admin' | 'user' | 'superadmin' | 'cherry_picker'
+    companyId?: string | null;    // MongoDB ObjectId or null for admin
+    ownerCompanyId?: string | null; // String code e.g. "URBAN-SPIRIT", null for admin
+    companyName?: string | null;  // Human-readable company name
+    defaultLotCode?: string | null;
+    monthlyBilling?: boolean;
+    assignedLots: Lot[];
+    // Legacy nested company object (some backend versions)
+    company?: {
       _id: string;
-      companyId?: string;         // v4.2.1: string identifier also nested here
+      companyId?: string;
       companyName: string;
     };
-    assignedLots: Lot[];
   };
 }
 
@@ -226,19 +234,17 @@ export const authApi = {
 
   me: async (): Promise<LoginResponse['user']> => {
     const response = await apiClient.get('/api/mobile/users/me');
-    const raw = response.data?.data?.user ?? response.data;
-    // Backend v3.0.0 returns flat shape: { id, fullName, companyId, companyName, ... }
-    // Normalise to the canonical LoginResponse['user'] shape used throughout the app
+    // Contract v1.0.0 §2.2: /me returns same shape as login user object
+    const raw = response.data?.data?.user ?? response.data?.user ?? response.data;
 
     // Derive ownerCompanyId from multiple possible backend fields.
-    // Priority: explicit ownerCompanyId > company.companyId > company.companyName converted to slug
+    // Priority: explicit ownerCompanyId > company.companyId > company.companyName slug
     const companyName: string =
-      raw.company?.companyName ?? raw.companyName ?? '';
+      raw.companyName ?? raw.company?.companyName ?? '';
     const derivedCompanyId: string | undefined =
       raw.ownerCompanyId ||
       raw.company?.companyId ||
       raw.company?.ownerCompanyId ||
-      raw.ownerCompanyId ||
       // Convert company name to uppercase slug: "Urban Spirit" → "URBAN-SPIRIT"
       (companyName ? companyName.trim().toUpperCase().replace(/\s+/g, '-') : undefined);
 
@@ -246,11 +252,14 @@ export const authApi = {
       ...raw,
       _id: raw._id ?? raw.id ?? '',
       fullName: raw.fullName ?? raw.name ?? '',
-      ownerCompanyId: derivedCompanyId,
-      company: raw.company ?? {
-        _id: raw.companyId ?? '',
+      ownerCompanyId: derivedCompanyId ?? null,
+      companyName: raw.companyName ?? raw.company?.companyName ?? null,
+      defaultLotCode: raw.defaultLotCode ?? null,
+      // Keep legacy nested company for backward compat
+      company: raw.company ?? (raw.companyId ? {
+        _id: raw.companyId,
         companyName: raw.companyName ?? '',
-      },
+      } : undefined),
       assignedLots: raw.assignedLots ?? [],
     };
   },
@@ -319,10 +328,10 @@ export const buildingApi = {
     return normaliseBuilding(raw);
   },
 
-  // FIX #3: Photo upload response returns { photoUrls, totalPhotos } not { building }
+  // Contract v1.0.0 §3.5: Photo upload field name is `photo` (singular), multipart/form-data
   addPhotos: async (buildingId: string, photos: File[]): Promise<{ photoUrls: string[]; totalPhotos: number }> => {
     const formData = new FormData();
-    photos.forEach((photo) => formData.append('photos', photo));
+    photos.forEach((photo) => formData.append('photo', photo));
     const response = await apiClient.post(
       `/api/property-enumeration/buildings/${buildingId}/photos`,
       formData,
@@ -334,11 +343,10 @@ export const buildingApi = {
     };
   },
 
-  // FIX #3: Photo delete response also returns { photoUrls, totalPhotos } not { building }
-  deletePhoto: async (buildingId: string, photoRef: string): Promise<{ photoUrls: string[]; totalPhotos: number }> => {
-    const encoded = encodeURIComponent(photoRef);
+  // Contract v1.0.0 §3.6: Delete photo by index (not URL) — DELETE /buildings/:id/photos/:photoIndex
+  deletePhoto: async (buildingId: string, photoIndex: number): Promise<{ photoUrls: string[]; totalPhotos: number }> => {
     const response = await apiClient.delete(
-      `/api/property-enumeration/buildings/${buildingId}/photos/${encoded}`
+      `/api/property-enumeration/buildings/${buildingId}/photos/${photoIndex}`
     );
     return {
       photoUrls: response.data?.data?.photoUrls ?? [],
@@ -361,8 +369,8 @@ export interface BulkCustomer {
   lotCode: string;
   phone?: string;
   email?: string;
-  // Backend enum requires capitalised values: 'Residential' | 'Commercial'
-  customerType?: 'Residential' | 'Commercial';
+  // Contract v1.0.0 §5.3: customerType must be capitalised; all three types supported
+  customerType?: 'Residential' | 'Commercial' | 'Industrial';
   customerId?: string;
 }
 
@@ -563,10 +571,10 @@ export interface SessionStatistics {
 
 // ─── Session API ───────────────────────────────────────────────────────────────
 export const sessionApi = {
-  // FIX #2: Handle 409 conflict gracefully — return existing session instead of throwing
+  // Contract v1.0.0 §4.1: Session start endpoint is POST /sessions (no /start suffix)
   start: async (data: StartSessionRequest): Promise<Session | SessionConflictError> => {
     try {
-      const response = await apiClient.post('/api/property-enumeration/sessions/start', data);
+      const response = await apiClient.post('/api/property-enumeration/sessions', data);
       const raw: RawSession = response.data?.data?.session ?? response.data?.data ?? response.data;
       return normaliseSession(raw);
     } catch (error: any) {

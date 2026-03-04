@@ -1,7 +1,8 @@
 # Backend Coordination Brief — Property Enumeration Mobile App
 
-**Date:** February 28, 2026 (updated for v1.36.0 / Backend v3.0.0)  
-**Frontend Version:** v1.36.0  
+**Date:** March 3, 2026 (updated for v1.55.0 / Backend v4.4.0)  
+**Frontend Version:** v1.55.0 (Build #118)  
+**Backend Version:** v4.4.0  
 **Backend Base URL:** `https://upwork.kowope.xyz`  
 **Prepared by:** Frontend AI Agent  
 **Audience:** Backend Developer AI
@@ -938,4 +939,127 @@ Frontend reads `user.ownerCompanyId` and pre-fills it in the import request. Sup
 
 ---
 
-*End of Backend Coordination Brief — updated for v1.39.0 / Backend v4.2.1 / 2026-03-01*
+---
+
+## Section 15 — Backend v4.3.0–v4.4.0 Fixes (Deployed 2026-03-01 to 2026-03-03)
+
+All four original blockers from v1.49.0 have been resolved. This section documents what was fixed and what remains.
+
+### 15.1 ✅ RESOLVED: Admin Import 403 Error (v4.3.0)
+
+**Issue:** Admin users (`admin@admin.com`) had `company: null` in JWT, causing every import to return 403 "Company not found".
+
+**Fix:** The import handler now allows `admin` and `superadmin` roles to bypass the company requirement and read `ownerCompanyId` from the request body instead of the JWT.
+
+**Status:** ✅ Live in v4.3.0+. Admin users can now import customers.
+
+### 15.2 ✅ RESOLVED: Customer ID Generation Crash (v4.3.0)
+
+**Issue:** The import handler crashed on every row with `Customer.generateCustomerId is not a function`.
+
+**Fix:** Replaced the undefined static method with inline ID generation: `` `CUST-${companyId}-${lotCode}-${Date.now()}-${random}` ``
+
+**Status:** ✅ Live in v4.3.0+. Customers are now successfully created on import.
+
+### 15.3 ✅ RESOLVED: JSON Bulk Endpoint 404 (v4.4.0)
+
+**Issue:** `POST /api/property-enumeration/customers/bulk` returned 404 on `upwork.kowope.xyz`.
+
+**Fix:** Endpoint deployed and tested. Returns `{ created, updated, failed, errors[] }` as documented in Section 14.3.
+
+**Status:** ✅ Live in v4.4.0+. App switched to JSON bulk import (v1.50.0+) for better Android WebView reliability.
+
+### 15.4 ✅ RESOLVED: Company Scoping on Sessions/Buildings (v4.4.0)
+
+**Issue:** Sessions and buildings were visible across companies (data leakage).
+
+**Root cause:** 58 queries across 3 backend files were using `req.user.companyId` (MongoDB ObjectId) instead of `req.companyId` (string company code resolved by middleware).
+
+**Fix:** All 58 queries updated to use `req.companyId`. Middleware now correctly resolves ObjectId → string code (e.g. `69185eebf21dfa8ce0f9a7aa` → `URBAN-SPIRIT`).
+
+**Status:** ✅ Live in v4.4.0+. Each user now sees only their own company's data.
+
+### 15.5 ✅ RESOLVED: `ownerCompanyId` Wrong in Login (v4.3.0+)
+
+**Issue:** Mobile login returned `ownerCompanyId: "TESTCO"` for `adeyadewuyi@gmail.com` instead of `"URBAN-SPIRIT"`.
+
+**Fix:** Login endpoint now returns the correct company code from the user's company assignment.
+
+**Status:** ✅ Live in v4.3.0+. Users get the correct `ownerCompanyId` on login.
+
+**App-side workaround:** Added "log out and log back in" hint on 401 errors (v1.51.0+) to guide users with stale tokens.
+
+---
+
+## Section 16 — Remaining Backend Work
+
+### 16.1 🔴 HIGH PRIORITY: Admin User Company Assignment
+
+**Status:** Pending
+
+`admin@admin.com` still has `companyId: null` in the database. While the import handler now bypasses the company check for admin role, it's cleaner to assign the admin to a company.
+
+**Action:** Assign `admin@admin.com` to the URBAN SPIRIT company (or create an admin company record).
+
+### 16.2 🔴 HIGH PRIORITY: ObjectId → String Code Migration
+
+**Status:** Pending
+
+Some existing users have `companyId` stored as MongoDB ObjectId (e.g. `69185eebf21dfa8ce0f9a7aa`) instead of string code (e.g. `URBAN-SPIRIT`). The middleware correctly resolves ObjectId → string code, but if no Company document exists for that ObjectId, `req.companyId` becomes `null` and queries return empty results.
+
+**Action:** One-time data migration to replace all ObjectId `companyId` values with their corresponding string codes.
+
+**Impact on app:** Users with ObjectId `companyId` will see empty session/building lists until this is fixed.
+
+### 16.3 🟡 MEDIUM PRIORITY: CSV Import Field Validation
+
+**Status:** Implemented, needs verification
+
+The CSV import handler now requires `importedBy`, `importBatchId`, and `companyId` fields on the Customer model. `customerType` must be capitalised (`Residential` or `Commercial`, not `residential`).
+
+**App-side:** Already sending capitalised `customerType` and including required fields (v1.51.0+).
+
+**Action:** Verify the Customer model has these fields and the import handler validates them correctly.
+
+### 16.4 🟡 MEDIUM PRIORITY: Lot Code Format Standardisation
+
+**Status:** Inconsistent
+
+The import endpoint accepts both `LOT-6` and `6` as `lotCode` values. The customer search endpoint only returns results for `LOT-6` format.
+
+**App-side:** Using `LOT-27` format consistently (v1.54.0+).
+
+**Action:** Standardise on one format across all endpoints (recommend `LOT-27` format with prefix).
+
+---
+
+## Section 17 — Frontend Changes v1.49.0 → v1.55.0
+
+| Version | Changes | Backend Dependency |
+|---|---|---|
+| v1.55.0 | Per-user localStorage keys (fixes cross-account data leakage); data URI CSV download (Android fix) | v4.4.0 |
+| v1.54.0 | One-time stale recentBuildings deduplication; "Sync Now" button; LOT-27 format hint in CSV template | v4.4.0 |
+| v1.53.0 | Duplicate buildings fix (removed offline/error paths adding to both pendingBuildings and recentBuildings); CSV template download via navigator.share + blob fallback | v4.4.0 |
+| v1.52.0 | Empty session state message with administrator contact guidance; CSV template download fix (append to DOM) | v4.4.0 |
+| v1.51.0 | Backend v4.3.0 compatibility: capitalised `customerType`, normalised import result shape, stale token hint on 401 | v4.3.0 |
+| v1.50.0 | JSON bulk import via `/api/property-enumeration/customers/bulk`; removed multipart CSV approach | v4.4.0 |
+| v1.49.0 | Manual multipart body construction for CSV import (CapacitorHttp bypass) | v4.2.1 |
+
+---
+
+## Section 18 — Testing Checklist
+
+Before marking this as complete, verify:
+
+- [ ] `admin@admin.com` can import customers without 403 errors
+- [ ] `adeyadewuyi@gmail.com` sees URBAN SPIRIT customers in search (not TESTCO)
+- [ ] Sessions and buildings are correctly scoped by company (no cross-company leakage)
+- [ ] CSV import creates customers with correct `customerType` capitalisation
+- [ ] JSON bulk import returns `{ created, updated, failed, errors }` shape
+- [ ] Lot code search works with `LOT-6` format
+- [ ] Users with ObjectId `companyId` see non-empty session lists after migration
+- [ ] Multi-user device test: two accounts logging in/out, no data leakage
+
+---
+
+*End of Backend Coordination Brief — updated for v1.55.0 / Backend v4.4.0 / 2026-03-03*

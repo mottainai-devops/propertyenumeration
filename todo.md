@@ -186,3 +186,26 @@
 - [ ] Building screen header: tighten padding to match location screen
 - [ ] Offline queue: show photo count and GPS per pending building
 - [ ] Session end GPS: add fallback when GPS unavailable
+
+---
+
+## 🔧 v1.56.0 - Joint API Contract Alignment (IN PROGRESS)
+
+### Contract Discrepancy Fixes
+- [x] Fix session start endpoint: use POST /sessions (not /sessions/start)
+- [x] Fix photo upload field name: use `photo` (singular) not `photos` per contract Section 3.5
+- [x] Add `Industrial` to BulkCustomer.customerType union type (was missing)
+- [x] Scope surveyedBuildingIds in localStorage by userId (cross-account fix)
+- [x] Scope serverSessionId in localStorage by userId (cross-account fix)
+- [x] Update LoginResponse interface to match contract flat user shape (companyId, ownerCompanyId at root)
+
+### New Features (Backend Endpoints Exist)
+- [x] Photo delete button in BuildingEdit photo grid (DELETE /buildings/:id/photos/:index)
+- [x] Customer profile view: change password screen already existed; Clear My Data added to ProfileSettings
+- [x] Session statistics: existing screen wired to /sessions/statistics endpoint (no additional changes needed)
+- [x] Change password screen already existed and wired; error handling updated to use response.error per contract §6
+
+### Documentation
+- [x] Update integration_state.md with v1.56.0 changes
+- [x] Sign off Joint API Contract on behalf of frontend team
+- [x] Copy Joint API Contract to project directory

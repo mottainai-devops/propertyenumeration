@@ -55,16 +55,17 @@ export default function BuildingPhotoUpload({ building, onUpdated, onClose }: Bu
   const totalAfterUpload = existingPhotos.length + selectedFiles.length;
 
   // ── Delete an existing photo ──────────────────────────────────────────────
-  const handleDeleteExisting = async (url: string) => {
-    setDeletingUrl(url);
+  // Contract v1.0.0 §3.6: delete by index, not URL
+  const handleDeleteExisting = async (photoIndex: number) => {
+    setDeletingUrl(existingPhotos[photoIndex] ?? null);
     setError('');
     try {
-      const result = await buildingApi.deletePhoto(building._id, url);
+      const result = await buildingApi.deletePhoto(building._id, photoIndex);
       setExistingPhotos(result.photoUrls);
       // Rebuild a partial building shape so onUpdated can refresh the parent
       onUpdated({ ...building, photos: result.photoUrls } as any);
     } catch (err: any) {
-      const msg = err?.response?.data?.message ?? err?.message ?? 'Failed to delete photo';
+      const msg = err?.response?.data?.error ?? err?.response?.data?.message ?? 'Failed to delete photo';
       setError(msg);
     } finally {
       setDeletingUrl(null);
@@ -182,13 +183,13 @@ export default function BuildingPhotoUpload({ building, onUpdated, onClose }: Bu
               </p>
               <div className="grid grid-cols-3 gap-2">
                 {existingPhotos.map((url, i) => (
-                  <div key={url} className="relative aspect-square rounded-lg overflow-hidden bg-gray-100">
-                    <img src={url} alt={`Photo ${i + 1}`} className="w-full h-full object-cover" />
-                    {/* Delete overlay */}
+                  <div key={i} className="relative aspect-square rounded-xl overflow-hidden bg-gray-100 group">
+                    <img src={url} alt={`Existing photo ${i + 1}`} className="w-full h-full object-cover" />
                     <button
-                      onClick={() => handleDeleteExisting(url)}
-                      disabled={isBusy}
-                      className="absolute top-1 right-1 w-7 h-7 bg-red-500 hover:bg-red-600 rounded-full flex items-center justify-center shadow-lg transition disabled:opacity-50"
+                      type="button"
+                      onClick={() => handleDeleteExisting(i)}
+                      disabled={deletingUrl !== null}
+                      className="absolute top-1 right-1 w-7 h-7 bg-red-600 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity shadow-md disabled:opacity-50"
                       aria-label={`Delete photo ${i + 1}`}
                     >
                       {deletingUrl === url ? (

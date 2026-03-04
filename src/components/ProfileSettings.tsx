@@ -53,7 +53,8 @@ export default function ProfileSettings({ onClose, onLogout, onLoadCustomers }: 
       setNewPassword('');
       setConfirmPassword('');
     } catch (err: any) {
-      setError(err.response?.data?.message || 'Failed to change password. Please check your current password.');
+      // Contract §6: error field is 'error', fallback to 'message' for older endpoints
+      setError(err.response?.data?.error || err.response?.data?.message || 'Failed to change password. Please check your current password.');
     } finally {
       setLoading(false);
     }
@@ -231,6 +232,33 @@ export default function ProfileSettings({ onClose, onLogout, onLoadCustomers }: 
             </button>
           </div>
         )}
+
+        {/* Clear My Data */}
+        <div className="bg-white rounded-2xl shadow-sm p-4">
+          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Data & Privacy</p>
+          <button
+            onClick={() => {
+              if (!confirm('Clear all your local data on this device? This removes your offline queue, recent buildings, and session history. Your data on the server is not affected.')) return;
+              const uid = (() => { try { const u = JSON.parse(localStorage.getItem('user') || '{}'); return u._id || u.id || u.email || 'default'; } catch { return 'default'; } })();
+              ['pendingBuildings', 'recentBuildings', 'surveyedBuildingIds', 'serverSessionId'].forEach(k => {
+                localStorage.removeItem(`${k}_${uid}`);
+              });
+              localStorage.removeItem('activeSession');
+              alert('Local data cleared. Your server data is unchanged.');
+            }}
+            className="w-full flex items-center gap-3 bg-orange-50 hover:bg-orange-100 border border-orange-200 text-orange-800 font-semibold py-3.5 px-4 rounded-xl transition"
+          >
+            <div className="w-9 h-9 bg-orange-500 rounded-lg flex items-center justify-center flex-shrink-0">
+              <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+              </svg>
+            </div>
+            <div className="text-left">
+              <p className="text-sm font-bold text-orange-900">Clear My Data</p>
+              <p className="text-xs text-orange-600 font-normal">Remove offline queue and local history from this device</p>
+            </div>
+          </button>
+        </div>
 
         {/* Logout */}
         <button

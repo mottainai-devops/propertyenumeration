@@ -39,6 +39,22 @@ export default function BuildingEdit({ building, onSaved, onClose }: BuildingEdi
   const [error, setError] = useState('');
   const [showPhotoUpload, setShowPhotoUpload] = useState(false);
   const [currentBuilding, setCurrentBuilding] = useState<Building>(building);
+  const [deletingPhotoIndex, setDeletingPhotoIndex] = useState<number | null>(null);
+
+  const handleDeletePhoto = async (photoIndex: number) => {
+    if (!confirm('Delete this photo? This cannot be undone.')) return;
+    setDeletingPhotoIndex(photoIndex);
+    try {
+      const result = await buildingApi.deletePhoto(currentBuilding._id, photoIndex);
+      // Update local state with new photo list from backend
+      setCurrentBuilding(prev => ({ ...prev, photos: result.photoUrls }));
+    } catch (err: any) {
+      const msg = err?.response?.data?.error ?? err?.response?.data?.message ?? 'Failed to delete photo';
+      setError(msg);
+    } finally {
+      setDeletingPhotoIndex(null);
+    }
+  };
 
   const handleSave = async () => {
     if (!address.trim()) {
@@ -234,8 +250,27 @@ export default function BuildingEdit({ building, onSaved, onClose }: BuildingEdi
               {currentBuilding.photos.length > 0 ? (
                 <div className="grid grid-cols-3 gap-2">
                   {currentBuilding.photos.map((url, i) => (
-                    <div key={i} className="aspect-square rounded-xl overflow-hidden bg-gray-100">
+                    <div key={i} className="relative aspect-square rounded-xl overflow-hidden bg-gray-100 group">
                       <img src={url} alt={`Photo ${i + 1}`} className="w-full h-full object-cover" />
+                      {/* Delete button — shown on hover/focus */}
+                      <button
+                        type="button"
+                        onClick={() => handleDeletePhoto(i)}
+                        disabled={deletingPhotoIndex !== null}
+                        className="absolute top-1 right-1 w-7 h-7 bg-red-600 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity shadow-md disabled:opacity-50"
+                        aria-label={`Delete photo ${i + 1}`}
+                      >
+                        {deletingPhotoIndex === i ? (
+                          <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                          </svg>
+                        ) : (
+                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                        )}
+                      </button>
                     </div>
                   ))}
                 </div>

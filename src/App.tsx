@@ -63,7 +63,8 @@ function App() {
   const [showSessionSummary, setShowSessionSummary] = useState(false);
   const [surveyedBuildingIds, setSurveyedBuildingIds] = useState<Set<string>>(() => {
     try {
-      const saved = localStorage.getItem('surveyedBuildingIds');
+      // v1.56.0: scoped by userId to prevent cross-account leakage
+      const saved = localStorage.getItem(userKey('surveyedBuildingIds'));
       return saved ? new Set(JSON.parse(saved)) : new Set();
     } catch { return new Set(); }
   });
@@ -240,13 +241,14 @@ function App() {
             startLocation: gps,
           };
           setActiveServerSession(existingSession);
-          localStorage.setItem('serverSessionId', conflict.existingSessionId);
+          // v1.56.0: scope serverSessionId by userId
+          localStorage.setItem(userKey('serverSessionId'), conflict.existingSessionId);
           sessionStartTimeRef.current = new Date(conflict.existingStartTime);
           showToast('Resuming your existing active session', 'info');
         } else {
           const session = result as Session;
           setActiveServerSession(session);
-          localStorage.setItem('serverSessionId', session._id);
+          localStorage.setItem(userKey('serverSessionId'), session._id);
           sessionStartTimeRef.current = new Date(session.startTime);
           showToast('Session started!', 'success');
         }
@@ -263,7 +265,7 @@ function App() {
   };
 
   const handleEndSession = async () => {
-    const sessionId = localStorage.getItem('serverSessionId') || activeServerSession?._id;
+    const sessionId = localStorage.getItem(userKey('serverSessionId')) || activeServerSession?._id;
     let summary: SessionSummary | null = null;
 
     if (isOnline && sessionId) {
@@ -282,7 +284,7 @@ function App() {
           photosCount: ended.photosUploaded,
         };
         setActiveServerSession(null);
-        localStorage.removeItem('serverSessionId');
+        localStorage.removeItem(userKey('serverSessionId'));
       } catch (error) {
         logError('Session End', error, {});
       }
@@ -345,7 +347,8 @@ function App() {
     setSurveyedBuildingIds(prev => {
       const next = new Set(prev);
       next.add(buildingId);
-      try { localStorage.setItem('surveyedBuildingIds', JSON.stringify([...next])); } catch {}
+      // v1.56.0: scoped by userId
+      try { localStorage.setItem(userKey('surveyedBuildingIds'), JSON.stringify([...next])); } catch {}
       return next;
     });
   };
@@ -359,7 +362,7 @@ function App() {
   const handleBuildingSubmit = async (buildingData: any) => {
     const { linkedCustomerId, ...buildingFields } = buildingData;
     // FIX #1: Always include the active sessionId in the create request
-    const activeSessionId = localStorage.getItem('serverSessionId') || activeServerSession?._id;
+    const activeSessionId = localStorage.getItem(userKey('serverSessionId')) || activeServerSession?._id;
     const buildingWithLocation = {
       ...buildingFields,
       sessionId: activeSessionId,
@@ -591,7 +594,7 @@ function App() {
             recentBuildingsCount={recentBuildings.length}
             onClearSurveyedHistory={() => {
               setSurveyedBuildingIds(new Set());
-              try { localStorage.removeItem('surveyedBuildingIds'); } catch {}
+              try { localStorage.removeItem(userKey('surveyedBuildingIds')); } catch {}
             }}
             dailyTarget={dailyTarget}
             onSetDailyTarget={(t) => {

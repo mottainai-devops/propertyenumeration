@@ -1,11 +1,12 @@
 # Integration State — Property Enumeration Mobile App
 
-**Last Updated:** February 28, 2026  
-**Current Version:** v1.39.0 (versionCode 101)  
+**Last Updated:** March 4, 2026  
+**Current Version:** v1.56.0 (versionCode 119)  
 **GitHub Repo:** https://github.com/mottainai-devops/propertyenumeration  
 **Backend API Base:** https://upwork.kowope.xyz  
-**Latest Build:** Build #101  
-**Backend Version:** v4.2.1 (customer bulk import + company scoping live)
+**Latest Build:** Build #119  
+**Backend Version:** v4.5.0 (ArcGIS sync bug fix)  
+**Joint API Contract:** v1.0.0 ✅ Signed off by frontend team (March 4, 2026)
 
 ---
 
@@ -18,7 +19,7 @@
 | Map | Leaflet + React-Leaflet |
 | Polygon source | ArcGIS REST Feature Service |
 | Polygon cache | IndexedDB (polygonCacheService.ts) |
-| Offline queue | localStorage |
+| Offline queue | localStorage (user-scoped keys as of v1.55.0) |
 | Styling | Tailwind CSS |
 | Icons | Lucide React |
 | HTTP client | CapacitorHttp / OkHttp (src/api/nativeHttp.ts + client.ts) |
@@ -26,7 +27,7 @@
 
 ---
 
-## Completed Features (v1.0 → v1.26.0)
+## Completed Features (v1.0 → v1.55.0)
 
 ### Authentication
 - [x] Login screen with email + password (base64-encoded password per backend spec)
@@ -68,11 +69,12 @@
 - [x] "Clear Surveyed History" button (two-step confirmation)
 - [x] Session dashboard with stats cards (buildings, photos, duration)
 
-### Session History Screen *(new in v1.25.0)*
+### Session History Screen
 - [x] Accessible from session dashboard
 - [x] Calls `GET /property-enumeration/sessions` to list past sessions
 - [x] Shows date, duration, building count per session
 - [x] Tap to expand session details (lot code, start/end time, areas covered)
+- [x] Empty state message with administrator contact guidance (v1.52.0+)
 
 ### Statistics Screen
 - [x] Calls `GET /property-enumeration/sessions/statistics` for server-side data
@@ -94,20 +96,22 @@
 - [x] Pending count badge on filter tab
 - [x] Photo thumbnail on card
 - [x] Synced / Pending status badge
-- [x] **Tap to expand** detail panel: photo gallery, GPS, notes, customer link, action buttons
-- [x] **Infinite scroll** pagination (20 per page, IntersectionObserver sentinel)
+- [x] Tap to expand detail panel: photo gallery, GPS, notes, customer link, action buttons
+- [x] Infinite scroll pagination (20 per page, IntersectionObserver sentinel)
+- [x] Deduplication of offline/synced buildings (v1.53.0+)
+- [x] One-time migration to clean stale recentBuildings (v1.54.0+)
 
-### Building Edit Screen *(new in v1.26.0, updated v1.27.0)*
+### Building Edit Screen
 - [x] Bottom-sheet modal opened from expanded card in BuildingsList
 - [x] Edit: address, building name, property type, number of units, notes
 - [x] Calls `PATCH /property-enumeration/buildings/:id`
 - [x] Read-only display: lot code, GPS coordinates, photo count, created date
 - [x] Inline error display; saving spinner
-- [x] **Photo management section** — shows existing photos, "Add Photos" button opens `BuildingPhotoUpload`
+- [x] Photo management section — shows existing photos, "Add Photos" button opens BuildingPhotoUpload
 - [x] `propertyType` normalised to title-case on save (matches backend expectation)
 
-### Photo Upload *(new in v1.27.0)*
-- [x] `BuildingPhotoUpload` component — bottom-sheet overlay
+### Photo Upload
+- [x] BuildingPhotoUpload component — bottom-sheet overlay
 - [x] Shows existing photos + new photo previews in 3-column grid
 - [x] Image compression (canvas, 1280px max, 75% JPEG quality) before upload
 - [x] Calls `POST /property-enumeration/buildings/:id/photos` (multipart/form-data)
@@ -115,11 +119,36 @@
 - [x] Per-photo remove button before upload
 - [x] Upload progress indicator; error display
 
-### Customer Unlink UI *(new in v1.26.0)*
+### Customer Unlink UI
 - [x] "Unlink" button shown in expanded building card when `linkedCustomerId` is present
 - [x] Calls `DELETE /api/property-enumeration/customers/:customerId/unlink`
 - [x] Optimistic local state update (removes link from card)
 - [x] Inline error display if unlink fails
+
+### Customer Bulk Import
+- [x] CSV template download (data URI anchor for Android WebView reliability, v1.55.0)
+- [x] CSV file upload + local parsing + validation preview
+- [x] JSON bulk import via `/api/property-enumeration/customers/bulk` (v1.50.0+)
+- [x] Import result summary (created, updated, failed counts)
+- [x] Detailed error display for failed rows
+- [x] Admin/cherry_picker/superadmin role gating
+- [x] Stale token hint on 401 errors (logout/login refresh)
+- [x] `customerType` capitalisation (Residential/Commercial)
+- [x] Lot code format guidance (LOT-27 not just 27)
+
+### Data Isolation & Multi-User Support
+- [x] Per-user localStorage keys for `pendingBuildings` and `recentBuildings` (scoped by userId, v1.55.0)
+- [x] One-time migration on first launch to move existing unscoped data to user-scoped keys
+- [x] Prevents cross-account data leakage on shared devices
+- [x] Each user on the same device has isolated queue and history
+
+### Session & Building Scoping
+- [x] Backend company scoping fixed (v4.4.0) — all 58 queries now use `req.companyId` string code
+- [x] Sessions and buildings now correctly filtered by logged-in user's company
+- [x] Empty session state message with administrator contact guidance
+- [x] "Sync Now" button on pending buildings banner for manual sync trigger (v1.54.0)
+- [x] Deduplication of offline/synced buildings (prevents "one synced, one not synced" duplicates, v1.53.0)
+- [x] One-time migration on first launch to clean stale `recentBuildings` entries (v1.54.0)
 
 ### Android / Native
 - [x] Transparent status bar + `SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN`
@@ -133,6 +162,7 @@
 - [x] Auto-sync on network reconnect
 - [x] IndexedDB polygon cache (offline map browsing + search)
 - [x] Offline download banner on map when cache is empty
+- [x] Manual "Sync Now" button on pending buildings banner (v1.54.0)
 
 ---
 
@@ -145,7 +175,7 @@
 | GET | `/property-enumeration/buildings` | BuildingsList |
 | PATCH | `/property-enumeration/buildings/:id` | BuildingEdit |
 | POST | `/property-enumeration/buildings/:id/photos` | BuildingPhotoUpload |
-| POST | `/property-enumeration/sessions/start` | SessionManagement |
+| POST | `/property-enumeration/sessions` | SessionManagement (v1.56.0: corrected from /sessions/start) |
 | POST | `/property-enumeration/sessions/:id/end` | SessionManagement |
 | GET | `/property-enumeration/sessions` | SessionHistory |
 | GET | `/property-enumeration/sessions/:id` | (available, not yet used in UI) |
@@ -155,6 +185,7 @@
 | GET | `/api/property-enumeration/customers` | BuildingForm step 2 (search) |
 | POST | `/api/property-enumeration/customers/:id/link` | BuildingForm step 2 |
 | DELETE | `/api/property-enumeration/customers/:id/unlink` | BuildingsList (unlink button) |
+| POST | `/api/property-enumeration/customers/bulk` | CustomerImport (JSON bulk import, v1.50.0+) |
 
 ---
 
@@ -162,18 +193,19 @@
 
 | File | Purpose |
 |---|---|
-| `src/App.tsx` | Main routing, screen state machine, session + building handlers |
-| `src/api/client.ts` | Axios client + all typed API methods and interfaces |
+| `src/App.tsx` | Main routing, screen state machine, session + building handlers, user-scoped localStorage (v1.55.0) |
+| `src/api/client.ts` | CapacitorHttp client + all typed API methods and interfaces |
 | `src/components/EnhancedLocationMapWithPolygons.tsx` | Map, polygon layer, search, GPS badge, auto-select |
 | `src/components/LocationPickerWithMap.tsx` | Location screen wrapper, building confirmation card |
 | `src/components/BuildingForm.tsx` | 2-step registration form, photo capture, offline queue |
-| `src/components/BuildingEdit.tsx` | Edit building bottom-sheet with photo management (v1.27.0) |
-| `src/components/BuildingPhotoUpload.tsx` | Photo upload overlay for existing buildings (v1.27.0) |
-| `src/components/BuildingsList.tsx` | Buildings list with server fetch, expand panel, edit, unlink, pagination |
+| `src/components/BuildingEdit.tsx` | Edit building bottom-sheet with photo management |
+| `src/components/BuildingPhotoUpload.tsx` | Photo upload overlay for existing buildings |
+| `src/components/BuildingsList.tsx` | Buildings list with server fetch, expand panel, edit, unlink, pagination, deduplication (v1.53.0+) |
 | `src/components/SessionManagement.tsx` | Session dashboard, daily target, clear history |
 | `src/components/SessionStatistics.tsx` | Stats screen, chart, CSV export, share |
-| `src/components/SessionHistory.tsx` | Past sessions list (v1.25.0) |
-| `src/components/OfflineQueue.tsx` | Offline queue panel with GPS + photo count badges |
+| `src/components/SessionHistory.tsx` | Past sessions list with empty state message (v1.52.0+) |
+| `src/components/OfflineQueue.tsx` | Offline queue panel with GPS + photo count badges, "Sync Now" button (v1.54.0+) |
+| `src/components/CustomerImport.tsx` | CSV template download (data URI, v1.55.0), file upload, preview, bulk import result |
 | `src/services/arcgisService.ts` | ArcGIS Feature Service polygon fetch |
 | `src/services/polygonCacheService.ts` | IndexedDB polygon cache |
 | `android/app/src/main/java/com/propertyenumeration/MainActivity.java` | Transparent status bar |
@@ -181,25 +213,15 @@
 
 ---
 
-## Remaining / Not Yet Implemented
+## Known Issues & Workarounds
 
-### High Priority
-- [x] **Photo management in BuildingEdit** — `BuildingPhotoUpload` component added in v1.27.0 (`POST /buildings/:id/photos`)
-- [x] **Profile / Settings screen** — `ProfileSettings.tsx` implemented in v1.29.0 (`GET`/`PATCH /api/mobile/users/me`)
-- [x] **ERR_NETWORK on Android** — Fixed in v1.34.0 by replacing axios with CapacitorHttp (OkHttp native stack)
-- [x] **Push notifications for sync failures** — `@capacitor/local-notifications` installed in v1.38.0; fires "Sync Failed" notification when offline queue fails to sync after reconnect
-- [x] **Customer bulk import** — `CustomerImport.tsx` screen added in v1.39.0; CSV upload + template download + result summary; accessible from Profile (admin/cherry_picker/superadmin only)
-
-### Medium Priority
-- [x] **Session detail screen** — tap a past session in SessionHistory → `GET /sessions/:id/buildings` (v1.37.0)
-- [ ] **Supervisor / admin role** — role-based UI differences (admin sees all users' buildings, not just own)
-- [ ] **Building search from map** — show "already registered" buildings from server on map (not just current session)
-
-### Low Priority / Polish
-- [ ] **Code splitting** — bundle is 893 KB; split Leaflet and ArcGIS service into lazy chunks
-- [ ] **Dependabot security alerts** — 8 alerts (7 high + 1 moderate) are from Android Gradle/Java deps, not Node.js; `pnpm audit` confirms zero Node.js vulnerabilities. Gradle deps require Android-side update.
-- [ ] **Session end GPS fallback** — if GPS unavailable on session end, use last known position instead of failing
-- [ ] **Offline customer search** — cache recent customer search results in IndexedDB
+| Issue | Status | Workaround |
+|---|---|---|
+| `surveyedBuildingIds` and `serverSessionId` shared across users on same device | ✅ Fixed v1.56.0 | User-scoped keys: `surveyedBuildingIds_<userId>`, `serverSessionId_<userId>` |
+| Admin user (`admin@admin.com`) has `company: null` in database | Backend | Assign admin to a company or allow admin role to bypass company requirement |
+| Users with ObjectId `companyId` (not string code) see empty session lists | Backend | One-time data migration to replace ObjectId with string company code |
+| Bundle size 893 KB (unminified); 229 KB gzip | Open | Consider lazy-loading Leaflet and ArcGIS service into separate chunks |
+| 13 Dependabot vulnerabilities (12 high, 1 moderate) | Open | Most are Android Gradle/Java deps; Node.js audit shows zero vulnerabilities |
 
 ---
 
@@ -207,24 +229,17 @@
 
 | Build | Version | Key Changes |
 |---|---|---|
+| #119 | v1.56.0 | Joint API Contract v1.0.0 alignment: session start endpoint fix, photo field name fix, Industrial customerType, user-scoped surveyedBuildingIds + serverSessionId, LoginResponse interface update |
+| #118 | v1.55.0 | Per-user localStorage keys (fixes cross-account data leakage); data URI CSV download (Android fix); backend v4.4.0 company scoping verified |
+| #117 | v1.54.0 | One-time stale recentBuildings deduplication; "Sync Now" button; LOT-27 format hint in CSV template |
+| #116 | v1.53.0 | Duplicate buildings fix (removed offline/error paths adding to both pendingBuildings and recentBuildings); CSV template download via navigator.share + blob fallback |
+| #115 | v1.52.0 | Empty session state message; CSV template download fix (append to DOM); building deduplication logic |
+| #114 | v1.51.0 | Backend v4.3.0 compatibility: capitalised `customerType`, normalised import result shape, stale token hint |
+| #113 | v1.50.0 | JSON bulk import via `/api/property-enumeration/customers/bulk`; removed multipart CSV approach |
+| #112 | v1.49.0 | Manual multipart body construction for CSV import (CapacitorHttp bypass) |
 | #101 | v1.39.0 | Customer bulk import screen (CSV upload + template download + result summary); `ownerCompanyId` in login response; backend v4.2.1 company scoping |
-| #100 | v1.38.0 | Add `@capacitor/local-notifications` for sync failure alerts; update Capacitor plugins to 8.1.x; pnpm audit — zero Node.js vulnerabilities |
+| #100 | v1.38.0 | Add `@capacitor/local-notifications` for sync failure alerts; update Capacitor plugins to 8.1.x |
 | #99 | v1.37.0 | Wire `GET /sessions/:id/buildings` for session detail drill-down; backend v4.0.0 reconciliation |
-| #98 | v1.36.0 | Backend v3.0.0 response shape reconciliation (authApi.me normalisation, fullName fallback) |
-| #97 | v1.35.0 | Remove v1.33.0 diagnostic logging; update integration_state.md |
-| #96 | v1.34.0 | **Critical fix:** Replace axios with CapacitorHttp (OkHttp) — resolves ERR_NETWORK on Android |
-| #95 | v1.33.0 | Diagnostic build: added detailed login error logging to identify ERR_NETWORK root cause |
-| #94 | v1.32.0 | androidScheme → https, network security config update |
-| #89 | v1.27.0 | Backend response shape reconciliation, `normaliseBuilding`/`normaliseSession`, photo upload, propertyType casing fix |
-| #87 | v1.26.0 | BuildingEdit, Customer Unlink, infinite scroll, buildingId field |
-| #86 | v1.25.0 | BuildingsList → server API, SessionHistory, success screen polish, offline queue GPS+photos |
-| #85 | v1.24.0 | Daily target tracker, GPS accuracy badge, native share button |
-| #84 | v1.23.0 | Safe-area insets, transparent status bar |
-| #83 | v1.22.0 | Session start/end API, BuildingsList screen, SessionStatistics server data |
-| #82 | v1.21.0 | Property type chart, Sync All button, photo count in CSV |
-| #81 | v1.20.0 | Cache timestamp, CSV export, Back-to-Session button |
-| #80 | v1.19.0 | Clear surveyed history, session progress counter, offline download |
-| #79 | v1.18.0 | Auto-select on GPS, search bar, surveyed building indicator |
 
 ---
 
@@ -257,25 +272,34 @@ All secrets are injected automatically by the Manus platform. No `.env` file is 
 
 ---
 
-## Backend Reconciliation Summary (Feb 28, 2026)
+## Backend Reconciliation Summary (March 3, 2026)
 
-Backend developer AI delivered `BackendUpdateforFrontendDeveloper—February28,2026_.docx` confirming all 8 endpoints live. The following were fixed in v1.27.0:
+Backend developer AI delivered v4.4.0 with all company scoping fixes verified. The following issues were resolved in v1.49.0–v1.55.0:
 
-| Issue | Fix |
-|---|---|
-| `session.sessionId` vs `session._id` | `normaliseSession()` maps `sessionId → _id` |
-| `gpsLatitude`/`gpsLongitude` flat fields | `normaliseBuilding()` wraps into `gpsCoordinates` |
-| `photoUrls[]` vs `photos[]` | `normaliseBuilding()` maps `photoUrls → photos` |
-| `enumeratedAt` vs `createdAt` | Both retained; UI falls back gracefully |
-| `propertyType` casing | `BuildingEdit` sends title-case; `toTitleCase()` normaliser added |
-| Customer `search` param key | Fixed to send `search` only (removed duplicate `query`) |
-| Photo upload not implemented | `BuildingPhotoUpload` component added |
+| Issue | Root Cause | Fix | Version |
+|---|---|---|---|
+| CSV import returns 403 for admin | Admin `company: null` in JWT | Backend: assign admin to company or bypass for admin role | v4.3.0 |
+| Customer ID generation crashes | Static method never defined on model | Backend: replaced with inline ID generation | v4.3.0 |
+| Sessions/buildings visible across companies | Queries used `req.user.companyId` (ObjectId) instead of `req.companyId` (string code) | Backend: 58 queries updated to use `req.companyId` | v4.4.0 |
+| CSV template download unresponsive on Android | `navigator.share` loses gesture context in async handlers | App: switched to data URI anchor (v1.55.0) | v1.55.0 |
+| Buildings appear twice (one synced, one not) | Same building added to both `pendingBuildings` and `recentBuildings` on offline save | App: removed offline/error paths from adding to `recentBuildings` (v1.53.0) | v1.53.0 |
+| Cross-account data leakage on shared devices | `pendingBuildings` and `recentBuildings` keys not scoped by user | App: user-scoped keys with one-time migration (v1.55.0) | v1.55.0 |
+
+---
 
 ## Notes for Next Session
 
-1. Start from **v1.35.0** (Build #97).
-2. **ERR_NETWORK is fully resolved** — login confirmed working on Android device (v1.34.0).
-3. All high-priority features are complete. Remaining items are medium/low priority.
-4. Next recommended work: **Session detail screen** (`GET /property-enumeration/sessions/:id/buildings`) and **push notifications for sync failures** (Capacitor Local Notifications).
-5. Dependabot has flagged 6 high + 1 moderate vulnerabilities — worth reviewing before next major release.
-6. Bundle size is ~911 KB (229 KB gzip) — consider lazy-loading Leaflet if size becomes a concern.
+1. Start from **v1.56.0** (Build #119) — Joint API Contract v1.0.0 fully implemented.
+2. **All localStorage keys are now user-scoped** — complete cross-account isolation.
+3. **Joint API Contract signed off** — see `JointAPIContract—MottainaiPropertyEnumerationSystem.md`.
+4. **Next recommended work:**
+   - Implement token refresh mechanism (30-day tokens mitigate urgency)
+   - Customer edit/delete UI (`PATCH/DELETE /customers/:id`)
+   - Session analytics/reports dashboard
+   - ObjectId → string code migration for legacy users (backend task)
+   - "Clear my data" option in Profile Settings
+   - Add pending count badge to Offline Queue nav item
+   - Per-building retry button in offline queue for failed syncs
+   - Detailed import error breakdown screen (show which rows failed and why)
+5. **Backend coordination:** Confirm admin user company assignment and ObjectId → string code migration for existing users.
+6. **Testing checklist:** Multi-user device test (two accounts logging in/out), cross-account data isolation, pending sync on reconnect, CSV import with error rows.
