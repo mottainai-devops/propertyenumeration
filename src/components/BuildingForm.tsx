@@ -189,11 +189,16 @@ export default function BuildingForm({ onSubmit, location, selectedBuilding, onB
     setLoading(true);
 
     try {
+      let buildingName = formData.buildingName.trim();
+      if (!buildingName) {
+        buildingName = formData.address.trim() || 'Building';
+      }
+
       const request = {
         ...formData,
+        buildingName,
         photos,
         linkedCustomerId: linkedCustomer?._id,
-        // Multi-customer polygon fields
         unitCode: unitCode || undefined,
         arcgisBuildingId: selectedBuilding?.buildingId || undefined,
       };
