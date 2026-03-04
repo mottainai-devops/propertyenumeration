@@ -457,8 +457,29 @@ function App() {
     }
   };
 
-  const saveBuildingOffline = (buildingData: any) => {
-    const pending = [...pendingBuildings, { ...buildingData, timestamp: Date.now() }];
+  const saveBuildingOffline = async (buildingData: any) => {
+    // Photos are File/Blob objects which cannot be serialized by JSON.stringify.
+    // Convert them to base64 data URIs before saving to localStorage.
+    let serializedPhotos: string[] = [];
+    if (buildingData.photos && buildingData.photos.length > 0) {
+      serializedPhotos = await Promise.all(
+        buildingData.photos.map((photo: File | Blob | string) => {
+          if (typeof photo === 'string') return Promise.resolve(photo); // already base64
+          return new Promise<string>((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onloadend = () => resolve(reader.result as string);
+            reader.onerror = reject;
+            reader.readAsDataURL(photo);
+          });
+        })
+      );
+    }
+    const buildingToSave = {
+      ...buildingData,
+      photos: serializedPhotos, // store as base64 strings
+      timestamp: Date.now(),
+    };
+    const pending = [...pendingBuildings, buildingToSave];
     setPendingBuildings(pending);
     localStorage.setItem(userKey('pendingBuildings'), JSON.stringify(pending));
   };
@@ -490,10 +511,27 @@ function App() {
           remaining.push(building);
           continue;
         }
+        // Restore photos: base64 strings saved offline must be converted back to Blob objects
+        let restoredPhotos: (File | Blob)[] = [];
+        if (building.photos && building.photos.length > 0) {
+          restoredPhotos = building.photos.map((photo: any) => {
+            if (typeof photo === 'string' && photo.startsWith('data:')) {
+              // Convert base64 data URI back to Blob
+              const [header, base64Data] = photo.split(',');
+              const mimeType = header.match(/:(.*?);/)?.[1] || 'image/jpeg';
+              const binary = atob(base64Data);
+              const bytes = new Uint8Array(binary.length);
+              for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+              return new Blob([bytes], { type: mimeType });
+            }
+            return photo; // already a Blob/File
+          });
+        }
         // Include sessionId when syncing offline buildings (may not have been set when created offline)
         const buildingToSync = {
           ...building,
           gpsCoordinates,
+          photos: restoredPhotos,
           sessionId: building.sessionId || currentSessionId,
         };
         const result = await retryOperation(() => buildingApi.create(buildingToSync), { maxRetries: 1 });
