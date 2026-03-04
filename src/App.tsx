@@ -470,9 +470,16 @@ function App() {
     const remaining: any[] = [];
     const justSynced: any[] = [];
     let syncedCount = 0;
+    // Get fresh sessionId for syncing offline buildings
+    const currentSessionId = localStorage.getItem(userKey('serverSessionId')) || activeServerSession?._id;
     for (const building of pendingBuildings) {
       try {
-        const result = await retryOperation(() => buildingApi.create(building), { maxRetries: 1 });
+        // Include sessionId when syncing offline buildings (may not have been set when created offline)
+        const buildingToSync = {
+          ...building,
+          sessionId: building.sessionId || currentSessionId,
+        };
+        const result = await retryOperation(() => buildingApi.create(buildingToSync), { maxRetries: 1 });
         syncedCount++;
         // Move to recentBuildings so it shows as synced (not duplicate of server fetch)
         justSynced.push({ ...building, _id: result?._id ?? building._id, synced: true, timestamp: building.timestamp ?? Date.now() });
