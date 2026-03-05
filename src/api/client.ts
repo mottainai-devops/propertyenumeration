@@ -275,52 +275,40 @@ export const authApi = {
 // ─── Building API ──────────────────────────────────────────────────────────────
 export const buildingApi = {
   create: async (data: CreateBuildingRequest): Promise<Building> => {
-    const hasPhotos = data.photos && data.photos.length > 0;
+    // Step 1: Always create the building as JSON (CapacitorHttp handles JSON reliably)
+    const jsonBody: Record<string, any> = {
+      address: data.address,
+      lotCode: data.lotCode,
+      propertyType: data.propertyType,
+      numberOfUnits: data.numberOfUnits,
+      gpsLatitude: data.gpsCoordinates.latitude,
+      gpsLongitude: data.gpsCoordinates.longitude,
+    };
+    if (data.sessionId) jsonBody.sessionId = data.sessionId;
+    if (data.buildingName) jsonBody.buildingName = data.buildingName;
+    if (data.arcgisBuildingId) jsonBody.arcgisBuildingId = data.arcgisBuildingId;
+    if (data.unitCode) jsonBody.unitCode = data.unitCode;
+    if (data.landmarkDescription) jsonBody.landmarkDescription = data.landmarkDescription;
+    if (data.contactPersonName) jsonBody.contactPersonName = data.contactPersonName;
+    if (data.contactPhoneNumber) jsonBody.contactPhoneNumber = data.contactPhoneNumber;
+    if (data.notes) jsonBody.notes = data.notes;
 
-    let response: any;
-    if (hasPhotos) {
-      // Use FormData (multipart) only when photos are present
-      const formData = new FormData();
-      formData.append('address', data.address);
-      formData.append('lotCode', data.lotCode);
-      formData.append('propertyType', data.propertyType);
-      formData.append('numberOfUnits', data.numberOfUnits.toString());
-      formData.append('gpsLatitude', data.gpsCoordinates.latitude.toString());
-      formData.append('gpsLongitude', data.gpsCoordinates.longitude.toString());
-      if (data.sessionId) formData.append('sessionId', data.sessionId);
-      if (data.buildingName) formData.append('buildingName', data.buildingName);
-      if (data.arcgisBuildingId) formData.append('arcgisBuildingId', data.arcgisBuildingId);
-      if (data.unitCode) formData.append('unitCode', data.unitCode);
-      if (data.landmarkDescription) formData.append('landmarkDescription', data.landmarkDescription);
-      if (data.contactPersonName) formData.append('contactPersonName', data.contactPersonName);
-      if (data.contactPhoneNumber) formData.append('contactPhoneNumber', data.contactPhoneNumber);
-      if (data.notes) formData.append('notes', data.notes);
-      // Contract v1.0.0 §3.5: Photo field name is 'photo' (singular)
-      data.photos!.forEach((photo) => formData.append('photo', photo));
-      response = await apiClient.post('/api/property-enumeration/buildings', formData);
-    } else {
-      // No photos — send as JSON (more reliable with CapacitorHttp than empty FormData)
-      const jsonBody: Record<string, any> = {
-        address: data.address,
-        lotCode: data.lotCode,
-        propertyType: data.propertyType,
-        numberOfUnits: data.numberOfUnits,
-        gpsLatitude: data.gpsCoordinates.latitude,
-        gpsLongitude: data.gpsCoordinates.longitude,
-      };
-      if (data.sessionId) jsonBody.sessionId = data.sessionId;
-      if (data.buildingName) jsonBody.buildingName = data.buildingName;
-      if (data.arcgisBuildingId) jsonBody.arcgisBuildingId = data.arcgisBuildingId;
-      if (data.unitCode) jsonBody.unitCode = data.unitCode;
-      if (data.landmarkDescription) jsonBody.landmarkDescription = data.landmarkDescription;
-      if (data.contactPersonName) jsonBody.contactPersonName = data.contactPersonName;
-      if (data.contactPhoneNumber) jsonBody.contactPhoneNumber = data.contactPhoneNumber;
-      if (data.notes) jsonBody.notes = data.notes;
-      response = await apiClient.post('/api/property-enumeration/buildings', jsonBody);
+    const response = await apiClient.post('/api/property-enumeration/buildings', jsonBody);
+    const raw: RawBuilding = response.data?.data?.building ?? response.data;
+    const building = normaliseBuilding(raw);
+
+    // Step 2: If photos exist, upload them separately via XHR (handles multipart correctly)
+    if (data.photos && data.photos.length > 0 && building._id) {
+      try {
+        await buildingApi.addPhotos(building._id, data.photos);
+      } catch (photoErr) {
+        // Building was created successfully — photo upload failure is non-fatal
+        // The building will appear without photos but can be added later
+        console.warn('[BuildingAPI] Building created but photo upload failed:', photoErr);
+      }
     }
 
-    const raw: RawBuilding = response.data?.data?.building ?? response.data;
-    return normaliseBuilding(raw);
+    return building;
   },
 
   list: async (params?: {
@@ -347,18 +335,43 @@ export const buildingApi = {
   },
 
   // Contract v1.0.0 §3.5: Photo upload field name is `photo` (singular), multipart/form-data
-  addPhotos: async (buildingId: string, photos: File[]): Promise<{ photoUrls: string[]; totalPhotos: number }> => {
-    const formData = new FormData();
-    photos.forEach((photo) => formData.append('photo', photo));
-    // Let CapacitorHttp automatically set Content-Type with proper boundary
-    const response = await apiClient.post(
-      `/api/property-enumeration/buildings/${buildingId}/photos`,
-      formData
-    );
-    return {
-      photoUrls: response.data?.data?.photoUrls ?? [],
-      totalPhotos: response.data?.data?.totalPhotos ?? 0,
-    };
+  // Uses XHR directly (not CapacitorHttp) because CapacitorHttp cannot handle FormData/multipart
+  addPhotos: async (buildingId: string, photos: (File | Blob)[]): Promise<{ photoUrls: string[]; totalPhotos: number }> => {
+    const token = localStorage.getItem('authToken');
+    const url = `https://upwork.kowope.xyz/api/property-enumeration/buildings/${buildingId}/photos`;
+
+    return new Promise((resolve, reject) => {
+      const formData = new FormData();
+      photos.forEach((photo) => formData.append('photo', photo));
+
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', url, true);
+      if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+      // Do NOT set Content-Type — browser sets it automatically with correct boundary
+      xhr.withCredentials = false;
+
+      xhr.onload = () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          try {
+            const data = JSON.parse(xhr.responseText);
+            resolve({
+              photoUrls: data?.data?.photoUrls ?? [],
+              totalPhotos: data?.data?.totalPhotos ?? 0,
+            });
+          } catch {
+            resolve({ photoUrls: [], totalPhotos: 0 });
+          }
+        } else {
+          reject(new Error(`Photo upload failed with status ${xhr.status}: ${xhr.responseText}`));
+        }
+      };
+
+      xhr.onerror = () => reject(new Error('Photo upload network error'));
+      xhr.ontimeout = () => reject(new Error('Photo upload timed out'));
+      xhr.timeout = 60000; // 60 second timeout for photo uploads
+
+      xhr.send(formData);
+    });
   },
 
   // Contract v1.0.0 §3.6: Delete photo by index (not URL) — DELETE /buildings/:id/photos/:photoIndex
