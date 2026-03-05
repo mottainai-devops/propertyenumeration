@@ -107,17 +107,24 @@ export default function BuildingForm({ onSubmit, location, selectedBuilding, onB
     setError('');
 
     try {
+      // Use Base64 result type to avoid fetch(capacitor://) being intercepted by CapacitorHttp.
+      // With CapacitorHttp.enabled=true, ALL fetch() calls go through native HTTP which
+      // cannot handle the capacitor:// scheme. Base64 gives us the data directly.
       const image = await Camera.getPhoto({
         quality: 80,
         allowEditing: false,
-        resultType: CameraResultType.Uri,
+        resultType: CameraResultType.Base64,
         source: CameraSource.Camera,
       });
 
-      if (image.webPath) {
-        // Fetch the image as a blob
-        const response = await fetch(image.webPath);
-        const blob = await response.blob();
+      if (image.base64String) {
+        // Convert base64 to Blob directly — no fetch() needed
+        const byteChars = atob(image.base64String);
+        const byteNums = new Uint8Array(byteChars.length);
+        for (let i = 0; i < byteChars.length; i++) {
+          byteNums[i] = byteChars.charCodeAt(i);
+        }
+        const blob = new Blob([byteNums], { type: 'image/jpeg' });
         const file = new File([blob], `photo-${Date.now()}.jpg`, { type: 'image/jpeg' });
 
         // Validate and prepare photo (compress if needed)
@@ -133,8 +140,10 @@ export default function BuildingForm({ onSubmit, location, selectedBuilding, onB
           return;
         }
 
+        // Create a local preview URL from the blob for display
+        const previewUrl = URL.createObjectURL(preparedFile);
         setPhotos(prev => [...prev, preparedFile]);
-        setPhotoPreviewUrls(prev => [...prev, image.webPath!]);
+        setPhotoPreviewUrls(prev => [...prev, previewUrl]);
         setPhotoSizes(prev => [...prev, preparedFile.size]);
       }
     } catch (err: any) {
