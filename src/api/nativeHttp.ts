@@ -58,41 +58,51 @@ type ResponseInterceptor = {
 // ─── FormData serialization ─────────────────────────────────────────────────
 
 /**
- * CapacitorHttp.request does NOT accept a FormData object directly on Android.
- * It only accepts plain objects or strings. We must convert FormData to a plain
- * object where file/Blob entries are base64-encoded strings.
+ * CapacitorHttp.request requires FormData to be serialized as an array of
+ * CapFormDataEntry objects (the format used by Capacitor's own fetch patch).
  *
- * The native side then reconstructs the multipart request correctly.
+ * Each entry has the shape:
+ *   { key: string, value: string, type: 'string' | 'base64File', contentType?: string, fileName?: string }
+ *
+ * File/Blob entries must use type: 'base64File' with the raw base64 string
+ * (NOT a data URI — just the base64 content after the comma).
+ * String entries use type: 'string'.
+ *
+ * The request must also set dataType: 'formData' so the native layer knows
+ * to reconstruct a multipart/form-data body from this array.
+ *
+ * Reference: https://github.com/ionic-team/capacitor/blob/main/core/native-bridge.ts#L33-L52
  */
-async function serializeFormData(formData: FormData): Promise<Record<string, any>> {
-  const result: Record<string, any> = {};
+async function serializeFormData(formData: FormData): Promise<Array<Record<string, any>>> {
+  const result: Array<Record<string, any>> = [];
   const entries = Array.from((formData as any).entries ? (formData as any).entries() : []);
   for (const [key, value] of entries as [string, any][]) {
     if (value instanceof Blob || value instanceof File) {
-      // Convert Blob/File to base64 data URI
+      // Read file as binary string, then btoa() to get raw base64 (no data URI prefix)
       const base64 = await new Promise<string>((resolve, reject) => {
         const reader = new FileReader();
-        reader.onloadend = () => resolve(reader.result as string);
+        reader.onloadend = () => {
+          // reader.result is a data URI: "data:image/jpeg;base64,/9j/4AAQ..."
+          // CapacitorHttp needs only the raw base64 part after the comma
+          const dataUri = reader.result as string;
+          const base64Only = dataUri.includes(',') ? dataUri.split(',')[1] : dataUri;
+          resolve(base64Only);
+        };
         reader.onerror = reject;
         reader.readAsDataURL(value);
       });
-      // If the same key already exists, make it an array
-      if (result[key] !== undefined) {
-        result[key] = Array.isArray(result[key])
-          ? [...result[key], base64]
-          : [result[key], base64];
-      } else {
-        result[key] = base64;
-      }
+      const fileName = value instanceof File ? value.name : `photo-${Date.now()}.jpg`;
+      const contentType = value.type || 'image/jpeg';
+      result.push({
+        key,
+        value: base64,
+        type: 'base64File',
+        contentType,
+        fileName,
+      });
     } else {
       // Plain string field
-      if (result[key] !== undefined) {
-        result[key] = Array.isArray(result[key])
-          ? [...result[key], String(value)]
-          : [result[key], String(value)];
-      } else {
-        result[key] = String(value);
-      }
+      result.push({ key, value: String(value), type: 'string' });
     }
   }
   return result;
@@ -170,15 +180,18 @@ async function request(
   const params = buildParams(config?.params);
 
   // Determine body: CapacitorHttp does NOT accept FormData objects directly.
-  // We must serialize FormData to a plain object (with base64 for files).
-  // CapacitorHttp will then reconstruct the multipart request natively.
+  // We must serialize FormData to the CapFormDataEntry array format that
+  // CapacitorHttp's native layer understands for multipart/form-data uploads.
+  // Reference: https://github.com/ionic-team/capacitor/blob/main/core/native-bridge.ts#L33-L52
   let body: any = undefined;
+  let isFormData = false;
   if (data !== undefined) {
     if (data instanceof FormData) {
-      // Serialize FormData to plain object with base64-encoded files
-      // Remove Content-Type so CapacitorHttp sets the correct multipart boundary
+      // Serialize FormData to CapFormDataEntry array with base64File entries for files
+      // Remove Content-Type — CapacitorHttp will set multipart/form-data with boundary
       delete headers['Content-Type'];
       body = await serializeFormData(data);
+      isFormData = true;
     } else {
       body = data;
     }
@@ -192,6 +205,9 @@ async function request(
       headers,
       params,
       data: body,
+      // dataType: 'formData' tells the native layer to reconstruct multipart/form-data
+      // from the CapFormDataEntry array. Without this, the array is sent as JSON.
+      ...(isFormData ? { dataType: 'formData' } : {}),
     });
   } catch (err: any) {
     // Native layer threw — no response received
