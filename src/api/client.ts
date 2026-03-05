@@ -336,38 +336,48 @@ export const buildingApi = {
     return normaliseBuilding(raw);
   },
 
-  // Contract v1.0.0 §3.5: Photo upload field name is `photo` (singular), multipart/form-data
-  // Uses fetch() with FormData — with CapacitorHttp.enabled=true in capacitor.config.ts,
-  // all fetch/XHR calls are intercepted by the native HTTP layer (OkHttp on Android),
-  // which handles multipart/form-data correctly and bypasses WebView CORS restrictions.
+  // Photo upload: uploads each photo in a separate request to work around CapacitorHttp's
+  // FormData multi-file limitation on Android (only the first file is sent when multiple
+  // files share the same field name in a single intercepted fetch() call).
+  // Backend multer expects field name 'photos' (plural) and allows up to 4 photos per building.
   addPhotos: async (buildingId: string, photos: (File | Blob)[]): Promise<{ photoUrls: string[]; totalPhotos: number }> => {
     const token = localStorage.getItem('authToken');
     const url = `https://upwork.kowope.xyz/api/property-enumeration/buildings/${buildingId}/photos`;
-
-    const formData = new FormData();
-    // Backend multer is configured for field name 'photos' (plural), NOT 'photo' (singular)
-    photos.forEach((photo) => formData.append('photos', photo));
-
     const headers: Record<string, string> = {};
     if (token) headers['Authorization'] = `Bearer ${token}`;
     // Do NOT set Content-Type — let the browser/native layer set it with the correct boundary
 
-    const response = await fetch(url, {
-      method: 'POST',
-      headers,
-      body: formData,
-    });
+    let lastResult: { photoUrls: string[]; totalPhotos: number } = { photoUrls: [], totalPhotos: 0 };
 
-    if (!response.ok) {
-      const text = await response.text();
-      throw new Error(`Photo upload failed with status ${response.status}: ${text}`);
+    // Upload each photo individually to avoid CapacitorHttp multi-file FormData bug
+    for (const photo of photos) {
+      const formData = new FormData();
+      formData.append('photos', photo);
+
+      const response = await fetch(url, {
+        method: 'POST',
+        headers,
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const text = await response.text();
+        // If we hit the 4-photo limit, stop uploading but don't throw — partial upload is OK
+        if (response.status === 400 && text.includes('Can only upload')) {
+          console.warn(`[BuildingAPI] Photo limit reached for building ${buildingId}: ${text}`);
+          break;
+        }
+        throw new Error(`Photo upload failed with status ${response.status}: ${text}`);
+      }
+
+      const data = await response.json();
+      lastResult = {
+        photoUrls: data?.data?.photoUrls ?? [],
+        totalPhotos: data?.data?.totalPhotos ?? 0,
+      };
     }
 
-    const data = await response.json();
-    return {
-      photoUrls: data?.data?.photoUrls ?? [],
-      totalPhotos: data?.data?.totalPhotos ?? 0,
-    };
+    return lastResult;
   },
 
   // Contract v1.0.0 §3.6: Delete photo by index (not URL) — DELETE /buildings/:id/photos/:photoIndex
