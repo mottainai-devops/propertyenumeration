@@ -11,6 +11,14 @@ const config: CapacitorConfig = {
     androidScheme: 'https',
     allowNavigation: ['*']
   },
+  plugins: {
+    CapacitorHttp: {
+      // Route ALL fetch() and XMLHttpRequest calls through the native HTTP layer.
+      // This bypasses WebView CORS restrictions AND allows FormData/multipart to
+      // be handled correctly by the native layer (OkHttp on Android).
+      enabled: true,
+    },
+  },
   android: {}
 };
 

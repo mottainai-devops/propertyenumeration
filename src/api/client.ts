@@ -335,43 +335,36 @@ export const buildingApi = {
   },
 
   // Contract v1.0.0 §3.5: Photo upload field name is `photo` (singular), multipart/form-data
-  // Uses XHR directly (not CapacitorHttp) because CapacitorHttp cannot handle FormData/multipart
+  // Uses fetch() with FormData — with CapacitorHttp.enabled=true in capacitor.config.ts,
+  // all fetch/XHR calls are intercepted by the native HTTP layer (OkHttp on Android),
+  // which handles multipart/form-data correctly and bypasses WebView CORS restrictions.
   addPhotos: async (buildingId: string, photos: (File | Blob)[]): Promise<{ photoUrls: string[]; totalPhotos: number }> => {
     const token = localStorage.getItem('authToken');
     const url = `https://upwork.kowope.xyz/api/property-enumeration/buildings/${buildingId}/photos`;
 
-    return new Promise((resolve, reject) => {
-      const formData = new FormData();
-      photos.forEach((photo) => formData.append('photo', photo));
+    const formData = new FormData();
+    photos.forEach((photo) => formData.append('photo', photo));
 
-      const xhr = new XMLHttpRequest();
-      xhr.open('POST', url, true);
-      if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`);
-      // Do NOT set Content-Type — browser sets it automatically with correct boundary
-      xhr.withCredentials = false;
+    const headers: Record<string, string> = {};
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+    // Do NOT set Content-Type — let the browser/native layer set it with the correct boundary
 
-      xhr.onload = () => {
-        if (xhr.status >= 200 && xhr.status < 300) {
-          try {
-            const data = JSON.parse(xhr.responseText);
-            resolve({
-              photoUrls: data?.data?.photoUrls ?? [],
-              totalPhotos: data?.data?.totalPhotos ?? 0,
-            });
-          } catch {
-            resolve({ photoUrls: [], totalPhotos: 0 });
-          }
-        } else {
-          reject(new Error(`Photo upload failed with status ${xhr.status}: ${xhr.responseText}`));
-        }
-      };
-
-      xhr.onerror = () => reject(new Error('Photo upload network error'));
-      xhr.ontimeout = () => reject(new Error('Photo upload timed out'));
-      xhr.timeout = 60000; // 60 second timeout for photo uploads
-
-      xhr.send(formData);
+    const response = await fetch(url, {
+      method: 'POST',
+      headers,
+      body: formData,
     });
+
+    if (!response.ok) {
+      const text = await response.text();
+      throw new Error(`Photo upload failed with status ${response.status}: ${text}`);
+    }
+
+    const data = await response.json();
+    return {
+      photoUrls: data?.data?.photoUrls ?? [],
+      totalPhotos: data?.data?.totalPhotos ?? 0,
+    };
   },
 
   // Contract v1.0.0 §3.6: Delete photo by index (not URL) — DELETE /buildings/:id/photos/:photoIndex
