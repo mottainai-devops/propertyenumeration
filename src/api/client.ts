@@ -340,40 +340,46 @@ export const buildingApi = {
   // FormData multi-file limitation on Android (only the first file is sent when multiple
   // files share the same field name in a single intercepted fetch() call).
   // Backend multer expects field name 'photos' (plural) and allows up to 4 photos per building.
+  //
+  // IMPORTANT: We use nativeHttp.post() (CapacitorHttp.request) instead of fetch() here.
+  // With CapacitorHttp.enabled=true, fetch() is patched by the WebView layer which has a
+  // known bug where it silently drops File objects from FormData on some Android versions.
+  // nativeHttp.post() goes through our serializeFormData() helper which correctly converts
+  // File/Blob objects to base64 data URIs before passing to CapacitorHttp.request().
   addPhotos: async (buildingId: string, photos: (File | Blob)[]): Promise<{ photoUrls: string[]; totalPhotos: number }> => {
-    const token = localStorage.getItem('authToken');
-    const url = `https://upwork.kowope.xyz/api/property-enumeration/buildings/${buildingId}/photos`;
-    const headers: Record<string, string> = {};
-    if (token) headers['Authorization'] = `Bearer ${token}`;
-    // Do NOT set Content-Type — let the browser/native layer set it with the correct boundary
+    const url = `/api/property-enumeration/buildings/${buildingId}/photos`;
 
     let lastResult: { photoUrls: string[]; totalPhotos: number } = { photoUrls: [], totalPhotos: 0 };
 
-    // Upload each photo individually to avoid CapacitorHttp multi-file FormData bug
+    // Upload each photo individually — one FormData per photo to avoid multi-file serialization issues
     for (const photo of photos) {
       const formData = new FormData();
-      formData.append('photos', photo);
+      // Ensure we always pass a File (not bare Blob) so the filename is preserved
+      const file = photo instanceof File
+        ? photo
+        : new File([photo], `photo-${Date.now()}.jpg`, { type: photo.type || 'image/jpeg' });
+      formData.append('photos', file);
 
-      const response = await fetch(url, {
-        method: 'POST',
-        headers,
-        body: formData,
-      });
-
-      if (!response.ok) {
-        const text = await response.text();
+      let response: any;
+      try {
+        // Use apiClient.post (which calls getApiClient() to set auth token, then nativeHttp.post)
+        // This correctly serializes FormData with files via serializeFormData() in nativeHttp
+        response = await apiClient.post(url, formData);
+      } catch (err: any) {
+        const status = err?.response?.status;
+        const body = err?.response?.data;
+        const text = typeof body === 'string' ? body : JSON.stringify(body ?? '');
         // If we hit the 4-photo limit, stop uploading but don't throw — partial upload is OK
-        if (response.status === 400 && text.includes('Can only upload')) {
+        if (status === 400 && text.includes('Can only upload')) {
           console.warn(`[BuildingAPI] Photo limit reached for building ${buildingId}: ${text}`);
           break;
         }
-        throw new Error(`Photo upload failed with status ${response.status}: ${text}`);
+        throw new Error(`Photo upload failed with status ${status ?? 'unknown'}: ${text}`);
       }
 
-      const data = await response.json();
       lastResult = {
-        photoUrls: data?.data?.photoUrls ?? [],
-        totalPhotos: data?.data?.totalPhotos ?? 0,
+        photoUrls: response?.data?.data?.photoUrls ?? [],
+        totalPhotos: response?.data?.data?.totalPhotos ?? 0,
       };
     }
 

@@ -236,3 +236,6 @@
 - [x] Add Today's summary card on home screen (today's count, total photos, lot codes covered)
 - [x] Add inline search results with Edit shortcut on home screen
 - [x] Add date-range filter (This week / Last 7 days) to buildings list
+
+## 🔧 v1.57.13 - Photo Display Bug Fix
+- [ ] Fix photo thumbnails not showing for recently registered buildings in the buildings list
