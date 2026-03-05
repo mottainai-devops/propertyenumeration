@@ -73,6 +73,7 @@ function App() {
     return saved ? parseInt(saved) : 50;
   });
   const [sessionDrillDown, setSessionDrillDown] = useState<{ sessionId: string; lotCode: string } | null>(null);
+  const [buildingsRefreshKey, setBuildingsRefreshKey] = useState(0);
   const sessionStartTimeRef = useRef<Date | null>(null);
   const { showToast, ToastContainer } = useToast();
 
@@ -436,8 +437,11 @@ function App() {
           showToast('Building registered successfully!', 'success');
         }
 
-        if (buildingWithLocation.buildingId) markBuildingSurveyed(buildingWithLocation.buildingId);
-        addToRecentBuildings({ ...buildingWithLocation, _id: building._id, synced: true });
+        if (building.buildingId) markBuildingSurveyed(building.buildingId);
+        // Use the server-returned building (which has S3 photoUrls) not local data (which has File objects)
+        addToRecentBuildings({ ...building, synced: true, timestamp: Date.now() });
+        // Trigger buildings list to re-fetch from server so photos (S3 URLs) appear immediately
+        setBuildingsRefreshKey(k => k + 1);
         setCurrentScreen('success');
       } catch (error) {
         logError('Building Creation', error, buildingWithLocation);
@@ -566,7 +570,11 @@ function App() {
     setPendingBuildings(remaining);
     localStorage.setItem(userKey('pendingBuildings'), JSON.stringify(remaining));
     setIsSyncing(false);
-    if (syncedCount > 0) showToast(`Successfully synced ${syncedCount} building${syncedCount > 1 ? 's' : ''}!`, 'success');
+    if (syncedCount > 0) {
+      showToast(`Successfully synced ${syncedCount} building${syncedCount > 1 ? 's' : ''}!`, 'success');
+      // Trigger buildings list to re-fetch from server so photos (S3 URLs) appear immediately
+      setBuildingsRefreshKey(k => k + 1);
+    }
     if (remaining.length > 0) {
       showToast(`${remaining.length} building${remaining.length > 1 ? 's' : ''} failed to sync`, 'error');
       // Fire a local notification so the surveyor is alerted even if the app is backgrounded
@@ -741,6 +749,7 @@ function App() {
             buildings={recentBuildings}
             pendingBuildings={pendingBuildings}
             onClose={() => setCurrentScreen('session')}
+            refreshKey={buildingsRefreshKey}
           />
         )}
 

@@ -31,6 +31,7 @@ interface BuildingsListProps {
   onClose: () => void;
   filterSessionId?: string;   // When set, fetches only buildings for this session
   filterSessionLabel?: string; // e.g. lot code for display in header
+  refreshKey?: number;        // Increment to trigger a server refresh (e.g. after creating a building)
 }
 
 type FilterType = 'All' | 'Residential' | 'Commercial' | 'Industrial' | 'Mixed-Use' | 'Pending';
@@ -60,7 +61,7 @@ function normaliseServerBuilding(b: Building): LocalBuilding {
   };
 }
 
-export default function BuildingsList({ buildings, pendingBuildings, onClose, filterSessionId, filterSessionLabel }: BuildingsListProps) {
+export default function BuildingsList({ buildings, pendingBuildings, onClose, filterSessionId, filterSessionLabel, refreshKey }: BuildingsListProps) {
   const [filter, setFilter] = useState<FilterType>('All');
   const [search, setSearch] = useState('');
   const [serverBuildings, setServerBuildings] = useState<LocalBuilding[]>([]);
@@ -111,6 +112,13 @@ export default function BuildingsList({ buildings, pendingBuildings, onClose, fi
   useEffect(() => {
     fetchFromServer();
   }, [fetchFromServer]);
+
+  // Re-fetch from server when refreshKey changes (e.g. after a new building is created with photos)
+  useEffect(() => {
+    if (refreshKey !== undefined && refreshKey > 0) {
+      fetchFromServer();
+    }
+  }, [refreshKey, fetchFromServer]);
 
   // Reset pagination when filter/search changes
   useEffect(() => {
