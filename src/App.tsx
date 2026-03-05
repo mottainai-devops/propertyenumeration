@@ -47,7 +47,6 @@ interface SessionSummary {
   lotCode: string;
   duration: string;
   buildingsCount: number;
-  photosCount: number;
 }
 
 function App() {
@@ -263,8 +262,8 @@ function App() {
             lotCode: conflict.existingLotCode,
             startTime: conflict.existingStartTime,
             buildingsEnumerated: 0,
-            customersLinked: 0,
             photosUploaded: 0,
+            customersLinked: 0,
             areasCovered: [],
             isActive: true,
             startLocation: gps,
@@ -310,7 +309,6 @@ function App() {
           lotCode: ended.lotCode,
           duration: `${hrs}h ${mins}m`,
           buildingsCount: ended.buildingsEnumerated,
-          photosCount: ended.photosUploaded,
         };
         setActiveServerSession(null);
         localStorage.removeItem(userKey('serverSessionId'));
@@ -331,9 +329,6 @@ function App() {
         lotCode: localSession?.lotCode || getDefaultLotCode(),
         duration: `${hrs}h ${mins}m`,
         buildingsCount: recentBuildings.length,
-        photosCount: recentBuildings.reduce((sum, b) => {
-          return sum + (Array.isArray(b.photos) ? b.photos.length : (b.photoCount ?? 0));
-        }, 0),
       };
     }
 
@@ -439,9 +434,8 @@ function App() {
         }
 
         if (building.buildingId) markBuildingSurveyed(building.buildingId);
-        // Use the server-returned building (which has S3 photoUrls) not local data (which has File objects)
         addToRecentBuildings({ ...building, synced: true, timestamp: Date.now() });
-        // Trigger buildings list to re-fetch from server so photos (S3 URLs) appear immediately
+        // Trigger buildings list to re-fetch from server
         setBuildingsRefreshKey(k => k + 1);
         setCurrentScreen('success');
       } catch (error) {
@@ -463,25 +457,8 @@ function App() {
   };
 
   const saveBuildingOffline = async (buildingData: any) => {
-    // Photos are File/Blob objects which cannot be serialized by JSON.stringify.
-    // Convert them to base64 data URIs before saving to localStorage.
-    let serializedPhotos: string[] = [];
-    if (buildingData.photos && buildingData.photos.length > 0) {
-      serializedPhotos = await Promise.all(
-        buildingData.photos.map((photo: File | Blob | string) => {
-          if (typeof photo === 'string') return Promise.resolve(photo); // already base64
-          return new Promise<string>((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onloadend = () => resolve(reader.result as string);
-            reader.onerror = reject;
-            reader.readAsDataURL(photo);
-          });
-        })
-      );
-    }
     const buildingToSave = {
       ...buildingData,
-      photos: serializedPhotos, // store as base64 strings
       timestamp: Date.now(),
     };
     const pending = [...pendingBuildings, buildingToSave];
@@ -516,27 +493,10 @@ function App() {
           remaining.push(building);
           continue;
         }
-        // Restore photos: base64 strings saved offline must be converted back to Blob objects
-        let restoredPhotos: (File | Blob)[] = [];
-        if (building.photos && building.photos.length > 0) {
-          restoredPhotos = building.photos.map((photo: any) => {
-            if (typeof photo === 'string' && photo.startsWith('data:')) {
-              // Convert base64 data URI back to Blob
-              const [header, base64Data] = photo.split(',');
-              const mimeType = header.match(/:(.*?);/)?.[1] || 'image/jpeg';
-              const binary = atob(base64Data);
-              const bytes = new Uint8Array(binary.length);
-              for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-              return new Blob([bytes], { type: mimeType });
-            }
-            return photo; // already a Blob/File
-          });
-        }
         // Include sessionId when syncing offline buildings (may not have been set when created offline)
         const buildingToSync = {
           ...building,
           gpsCoordinates,
-          photos: restoredPhotos,
           sessionId: building.sessionId || currentSessionId,
         };
         const result = await retryOperation(() => buildingApi.create(buildingToSync), { maxRetries: 1 });
@@ -573,7 +533,7 @@ function App() {
     setIsSyncing(false);
     if (syncedCount > 0) {
       showToast(`Successfully synced ${syncedCount} building${syncedCount > 1 ? 's' : ''}!`, 'success');
-      // Trigger buildings list to re-fetch from server so photos (S3 URLs) appear immediately
+      // Trigger buildings list to re-fetch from server
       setBuildingsRefreshKey(k => k + 1);
     }
     if (remaining.length > 0) {
@@ -669,10 +629,7 @@ function App() {
                   <p className="text-2xl font-bold text-blue-700">{sessionSummary.buildingsCount}</p>
                   <p className="text-xs text-blue-600 mt-1">Buildings Registered</p>
                 </div>
-                <div className="bg-purple-50 rounded-xl p-4 text-center">
-                  <p className="text-2xl font-bold text-purple-700">{sessionSummary.photosCount}</p>
-                  <p className="text-xs text-purple-600 mt-1">Photos Taken</p>
-                </div>
+
                 <div className="bg-teal-50 rounded-xl p-4 text-center">
                   <p className="text-lg font-bold text-teal-700">{sessionSummary.duration}</p>
                   <p className="text-xs text-teal-600 mt-1">Duration</p>
@@ -880,7 +837,7 @@ function App() {
             <div className="bg-white rounded-2xl shadow-xl p-4">
               <h2 className="text-lg font-bold text-gray-900 mb-1">Step 2: Building Information</h2>
               <p className="text-gray-500 text-sm mb-3">
-                Fill in the building details and capture photos.
+                Fill in the building details.
               </p>
               <BuildingForm
                 onSubmit={handleBuildingSubmit}
@@ -929,24 +886,7 @@ function App() {
                     {recentBuildings[0].propertyType} · {recentBuildings[0].numberOfUnits} unit{recentBuildings[0].numberOfUnits !== 1 ? 's' : ''}
                     {recentBuildings[0].lotCode && ` · ${recentBuildings[0].lotCode}`}
                   </p>
-                  {/* Photo thumbnails */}
-                  {Array.isArray(recentBuildings[0].photos) && recentBuildings[0].photos.length > 0 && (
-                    <div className="flex gap-2 mt-3 overflow-x-auto pb-1">
-                      {recentBuildings[0].photos.slice(0, 4).map((photo: string, i: number) => (
-                        <img
-                          key={i}
-                          src={photo}
-                          alt={`Photo ${i + 1}`}
-                          className="w-16 h-16 object-cover rounded-lg flex-shrink-0 border border-gray-200"
-                        />
-                      ))}
-                      {recentBuildings[0].photos.length > 4 && (
-                        <div className="w-16 h-16 bg-gray-100 rounded-lg flex-shrink-0 flex items-center justify-center text-xs text-gray-500 font-medium">
-                          +{recentBuildings[0].photos.length - 4}
-                        </div>
-                      )}
-                    </div>
-                  )}
+
                 </div>
               )}
               <div className="flex flex-col gap-3">

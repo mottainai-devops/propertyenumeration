@@ -118,7 +118,6 @@ export interface CreateBuildingRequest {
   contactPersonName?: string;
   contactPhoneNumber?: string;
   notes?: string;
-  photos?: File[];
 }
 
 // ─── Update Building Request ───────────────────────────────────────────────────
@@ -296,19 +295,6 @@ export const buildingApi = {
     const response = await apiClient.post('/api/property-enumeration/buildings', jsonBody);
     const raw: RawBuilding = response.data?.data?.building ?? response.data;
     const building = normaliseBuilding(raw);
-
-    // Step 2: If photos exist, upload them separately via XHR (handles multipart correctly)
-    if (data.photos && data.photos.length > 0 && (building.buildingId || building._id)) {
-      try {
-        // Use buildingId (e.g. "URBAN-SPIRIT6005") — the create response does NOT include _id
-        const buildingIdForPhoto = building.buildingId || building._id;
-        await buildingApi.addPhotos(buildingIdForPhoto, data.photos);
-      } catch (photoErr) {
-        // Building was created successfully — photo upload failure is non-fatal
-        // The building will appear without photos but can be added later
-        console.warn('[BuildingAPI] Building created but photo upload failed:', photoErr);
-      }
-    }
 
     return building;
   },

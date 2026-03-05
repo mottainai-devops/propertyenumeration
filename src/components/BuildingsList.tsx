@@ -11,8 +11,6 @@ interface LocalBuilding {
   propertyType: string;
   numberOfUnits: number;
   gpsCoordinates?: { latitude: number; longitude: number; accuracy?: number };
-  photos?: File[] | string[];
-  photoCount?: number;
   notes?: string;
   timestamp?: number;
   synced?: boolean;
@@ -49,8 +47,6 @@ function normaliseServerBuilding(b: Building): LocalBuilding {
     propertyType: b.propertyType,
     numberOfUnits: b.numberOfUnits,
     gpsCoordinates: b.gpsCoordinates,
-    photos: b.photos,
-    photoCount: b.photos?.length ?? 0,
     notes: b.notes,
     timestamp: b.createdAt ? new Date(b.createdAt).getTime() : undefined,
     synced: true,
@@ -114,7 +110,7 @@ export default function BuildingsList({ buildings, pendingBuildings, onClose, fi
     fetchFromServer();
   }, [fetchFromServer]);
 
-  // Re-fetch from server when refreshKey changes (e.g. after a new building is created with photos)
+  // Re-fetch from server when refreshKey changes (e.g. after a new building is created)
   useEffect(() => {
     if (refreshKey !== undefined && refreshKey > 0) {
       fetchFromServer();
@@ -215,27 +211,6 @@ export default function BuildingsList({ buildings, pendingBuildings, onClose, fi
   const visible = filtered.slice(0, visibleCount);
   const hasMore = visibleCount < filtered.length;
 
-  const getPhotoCount = (b: LocalBuilding) => {
-    if (Array.isArray(b.photos)) return b.photos.length;
-    if (typeof b.photoCount === 'number') return b.photoCount;
-    return 0;
-  };
-
-  const getPhotoThumbnail = (b: LocalBuilding): string | null => {
-    if (!Array.isArray(b.photos) || b.photos.length === 0) return null;
-    const first = b.photos[0];
-    if (typeof first === 'string') return first;
-    if (first instanceof File) return URL.createObjectURL(first);
-    return null;
-  };
-
-  const getPhotoStrings = (b: LocalBuilding): string[] => {
-    if (!Array.isArray(b.photos)) return [];
-    return b.photos
-      .map(p => (typeof p === 'string' ? p : p instanceof File ? URL.createObjectURL(p) : null))
-      .filter(Boolean) as string[];
-  };
-
   const formatTime = (ts?: number) => {
     if (!ts) return '';
     return new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -303,7 +278,7 @@ export default function BuildingsList({ buildings, pendingBuildings, onClose, fi
       propertyType: b.propertyType as Building['propertyType'],
       numberOfUnits: b.numberOfUnits,
       gpsCoordinates: b.gpsCoordinates ?? { latitude: 0, longitude: 0 },
-      photos: (b.photos?.filter(p => typeof p === 'string') as string[]) ?? [],
+      photos: [],
       notes: b.notes,
       userId: '',
       companyId: '',
@@ -464,14 +439,11 @@ export default function BuildingsList({ buildings, pendingBuildings, onClose, fi
           )}
 
           {visible.map((b, i) => {
-            const thumb = getPhotoThumbnail(b);
-            const photoCount = getPhotoCount(b);
             const typeKey = b.propertyType?.toLowerCase() || '';
             const colorClass = typeColor[typeKey] || 'bg-gray-100 text-gray-600';
             const cardId = b._id || String(b.timestamp) || String(i);
             const isExpanded = expandedId === cardId;
             const canEdit = !!b._id && b.synced !== false;
-            const photoUrls = getPhotoStrings(b);
 
             return (
               <div
@@ -485,17 +457,7 @@ export default function BuildingsList({ buildings, pendingBuildings, onClose, fi
                   className="flex cursor-pointer active:bg-gray-50"
                   onClick={() => setExpandedId(isExpanded ? null : cardId)}
                 >
-                  {/* Photo thumbnail */}
-                  <div className="w-20 h-20 shrink-0 bg-gray-100 flex items-center justify-center overflow-hidden">
-                    {thumb ? (
-                      <img src={thumb} alt="Building" className="w-full h-full object-cover" />
-                    ) : (
-                      <svg className="w-8 h-8 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
-                      </svg>
-                    )}
-                  </div>
+
 
                   {/* Details */}
                   <div className="flex-1 p-3 min-w-0">
@@ -543,14 +505,6 @@ export default function BuildingsList({ buildings, pendingBuildings, onClose, fi
 
                     <div className="flex items-center justify-between mt-2">
                       <div className="flex items-center gap-3 text-xs text-gray-400">
-                        {photoCount > 0 && (
-                          <span className="flex items-center gap-1">
-                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
-                            </svg>
-                            {photoCount}
-                          </span>
-                        )}
                         {b.gpsCoordinates && (
                           <span className="flex items-center gap-1">
                             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -572,23 +526,6 @@ export default function BuildingsList({ buildings, pendingBuildings, onClose, fi
                 {/* Expanded detail panel */}
                 {isExpanded && (
                   <div className="border-t border-gray-100 bg-gray-50 px-4 py-4 space-y-4">
-                    {/* Photo gallery */}
-                    {photoUrls.length > 0 && (
-                      <div>
-                        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Photos ({photoUrls.length})</p>
-                        <div className="flex gap-2 overflow-x-auto pb-1">
-                          {photoUrls.map((url, pi) => (
-                            <img
-                              key={pi}
-                              src={url}
-                              alt={`Photo ${pi + 1}`}
-                              className="w-20 h-20 object-cover rounded-lg shrink-0 border border-gray-200"
-                            />
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
                     {/* Notes */}
                     {b.notes && (
                       <div>

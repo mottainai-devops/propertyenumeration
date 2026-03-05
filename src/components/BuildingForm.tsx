@@ -1,10 +1,8 @@
 import { useState, useEffect } from 'react';
-import { Camera, CameraResultType, CameraSource } from '@capacitor/camera';
 import CustomerSearch from './CustomerSearch';
 import LotDropdown from './LotDropdown';
 import type { Customer } from '../api/client';
 import { buildingApi } from '../api/client';
-import { validateAndPreparePhoto, formatFileSize } from '../utils/photoUtils';
 
 interface LocationData {
   latitude: number;
@@ -36,13 +34,9 @@ export default function BuildingForm({ onSubmit, location, selectedBuilding, onB
     numberOfUnits: 1,
     notes: '',
   });
-  const [photos, setPhotos] = useState<File[]>([]);
-  const [photoPreviewUrls, setPhotoPreviewUrls] = useState<string[]>([]);
   const [linkedCustomer, setLinkedCustomer] = useState<Customer | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [photoLoading, setPhotoLoading] = useState(false);
-  const [photoSizes, setPhotoSizes] = useState<number[]>([]);
   // Multi-customer polygon: unit code (R1, R2, C1, C2…)
   const [unitCode, setUnitCode] = useState<string>('');
   const [unitCodeLoading, setUnitCodeLoading] = useState(false);
@@ -97,68 +91,6 @@ export default function BuildingForm({ onSubmit, location, selectedBuilding, onB
     }));
   };
 
-  const handleTakePhoto = async () => {
-    if (photos.length >= 4) {
-      setError('Maximum 4 photos allowed');
-      return;
-    }
-
-    setPhotoLoading(true);
-    setError('');
-
-    try {
-      // Use Base64 result type to avoid fetch(capacitor://) being intercepted by CapacitorHttp.
-      // With CapacitorHttp.enabled=true, ALL fetch() calls go through native HTTP which
-      // cannot handle the capacitor:// scheme. Base64 gives us the data directly.
-      const image = await Camera.getPhoto({
-        quality: 80,
-        allowEditing: false,
-        resultType: CameraResultType.Base64,
-        source: CameraSource.Camera,
-      });
-
-      if (image.base64String) {
-        // Convert base64 to Blob directly — no fetch() needed
-        const byteChars = atob(image.base64String);
-        const byteNums = new Uint8Array(byteChars.length);
-        for (let i = 0; i < byteChars.length; i++) {
-          byteNums[i] = byteChars.charCodeAt(i);
-        }
-        const blob = new Blob([byteNums], { type: 'image/jpeg' });
-        const file = new File([blob], `photo-${Date.now()}.jpg`, { type: 'image/jpeg' });
-
-        // Validate and prepare photo (compress if needed)
-        const { file: preparedFile, error: validationError } = await validateAndPreparePhoto(file, {
-          maxSizeMB: 5,
-          maxWidthOrHeight: 1920,
-          quality: 0.8,
-        });
-
-        if (validationError) {
-          setError(validationError);
-          setPhotoLoading(false);
-          return;
-        }
-
-        // Create a local preview URL from the blob for display
-        const previewUrl = URL.createObjectURL(preparedFile);
-        setPhotos(prev => [...prev, preparedFile]);
-        setPhotoPreviewUrls(prev => [...prev, previewUrl]);
-        setPhotoSizes(prev => [...prev, preparedFile.size]);
-      }
-    } catch (err: any) {
-      setError(err.message || 'Failed to capture photo');
-    } finally {
-      setPhotoLoading(false);
-    }
-  };
-
-  const handleRemovePhoto = (index: number) => {
-    setPhotos(prev => prev.filter((_, i) => i !== index));
-    setPhotoPreviewUrls(prev => prev.filter((_, i) => i !== index));
-    setPhotoSizes(prev => prev.filter((_, i) => i !== index));
-  };
-
   const handleNextStep = (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
@@ -206,7 +138,6 @@ export default function BuildingForm({ onSubmit, location, selectedBuilding, onB
       const request = {
         ...formData,
         buildingName,
-        photos,
         linkedCustomerId: linkedCustomer?._id,
         unitCode: unitCode || undefined,
         arcgisBuildingId: selectedBuilding?.buildingId || undefined,
@@ -419,88 +350,6 @@ export default function BuildingForm({ onSubmit, location, selectedBuilding, onB
                   +
                 </button>
               </div>
-            </div>
-
-            {/* Photos */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Photos (Max 4, up to 5MB each)
-              </label>
-              
-              {/* Photo Grid */}
-              <div className="grid grid-cols-2 gap-3 mb-3">
-                {photoPreviewUrls.map((url, index) => (
-                  <div key={index} className="relative aspect-square">
-                    <img
-                      src={url}
-                      alt={`Photo ${index + 1}`}
-                      className="w-full h-full object-cover rounded-lg border-2 border-gray-200"
-                    />
-                    {/* Photo Info Overlay */}
-                    <div className="absolute bottom-0 left-0 right-0 bg-black bg-opacity-60 text-white text-xs px-2 py-1 rounded-b-lg">
-                      Photo {index + 1} • {formatFileSize(photoSizes[index])}
-                    </div>
-                    {/* Remove Button */}
-                    <button
-                      type="button"
-                      onClick={() => handleRemovePhoto(index)}
-                      className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1.5 hover:bg-red-600 shadow-lg transition"
-                      aria-label="Remove photo"
-                    >
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                      </svg>
-                    </button>
-                  </div>
-                ))}
-              </div>
-
-              {/* Photo Count Info */}
-              {photos.length > 0 && (
-                <div className="bg-blue-50 border border-blue-200 rounded-lg px-4 py-2 mb-3">
-                  <p className="text-sm text-blue-900">
-                    📸 {photos.length} photo{photos.length > 1 ? 's' : ''} added ({formatFileSize(photoSizes.reduce((a, b) => a + b, 0))} total)
-                  </p>
-                </div>
-              )}
-
-              {/* Take Photo Button */}
-              {photos.length < 4 && (
-                <button
-                  type="button"
-                  onClick={handleTakePhoto}
-                  disabled={photoLoading}
-                  className="w-full border-2 border-dashed border-gray-300 rounded-lg py-8 flex flex-col items-center justify-center hover:border-green-500 transition disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {photoLoading ? (
-                    <>
-                      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-600 mb-2"></div>
-                      <span className="text-sm text-gray-600">Processing photo...</span>
-                    </>
-                  ) : (
-                    <>
-                      <svg className="w-12 h-12 text-gray-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
-                      </svg>
-                      <span className="text-sm text-gray-600">Take Photo</span>
-                      <span className="text-xs text-gray-500 mt-1">{4 - photos.length} remaining</span>
-                    </>
-                  )}
-                </button>
-              )}
-
-              {/* Photo Tips */}
-              {photos.length === 0 && (
-                <div className="mt-3 bg-gray-50 border border-gray-200 rounded-lg px-4 py-3">
-                  <p className="text-xs text-gray-600 font-medium mb-1">📷 Photo Tips:</p>
-                  <ul className="text-xs text-gray-600 space-y-1">
-                    <li>• Take photos in good lighting</li>
-                    <li>• Capture building front, sides, and entrance</li>
-                    <li>• Photos will be automatically compressed if too large</li>
-                  </ul>
-                </div>
-              )}
             </div>
 
             {/* Notes */}

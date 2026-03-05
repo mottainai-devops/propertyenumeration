@@ -174,14 +174,10 @@ export default function SessionHistory({ onClose, onViewSessionBuildings }: Sess
                 </div>
 
                 {/* Stats row */}
-                <div className="grid grid-cols-3 gap-2 mt-3">
+                <div className="grid grid-cols-2 gap-2 mt-3">
                   <div className="bg-blue-50 rounded-lg p-2 text-center">
                     <p className="text-lg font-bold text-blue-700">{session.buildingsEnumerated}</p>
                     <p className="text-xs text-blue-600">Buildings</p>
-                  </div>
-                  <div className="bg-purple-50 rounded-lg p-2 text-center">
-                    <p className="text-lg font-bold text-purple-700">{session.photosUploaded}</p>
-                    <p className="text-xs text-purple-600">Photos</p>
                   </div>
                   <div className="bg-teal-50 rounded-lg p-2 text-center">
                     <p className="text-lg font-bold text-teal-700">{session.customersLinked}</p>

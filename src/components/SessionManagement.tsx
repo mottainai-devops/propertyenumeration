@@ -47,19 +47,15 @@ export default function SessionManagement({
   const [serverTotal, setServerTotal] = useState<number | null>(null);
   const [homeSearch, setHomeSearch] = useState('');
 
-  // Today's summary: count, photos, lot codes
+  // Today's summary: count, lot codes
   const todaySummary = useMemo(() => {
     const todayStart = new Date();
     todayStart.setHours(0, 0, 0, 0);
     const todayBuildings = recentBuildings.filter(
       b => b.timestamp !== undefined && b.timestamp >= todayStart.getTime()
     );
-    const totalPhotos = todayBuildings.reduce((sum: number, b: any) => {
-      const count = Array.isArray(b.photos) ? b.photos.length : (b.photoCount ?? 0);
-      return sum + count;
-    }, 0);
     const lotCodes = [...new Set(todayBuildings.map((b: any) => b.lotCode).filter(Boolean))];
-    return { count: todayBuildings.length, totalPhotos, lotCodes };
+    return { count: todayBuildings.length, lotCodes };
   }, [recentBuildings]);
 
   // Inline search results (max 5, only when homeSearch has 2+ chars)
@@ -437,14 +433,10 @@ export default function SessionManagement({
                 View Today →
               </button>
             </div>
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-2 gap-3">
               <div className="bg-white rounded-lg p-2.5 text-center shadow-sm">
                 <p className="text-xl font-bold text-green-700">{todaySummary.count}</p>
                 <p className="text-xs text-gray-500">Buildings</p>
-              </div>
-              <div className="bg-white rounded-lg p-2.5 text-center shadow-sm">
-                <p className="text-xl font-bold text-blue-700">{todaySummary.totalPhotos}</p>
-                <p className="text-xs text-gray-500">Photos</p>
               </div>
               <div className="bg-white rounded-lg p-2.5 text-center shadow-sm">
                 <p className="text-xl font-bold text-purple-700">{todaySummary.lotCodes.length}</p>

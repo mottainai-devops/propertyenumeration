@@ -107,13 +107,10 @@ export default function SessionStatistics({
       const headers = [
         'Building ID', 'Address', 'Building Name', 'Lot Code',
         'Property Type', 'Number of Units', 'Latitude', 'Longitude',
-        'Zone', 'Notes', 'Photo Count', 'Timestamp', 'Status',
+        'Zone', 'Notes', 'Timestamp', 'Status',
       ];
 
       const rows = allBuildings.map((b: any) => {
-        const photoCount = Array.isArray(b.photos) ? b.photos.length
-          : Array.isArray(b.photoUrls) ? b.photoUrls.length
-          : (b.photoCount ?? 0);
         return [
           escapeCSV(b.buildingId || b.selectedBuildingId || ''),
           escapeCSV(b.address || ''),
@@ -125,7 +122,6 @@ export default function SessionStatistics({
           escapeCSV(b.longitude || b.gpsCoordinates?.longitude || ''),
           escapeCSV(b.zone || ''),
           escapeCSV(b.notes || ''),
-          escapeCSV(photoCount),
           escapeCSV(b.timestamp ? new Date(b.timestamp).toISOString() : ''),
           escapeCSV(b.synced ? 'Synced' : 'Pending'),
         ];
@@ -191,13 +187,10 @@ export default function SessionStatistics({
       const headers = [
         'Building ID', 'Address', 'Building Name', 'Lot Code',
         'Property Type', 'Number of Units', 'Latitude', 'Longitude',
-        'Zone', 'Notes', 'Photo Count', 'Timestamp', 'Status',
+        'Zone', 'Notes', 'Timestamp', 'Status',
       ];
 
       const rows = allBuildings.map((b: any) => {
-        const photoCount = Array.isArray(b.photos) ? b.photos.length
-          : Array.isArray(b.photoUrls) ? b.photoUrls.length
-          : (b.photoCount ?? 0);
         return [
           escapeCSV(b.buildingId || b.selectedBuildingId || ''),
           escapeCSV(b.address || ''),
@@ -209,7 +202,6 @@ export default function SessionStatistics({
           escapeCSV(b.longitude || b.gpsCoordinates?.longitude || ''),
           escapeCSV(b.zone || ''),
           escapeCSV(b.notes || ''),
-          escapeCSV(photoCount),
           escapeCSV(b.timestamp ? new Date(b.timestamp).toISOString() : ''),
           escapeCSV(b.synced ? 'Synced' : 'Pending'),
         ];
@@ -481,9 +473,6 @@ export default function SessionStatistics({
                   <h3 className="text-lg font-bold text-gray-900 mb-3">Recent Buildings</h3>
                   <div className="space-y-3">
                     {recentBuildings.slice(0, 5).map((building, index) => {
-                      const photoCount = Array.isArray(building.photos) ? building.photos.length
-                        : Array.isArray(building.photoUrls) ? building.photoUrls.length
-                        : (building.photoCount ?? 0);
                       return (
                         <div
                           key={index}
@@ -500,13 +489,7 @@ export default function SessionStatistics({
                               <div className="flex items-center gap-3 text-xs text-gray-500 flex-wrap">
                                 <span>{building.propertyType}</span>
                                 <span>{building.numberOfUnits} unit{building.numberOfUnits > 1 ? 's' : ''}</span>
-                                <span className="flex items-center gap-0.5">
-                                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
-                                  </svg>
-                                  {photoCount} photo{photoCount !== 1 ? 's' : ''}
-                                </span>
+
                                 {building.timestamp && (
                                   <span className="text-gray-400">
                                     {formatRelativeTime(Date.now() - new Date(building.timestamp).getTime())}
@@ -555,17 +538,7 @@ export default function SessionStatistics({
                         : 0}
                     </span>
                   </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-gray-700">Total photos taken</span>
-                    <span className="text-sm font-semibold text-gray-900">
-                      {allBuildings.reduce((sum, b) => {
-                        const n = Array.isArray(b.photos) ? b.photos.length
-                          : Array.isArray(b.photoUrls) ? b.photoUrls.length
-                          : (b.photoCount ?? 0);
-                        return sum + n;
-                      }, 0)}
-                    </span>
-                  </div>
+
                 </div>
               </div>
 
