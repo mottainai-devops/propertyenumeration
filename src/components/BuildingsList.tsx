@@ -35,7 +35,7 @@ interface BuildingsListProps {
   initialSearch?: string;     // Pre-fill search bar (e.g. from home screen quick search)
 }
 
-type FilterType = 'All' | 'Today' | 'Residential' | 'Commercial' | 'Industrial' | 'Mixed-Use' | 'Pending';
+type FilterType = 'All' | 'Today' | 'This Week' | 'Last 7 Days' | 'Residential' | 'Commercial' | 'Industrial' | 'Mixed-Use' | 'Pending';
 
 const PAGE_SIZE = 20;
 
@@ -175,10 +175,21 @@ export default function BuildingsList({ buildings, pendingBuildings, onClose, fi
   }, [serverBuildings, buildings, pendingBuildings]);
 
   const filtered = useMemo(() => {
-    const todayStart = new Date();
-    todayStart.setHours(0, 0, 0, 0);
-    const todayEnd = new Date();
-    todayEnd.setHours(23, 59, 59, 999);
+    const now = new Date();
+    const todayStart = new Date(now); todayStart.setHours(0, 0, 0, 0);
+    const todayEnd = new Date(now); todayEnd.setHours(23, 59, 59, 999);
+
+    // This Week: Monday 00:00 to now
+    const thisWeekStart = new Date(now);
+    const dayOfWeek = thisWeekStart.getDay(); // 0=Sun, 1=Mon...
+    const diffToMonday = (dayOfWeek === 0 ? -6 : 1 - dayOfWeek);
+    thisWeekStart.setDate(thisWeekStart.getDate() + diffToMonday);
+    thisWeekStart.setHours(0, 0, 0, 0);
+
+    // Last 7 Days: 7 days ago 00:00 to now
+    const last7Start = new Date(now);
+    last7Start.setDate(last7Start.getDate() - 6);
+    last7Start.setHours(0, 0, 0, 0);
 
     return allBuildings.filter(b => {
       const matchesFilter =
@@ -186,6 +197,10 @@ export default function BuildingsList({ buildings, pendingBuildings, onClose, fi
         (filter === 'Pending' && b.synced === false) ||
         (filter === 'Today' && b.timestamp !== undefined &&
           b.timestamp >= todayStart.getTime() && b.timestamp <= todayEnd.getTime()) ||
+        (filter === 'This Week' && b.timestamp !== undefined &&
+          b.timestamp >= thisWeekStart.getTime()) ||
+        (filter === 'Last 7 Days' && b.timestamp !== undefined &&
+          b.timestamp >= last7Start.getTime()) ||
         b.propertyType?.toLowerCase() === filter.toLowerCase();
       const matchesSearch =
         !search ||
@@ -244,7 +259,7 @@ export default function BuildingsList({ buildings, pendingBuildings, onClose, fi
     'mixed-use': 'bg-teal-100 text-teal-700',
   };
 
-  const filters: FilterType[] = ['All', 'Today', 'Residential', 'Commercial', 'Industrial', 'Mixed-Use', 'Pending'];
+  const filters: FilterType[] = ['All', 'Today', 'This Week', 'Last 7 Days', 'Residential', 'Commercial', 'Industrial', 'Mixed-Use', 'Pending'];
 
   // Handle unlink customer
   const handleUnlink = async (b: LocalBuilding) => {
@@ -388,10 +403,18 @@ export default function BuildingsList({ buildings, pendingBuildings, onClose, fi
                 {f}
                 {f === 'Today' && (() => {
               const todayStart = new Date(); todayStart.setHours(0,0,0,0);
-              const todayCount = allBuildings.filter(b => b.timestamp !== undefined && b.timestamp >= todayStart.getTime()).length;
-              return todayCount > 0 ? (
-                <span className="ml-1 bg-green-500 text-white text-xs rounded-full px-1.5 py-0.5 font-bold">{todayCount}</span>
-              ) : null;
+              const cnt = allBuildings.filter(b => b.timestamp !== undefined && b.timestamp >= todayStart.getTime()).length;
+              return cnt > 0 ? <span className="ml-1 bg-green-500 text-white text-xs rounded-full px-1.5 py-0.5 font-bold">{cnt}</span> : null;
+            })()}
+            {f === 'This Week' && (() => {
+              const ws = new Date(); const d = ws.getDay(); ws.setDate(ws.getDate() + (d === 0 ? -6 : 1 - d)); ws.setHours(0,0,0,0);
+              const cnt = allBuildings.filter(b => b.timestamp !== undefined && b.timestamp >= ws.getTime()).length;
+              return cnt > 0 ? <span className="ml-1 bg-blue-500 text-white text-xs rounded-full px-1.5 py-0.5 font-bold">{cnt}</span> : null;
+            })()}
+            {f === 'Last 7 Days' && (() => {
+              const s = new Date(); s.setDate(s.getDate() - 6); s.setHours(0,0,0,0);
+              const cnt = allBuildings.filter(b => b.timestamp !== undefined && b.timestamp >= s.getTime()).length;
+              return cnt > 0 ? <span className="ml-1 bg-indigo-500 text-white text-xs rounded-full px-1.5 py-0.5 font-bold">{cnt}</span> : null;
             })()}
             {f === 'Pending' && pendingBuildings.length > 0 && (
                   <span className="ml-1 bg-yellow-500 text-white rounded-full px-1.5 py-0.5 text-xs">{pendingBuildings.length}</span>

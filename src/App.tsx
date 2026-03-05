@@ -723,6 +723,12 @@ function App() {
               setDailyTarget(t);
               localStorage.setItem('dailyTarget', String(t));
             }}
+            recentBuildings={recentBuildings}
+            onEditBuilding={(b) => {
+              // Navigate to buildings list and open edit for this building
+              setBuildingsInitialSearch(b.address || b.buildingId || '');
+              setCurrentScreen('buildings-list');
+            }}
           />
         )}
 

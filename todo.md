@@ -230,3 +230,9 @@
 - [x] Show server-side total building count in Registered card (fetch from buildingApi.list pagination)
 - [x] Add quick search bar on home screen that opens filtered buildings list
 - [x] Add "Today" filter tab in BuildingsList screen
+
+## 🔧 v1.57.12 - Home Screen & Buildings List Enhancements
+
+- [x] Add Today's summary card on home screen (today's count, total photos, lot codes covered)
+- [x] Add inline search results with Edit shortcut on home screen
+- [x] Add date-range filter (This week / Last 7 days) to buildings list

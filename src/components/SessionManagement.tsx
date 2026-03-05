@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { buildingApi } from '../api/client';
 
 interface SessionManagementProps {
@@ -17,6 +17,8 @@ interface SessionManagementProps {
   dailyTarget?: number;
   onSetDailyTarget?: (target: number) => void;
   onViewBuildingsWithSearch?: (query: string) => void; // Open buildings list pre-filtered by query
+  recentBuildings?: any[]; // Full recentBuildings array for Today summary and inline search
+  onEditBuilding?: (building: any) => void; // Navigate to edit a specific building
 }
 
 export default function SessionManagement({
@@ -35,6 +37,8 @@ export default function SessionManagement({
   dailyTarget: _dailyTarget = 50,
   onSetDailyTarget,
   onViewBuildingsWithSearch,
+  recentBuildings = [],
+  onEditBuilding,
 }: SessionManagementProps) {
   const [user, setUser] = useState<any>(null);
   const [activeSession, setActiveSession] = useState<any>(null);
@@ -42,6 +46,35 @@ export default function SessionManagement({
   const [targetInput, setTargetInput] = useState('50');
   const [serverTotal, setServerTotal] = useState<number | null>(null);
   const [homeSearch, setHomeSearch] = useState('');
+
+  // Today's summary: count, photos, lot codes
+  const todaySummary = useMemo(() => {
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    const todayBuildings = recentBuildings.filter(
+      b => b.timestamp !== undefined && b.timestamp >= todayStart.getTime()
+    );
+    const totalPhotos = todayBuildings.reduce((sum: number, b: any) => {
+      const count = Array.isArray(b.photos) ? b.photos.length : (b.photoCount ?? 0);
+      return sum + count;
+    }, 0);
+    const lotCodes = [...new Set(todayBuildings.map((b: any) => b.lotCode).filter(Boolean))];
+    return { count: todayBuildings.length, totalPhotos, lotCodes };
+  }, [recentBuildings]);
+
+  // Inline search results (max 5, only when homeSearch has 2+ chars)
+  const inlineResults = useMemo(() => {
+    if (homeSearch.trim().length < 2) return [];
+    const q = homeSearch.trim().toLowerCase();
+    return recentBuildings
+      .filter(b =>
+        b.address?.toLowerCase().includes(q) ||
+        b.buildingName?.toLowerCase().includes(q) ||
+        b.lotCode?.toLowerCase().includes(q) ||
+        b.buildingId?.toLowerCase().includes(q)
+      )
+      .slice(0, 5);
+  }, [homeSearch, recentBuildings]);
 
   // Fetch server-side total building count on mount
   const fetchServerTotal = useCallback(async () => {
@@ -385,8 +418,49 @@ export default function SessionManagement({
           </div>
         )}
 
+        {/* Today's Summary Card — only shown when there are buildings today */}
+        {todaySummary.count > 0 && (
+          <div className="mb-4 bg-gradient-to-r from-green-50 to-teal-50 border border-green-200 rounded-xl p-4 shadow">
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 bg-green-100 rounded-lg flex items-center justify-center">
+                  <svg className="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                </div>
+                <p className="text-sm font-bold text-green-800">Today's Progress</p>
+              </div>
+              <button
+                onClick={() => onViewBuildingsWithSearch ? onViewBuildingsWithSearch('') : onViewBuildings?.()}
+                className="text-xs text-green-600 font-semibold hover:underline"
+              >
+                View Today →
+              </button>
+            </div>
+            <div className="grid grid-cols-3 gap-3">
+              <div className="bg-white rounded-lg p-2.5 text-center shadow-sm">
+                <p className="text-xl font-bold text-green-700">{todaySummary.count}</p>
+                <p className="text-xs text-gray-500">Buildings</p>
+              </div>
+              <div className="bg-white rounded-lg p-2.5 text-center shadow-sm">
+                <p className="text-xl font-bold text-blue-700">{todaySummary.totalPhotos}</p>
+                <p className="text-xs text-gray-500">Photos</p>
+              </div>
+              <div className="bg-white rounded-lg p-2.5 text-center shadow-sm">
+                <p className="text-xl font-bold text-purple-700">{todaySummary.lotCodes.length}</p>
+                <p className="text-xs text-gray-500">Lot Codes</p>
+              </div>
+            </div>
+            {todaySummary.lotCodes.length > 0 && (
+              <p className="text-xs text-gray-500 mt-2 truncate">
+                Lots: {todaySummary.lotCodes.join(', ')}
+              </p>
+            )}
+          </div>
+        )}
+
         {/* Quick Search Bar */}
-        <div className="mb-4">
+        <div className="mb-1">
           <form
             onSubmit={e => {
               e.preventDefault();
@@ -416,6 +490,57 @@ export default function SessionManagement({
             </button>
           </form>
         </div>
+
+        {/* Inline Search Results — shown when 2+ chars typed */}
+        {inlineResults.length > 0 && (
+          <div className="mb-4 bg-white border border-gray-200 rounded-xl shadow overflow-hidden">
+            {inlineResults.map((b: any, i: number) => (
+              <div
+                key={b._id || b.buildingId || i}
+                className="flex items-center justify-between px-4 py-3 border-b last:border-b-0 hover:bg-gray-50"
+              >
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-gray-900 truncate">{b.address || b.buildingName || 'Unnamed'}</p>
+                  <p className="text-xs text-gray-500 truncate">
+                    {[b.buildingId, b.lotCode, b.propertyType].filter(Boolean).join(' · ')}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2 ml-2 shrink-0">
+                  {b.synced !== false && onEditBuilding && (
+                    <button
+                      onClick={() => onEditBuilding(b)}
+                      className="px-2.5 py-1 bg-blue-600 text-white text-xs font-semibold rounded-lg hover:bg-blue-700 active:bg-blue-800 transition"
+                    >
+                      Edit
+                    </button>
+                  )}
+                  <button
+                    onClick={() => onViewBuildingsWithSearch ? onViewBuildingsWithSearch(b.address || b.buildingId || '') : onViewBuildings?.()}
+                    className="px-2.5 py-1 bg-gray-100 text-gray-700 text-xs font-semibold rounded-lg hover:bg-gray-200 transition"
+                  >
+                    View
+                  </button>
+                </div>
+              </div>
+            ))}
+            {recentBuildings.filter(b => {
+              const q = homeSearch.trim().toLowerCase();
+              return b.address?.toLowerCase().includes(q) || b.buildingName?.toLowerCase().includes(q) || b.lotCode?.toLowerCase().includes(q) || b.buildingId?.toLowerCase().includes(q);
+            }).length > 5 && (
+              <button
+                onClick={() => onViewBuildingsWithSearch ? onViewBuildingsWithSearch(homeSearch.trim()) : onViewBuildings?.()}
+                className="w-full px-4 py-2.5 text-xs text-blue-600 font-semibold hover:bg-blue-50 transition"
+              >
+                See all results in buildings list →
+              </button>
+            )}
+          </div>
+        )}
+        {inlineResults.length === 0 && homeSearch.trim().length >= 2 && (
+          <div className="mb-4 bg-white border border-gray-200 rounded-xl px-4 py-3 text-sm text-gray-500 shadow">
+            No buildings found locally. <button onClick={() => onViewBuildingsWithSearch ? onViewBuildingsWithSearch(homeSearch.trim()) : onViewBuildings?.()} className="text-blue-600 font-semibold">Search server →</button>
+          </div>
+        )}
 
         {/* View All Buildings — always visible shortcut */}
         {onViewBuildings && (
