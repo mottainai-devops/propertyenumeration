@@ -218,3 +218,9 @@
 - [x] Add backwards compatibility fallback to unscoped key for existing data
 - [x] Rebuild and sync web assets to Android
 
+
+## 🔧 v1.57.10 - Home Screen Fixes
+
+- [x] Fix "Registered" count on home screen (reads from legacy localStorage, always shows 0 for server-session users)
+- [x] Add prominent "View All Registered Buildings" button on home screen (accessible without starting a session)
+- [x] Make buildings list accessible from home screen even when no active session

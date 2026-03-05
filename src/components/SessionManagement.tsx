@@ -11,6 +11,7 @@ interface SessionManagementProps {
   onViewProfile?: () => void;
   surveyedCount?: number;
   recentBuildingsCount?: number;
+  registeredCount?: number;   // Total buildings registered this session (from recentBuildings)
   onClearSurveyedHistory?: () => void;
   dailyTarget?: number;
   onSetDailyTarget?: (target: number) => void;
@@ -27,6 +28,7 @@ export default function SessionManagement({
   onViewProfile,
   surveyedCount = 0,
   recentBuildingsCount = 0,
+  registeredCount = 0,
   onClearSurveyedHistory,
   dailyTarget: _dailyTarget = 50,
   onSetDailyTarget,
@@ -267,7 +269,11 @@ export default function SessionManagement({
 
         {/* Quick Stats */}
         <div className="grid grid-cols-3 gap-3 mb-6">
-          <div className="bg-white rounded-xl shadow p-4">
+          {/* Registered card — tappable to open buildings list */}
+          <button
+            onClick={onViewBuildings}
+            className="bg-white rounded-xl shadow p-4 text-left hover:bg-blue-50 active:bg-blue-100 transition"
+          >
             <div className="flex flex-col items-center text-center">
               <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center mb-2">
                 <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -275,9 +281,10 @@ export default function SessionManagement({
                 </svg>
               </div>
               <p className="text-xs text-gray-500">Registered</p>
-              <p className="text-xl font-bold text-gray-900">{activeSession?.buildingsRegistered || 0}</p>
+              <p className="text-xl font-bold text-blue-700">{registeredCount}</p>
+              <p className="text-xs text-blue-500 mt-0.5">tap to view</p>
             </div>
-          </div>
+          </button>
 
           <div className="bg-white rounded-xl shadow p-4">
             <div className="flex flex-col items-center text-center">
@@ -342,6 +349,29 @@ export default function SessionManagement({
               )}
             </div>
           </div>
+        )}
+
+        {/* View All Buildings — always visible shortcut */}
+        {onViewBuildings && (
+          <button
+            onClick={onViewBuildings}
+            className="w-full mb-4 flex items-center justify-between bg-white border-2 border-blue-200 hover:border-blue-400 hover:bg-blue-50 active:bg-blue-100 rounded-xl p-4 transition shadow"
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center shrink-0">
+                <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                </svg>
+              </div>
+              <div className="text-left">
+                <p className="text-sm font-semibold text-gray-900">View All Registered Buildings</p>
+                <p className="text-xs text-gray-500">{registeredCount} building{registeredCount !== 1 ? 's' : ''} registered · tap to browse &amp; review</p>
+              </div>
+            </div>
+            <svg className="w-5 h-5 text-blue-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+            </svg>
+          </button>
         )}
 
         {/* Help Section */}

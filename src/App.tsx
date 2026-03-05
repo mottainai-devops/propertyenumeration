@@ -711,6 +711,7 @@ function App() {
             onViewProfile={() => setCurrentScreen('profile-settings')}
             surveyedCount={surveyedBuildingIds.size}
             recentBuildingsCount={recentBuildings.length}
+            registeredCount={recentBuildings.length}
             onClearSurveyedHistory={() => {
               setSurveyedBuildingIds(new Set());
               try { localStorage.removeItem(userKey('surveyedBuildingIds')); } catch {}
