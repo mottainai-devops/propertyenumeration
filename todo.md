@@ -224,3 +224,9 @@
 - [x] Fix "Registered" count on home screen (reads from legacy localStorage, always shows 0 for server-session users)
 - [x] Add prominent "View All Registered Buildings" button on home screen (accessible without starting a session)
 - [x] Make buildings list accessible from home screen even when no active session
+
+## 🔧 v1.57.11 - Home Screen Enhancements
+
+- [x] Show server-side total building count in Registered card (fetch from buildingApi.list pagination)
+- [x] Add quick search bar on home screen that opens filtered buildings list
+- [x] Add "Today" filter tab in BuildingsList screen

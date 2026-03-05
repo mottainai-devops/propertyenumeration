@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
+import { buildingApi } from '../api/client';
 
 interface SessionManagementProps {
   onStartEnumeration: (lotCode?: string, dailyTarget?: number) => void;
@@ -15,6 +16,7 @@ interface SessionManagementProps {
   onClearSurveyedHistory?: () => void;
   dailyTarget?: number;
   onSetDailyTarget?: (target: number) => void;
+  onViewBuildingsWithSearch?: (query: string) => void; // Open buildings list pre-filtered by query
 }
 
 export default function SessionManagement({
@@ -32,11 +34,36 @@ export default function SessionManagement({
   onClearSurveyedHistory,
   dailyTarget: _dailyTarget = 50,
   onSetDailyTarget,
+  onViewBuildingsWithSearch,
 }: SessionManagementProps) {
   const [user, setUser] = useState<any>(null);
   const [activeSession, setActiveSession] = useState<any>(null);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [targetInput, setTargetInput] = useState('50');
+  const [serverTotal, setServerTotal] = useState<number | null>(null);
+  const [homeSearch, setHomeSearch] = useState('');
+
+  // Fetch server-side total building count on mount
+  const fetchServerTotal = useCallback(async () => {
+    try {
+      const { buildings } = await buildingApi.list({ limit: 1 });
+      // The list endpoint returns pagination; use it if available, else fall back to array length
+      // We fetch with limit=1 to minimise data transfer and read total from pagination
+      // If pagination not available, do a full fetch to count
+      if (buildings !== undefined) {
+        // Re-fetch without limit to get accurate count via pagination
+        const result = await buildingApi.list();
+        const total = (result as any).pagination?.total ?? result.buildings.length;
+        setServerTotal(total);
+      }
+    } catch {
+      // Silent fail — local count shown as fallback
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchServerTotal();
+  }, [fetchServerTotal]);
 
   useEffect(() => {
     const savedUser = localStorage.getItem('user');
@@ -281,8 +308,15 @@ export default function SessionManagement({
                 </svg>
               </div>
               <p className="text-xs text-gray-500">Registered</p>
-              <p className="text-xl font-bold text-blue-700">{registeredCount}</p>
-              <p className="text-xs text-blue-500 mt-0.5">tap to view</p>
+              {/* Show server total if available, otherwise fall back to local count */}
+              <p className="text-xl font-bold text-blue-700">
+                {serverTotal !== null ? serverTotal : registeredCount}
+              </p>
+              {serverTotal !== null ? (
+                <p className="text-xs text-blue-500 mt-0.5">total · tap</p>
+              ) : (
+                <p className="text-xs text-blue-500 mt-0.5">tap to view</p>
+              )}
             </div>
           </button>
 
@@ -351,6 +385,38 @@ export default function SessionManagement({
           </div>
         )}
 
+        {/* Quick Search Bar */}
+        <div className="mb-4">
+          <form
+            onSubmit={e => {
+              e.preventDefault();
+              if (homeSearch.trim() && onViewBuildingsWithSearch) {
+                onViewBuildingsWithSearch(homeSearch.trim());
+              } else if (onViewBuildings) {
+                onViewBuildings();
+              }
+            }}
+            className="relative"
+          >
+            <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
+            <input
+              type="text"
+              placeholder="Search buildings by address, name or lot…"
+              value={homeSearch}
+              onChange={e => setHomeSearch(e.target.value)}
+              className="w-full pl-9 pr-24 py-3 bg-white border border-gray-200 rounded-xl text-sm shadow focus:outline-none focus:ring-2 focus:ring-blue-300"
+            />
+            <button
+              type="submit"
+              className="absolute right-2 top-1/2 -translate-y-1/2 px-3 py-1.5 bg-blue-600 text-white text-xs font-semibold rounded-lg hover:bg-blue-700 active:bg-blue-800 transition"
+            >
+              Search
+            </button>
+          </form>
+        </div>
+
         {/* View All Buildings — always visible shortcut */}
         {onViewBuildings && (
           <button
@@ -365,7 +431,9 @@ export default function SessionManagement({
               </div>
               <div className="text-left">
                 <p className="text-sm font-semibold text-gray-900">View All Registered Buildings</p>
-                <p className="text-xs text-gray-500">{registeredCount} building{registeredCount !== 1 ? 's' : ''} registered · tap to browse &amp; review</p>
+                <p className="text-xs text-gray-500">
+                  {serverTotal !== null ? serverTotal : registeredCount} building{(serverTotal ?? registeredCount) !== 1 ? 's' : ''} registered · tap to browse &amp; review
+                </p>
               </div>
             </div>
             <svg className="w-5 h-5 text-blue-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">

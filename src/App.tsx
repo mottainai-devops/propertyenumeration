@@ -74,6 +74,7 @@ function App() {
   });
   const [sessionDrillDown, setSessionDrillDown] = useState<{ sessionId: string; lotCode: string } | null>(null);
   const [buildingsRefreshKey, setBuildingsRefreshKey] = useState(0);
+  const [buildingsInitialSearch, setBuildingsInitialSearch] = useState('');
   const sessionStartTimeRef = useRef<Date | null>(null);
   const { showToast, ToastContainer } = useToast();
 
@@ -706,7 +707,8 @@ function App() {
             pendingCount={pendingBuildings.length}
             onViewQueue={() => setCurrentScreen('offline-queue')}
             onViewStats={() => setCurrentScreen('statistics')}
-            onViewBuildings={() => setCurrentScreen('buildings-list')}
+            onViewBuildings={() => { setBuildingsInitialSearch(''); setCurrentScreen('buildings-list'); }}
+            onViewBuildingsWithSearch={(q) => { setBuildingsInitialSearch(q); setCurrentScreen('buildings-list'); }}
             onViewSessionHistory={() => setCurrentScreen('session-history')}
             onViewProfile={() => setCurrentScreen('profile-settings')}
             surveyedCount={surveyedBuildingIds.size}
@@ -749,8 +751,9 @@ function App() {
           <BuildingsList
             buildings={recentBuildings}
             pendingBuildings={pendingBuildings}
-            onClose={() => setCurrentScreen('session')}
+            onClose={() => { setBuildingsInitialSearch(''); setCurrentScreen('session'); }}
             refreshKey={buildingsRefreshKey}
+            initialSearch={buildingsInitialSearch}
           />
         )}
 

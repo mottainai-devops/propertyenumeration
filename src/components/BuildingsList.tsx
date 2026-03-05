@@ -32,9 +32,10 @@ interface BuildingsListProps {
   filterSessionId?: string;   // When set, fetches only buildings for this session
   filterSessionLabel?: string; // e.g. lot code for display in header
   refreshKey?: number;        // Increment to trigger a server refresh (e.g. after creating a building)
+  initialSearch?: string;     // Pre-fill search bar (e.g. from home screen quick search)
 }
 
-type FilterType = 'All' | 'Residential' | 'Commercial' | 'Industrial' | 'Mixed-Use' | 'Pending';
+type FilterType = 'All' | 'Today' | 'Residential' | 'Commercial' | 'Industrial' | 'Mixed-Use' | 'Pending';
 
 const PAGE_SIZE = 20;
 
@@ -61,9 +62,9 @@ function normaliseServerBuilding(b: Building): LocalBuilding {
   };
 }
 
-export default function BuildingsList({ buildings, pendingBuildings, onClose, filterSessionId, filterSessionLabel, refreshKey }: BuildingsListProps) {
+export default function BuildingsList({ buildings, pendingBuildings, onClose, filterSessionId, filterSessionLabel, refreshKey, initialSearch }: BuildingsListProps) {
   const [filter, setFilter] = useState<FilterType>('All');
-  const [search, setSearch] = useState('');
+  const [search, setSearch] = useState(initialSearch ?? '');
   const [serverBuildings, setServerBuildings] = useState<LocalBuilding[]>([]);
   const [loadingServer, setLoadingServer] = useState(false);
   const [serverError, setServerError] = useState('');
@@ -174,16 +175,24 @@ export default function BuildingsList({ buildings, pendingBuildings, onClose, fi
   }, [serverBuildings, buildings, pendingBuildings]);
 
   const filtered = useMemo(() => {
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    const todayEnd = new Date();
+    todayEnd.setHours(23, 59, 59, 999);
+
     return allBuildings.filter(b => {
       const matchesFilter =
         filter === 'All' ||
         (filter === 'Pending' && b.synced === false) ||
+        (filter === 'Today' && b.timestamp !== undefined &&
+          b.timestamp >= todayStart.getTime() && b.timestamp <= todayEnd.getTime()) ||
         b.propertyType?.toLowerCase() === filter.toLowerCase();
       const matchesSearch =
         !search ||
         b.address?.toLowerCase().includes(search.toLowerCase()) ||
         b.buildingName?.toLowerCase().includes(search.toLowerCase()) ||
-        b.lotCode?.toLowerCase().includes(search.toLowerCase());
+        b.lotCode?.toLowerCase().includes(search.toLowerCase()) ||
+        b.buildingId?.toLowerCase().includes(search.toLowerCase());
       return matchesFilter && matchesSearch;
     });
   }, [allBuildings, filter, search]);
@@ -235,7 +244,7 @@ export default function BuildingsList({ buildings, pendingBuildings, onClose, fi
     'mixed-use': 'bg-teal-100 text-teal-700',
   };
 
-  const filters: FilterType[] = ['All', 'Residential', 'Commercial', 'Industrial', 'Mixed-Use', 'Pending'];
+  const filters: FilterType[] = ['All', 'Today', 'Residential', 'Commercial', 'Industrial', 'Mixed-Use', 'Pending'];
 
   // Handle unlink customer
   const handleUnlink = async (b: LocalBuilding) => {
@@ -377,7 +386,14 @@ export default function BuildingsList({ buildings, pendingBuildings, onClose, fi
                 }`}
               >
                 {f}
-                {f === 'Pending' && pendingBuildings.length > 0 && (
+                {f === 'Today' && (() => {
+              const todayStart = new Date(); todayStart.setHours(0,0,0,0);
+              const todayCount = allBuildings.filter(b => b.timestamp !== undefined && b.timestamp >= todayStart.getTime()).length;
+              return todayCount > 0 ? (
+                <span className="ml-1 bg-green-500 text-white text-xs rounded-full px-1.5 py-0.5 font-bold">{todayCount}</span>
+              ) : null;
+            })()}
+            {f === 'Pending' && pendingBuildings.length > 0 && (
                   <span className="ml-1 bg-yellow-500 text-white rounded-full px-1.5 py-0.5 text-xs">{pendingBuildings.length}</span>
                 )}
               </button>
