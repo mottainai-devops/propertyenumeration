@@ -298,9 +298,11 @@ export const buildingApi = {
     const building = normaliseBuilding(raw);
 
     // Step 2: If photos exist, upload them separately via XHR (handles multipart correctly)
-    if (data.photos && data.photos.length > 0 && building._id) {
+    if (data.photos && data.photos.length > 0 && (building.buildingId || building._id)) {
       try {
-        await buildingApi.addPhotos(building._id, data.photos);
+        // Use buildingId (e.g. "URBAN-SPIRIT6005") — the create response does NOT include _id
+        const buildingIdForPhoto = building.buildingId || building._id;
+        await buildingApi.addPhotos(buildingIdForPhoto, data.photos);
       } catch (photoErr) {
         // Building was created successfully — photo upload failure is non-fatal
         // The building will appear without photos but can be added later
@@ -343,7 +345,8 @@ export const buildingApi = {
     const url = `https://upwork.kowope.xyz/api/property-enumeration/buildings/${buildingId}/photos`;
 
     const formData = new FormData();
-    photos.forEach((photo) => formData.append('photo', photo));
+    // Backend multer is configured for field name 'photos' (plural), NOT 'photo' (singular)
+    photos.forEach((photo) => formData.append('photos', photo));
 
     const headers: Record<string, string> = {};
     if (token) headers['Authorization'] = `Bearer ${token}`;
