@@ -88,9 +88,15 @@ interface RawBuilding {
 
 /** Normalise a raw backend building object into the canonical Building shape */
 function normaliseBuilding(raw: RawBuilding): Building {
+  // Guard: if raw is a string (CapacitorHttp failed to parse JSON), try to parse it
+  if (typeof raw === 'string') {
+    try { raw = JSON.parse(raw as unknown as string); } catch { raw = {} as RawBuilding; }
+  }
   return {
     ...raw,
     _id: raw._id ?? raw.buildingId ?? '',
+    // Ensure buildingId is always explicitly set (not just via spread)
+    buildingId: raw.buildingId ?? raw._id ?? '',
     gpsCoordinates: raw.gpsCoordinates ?? {
       latitude: raw.gpsLatitude ?? 0,
       longitude: raw.gpsLongitude ?? 0,

@@ -423,13 +423,19 @@ function App() {
 
         if (linkedCustomerId) {
           try {
-            // FIX #5: Use auto-generated buildingId CODE (not MongoDB _id) for customer link
-            const buildingIdCode = building.buildingId ?? building._id;
+            // Use buildingId (auto-generated code e.g. "URBAN-SPIRIT6009") for the link.
+            // _id is always populated by normaliseBuilding (raw.buildingId ?? raw._id ?? '').
+            // Prefer buildingId over _id since the backend link endpoint expects the code.
+            const buildingIdCode = (building.buildingId || building._id || '').trim();
+            if (!buildingIdCode) {
+              throw new Error(`Building ID missing from create response: ${JSON.stringify(building)}`);
+            }
+            console.log('[Link] Linking customer', linkedCustomerId, 'to building', buildingIdCode);
             await customerApi.link(linkedCustomerId, buildingIdCode);
             showToast('Building registered and customer linked!', 'success');
           } catch (error) {
-            logError('Customer Linking', error, { linkedCustomerId, buildingId: building.buildingId });
-            showToast('Building registered but customer linking failed', 'warning');
+            logError('Customer Linking', error, { linkedCustomerId, buildingId: building.buildingId, building_id: building._id });
+            showToast('Building registered but customer linking failed — please link manually', 'warning');
           }
         } else {
           showToast('Building registered successfully!', 'success');
