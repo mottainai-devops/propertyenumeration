@@ -1,4 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
+import { Filesystem, Directory, Encoding } from '@capacitor/filesystem';
+import { Share } from '@capacitor/share';
+import { Capacitor } from '@capacitor/core';
 import { authApi, customerApi, type ImportResult } from '../api/client';
 
 interface CustomerImportProps {
@@ -143,22 +146,41 @@ export default function CustomerImport({ user, onBack }: CustomerImportProps) {
   const validRows = rows.filter(r => !r._error);
   const invalidRows = rows.filter(r => r._error);
 
-  const handleDownloadTemplate = () => {
+  const handleDownloadTemplate = async () => {
     const content = [CSV_TEMPLATE_HEADERS, ...CSV_TEMPLATE_ROWS].join('\n');
     const filename = 'customer_import_template.csv';
-    // Use a data: URI — this is the most reliable download method in Android WebView.
-    // navigator.share with File objects and createObjectURL both fail silently on some
-    // Android versions. A data: URI with the download attribute works without any async
-    // operations or gesture-context loss.
-    const dataUri = 'data:text/csv;charset=utf-8,' + encodeURIComponent(content);
-    const a = document.createElement('a');
-    a.href = dataUri;
-    a.download = filename;
-    a.style.display = 'none';
-    document.body.appendChild(a);
-    a.click();
-    // Small delay before cleanup so the browser has time to register the click
-    setTimeout(() => { document.body.removeChild(a); }, 100);
+
+    if (Capacitor.isNativePlatform()) {
+      try {
+        // Write the CSV to the app's cache directory
+        const result = await Filesystem.writeFile({
+          path: filename,
+          data: content,
+          directory: Directory.Cache,
+          encoding: Encoding.UTF8,
+        });
+        // Share/open the file so the user can save it to Downloads or open in a spreadsheet app
+        await Share.share({
+          title: 'Customer Import Template',
+          text: 'Use this CSV template to import customers.',
+          url: result.uri,
+          dialogTitle: 'Save or open CSV template',
+        });
+      } catch (err) {
+        console.error('[CSV Template] Download failed:', err);
+        alert('Could not save the template file. Please try again.');
+      }
+    } else {
+      // Web fallback: standard anchor download
+      const dataUri = 'data:text/csv;charset=utf-8,' + encodeURIComponent(content);
+      const a = document.createElement('a');
+      a.href = dataUri;
+      a.download = filename;
+      a.style.display = 'none';
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(() => { document.body.removeChild(a); }, 100);
+    }
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
