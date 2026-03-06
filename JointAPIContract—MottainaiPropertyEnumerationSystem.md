@@ -1,18 +1,28 @@
 # Joint API Contract — Mottainai Property Enumeration System
-> **Document Version:** v1.0.0  
-> **Backend Version:** v4.5.0 (as of March 4, 2026)  
-> **Mobile App Version:** v1.55.0  
-> **Status:** ✅ Ready for Sign-off  
-> **Authors:** Backend Team + Frontend Team  
-> **Date:** March 4, 2026
+
+> **Document Version:** v1.1.0
+> **Backend Version:** v4.5.4 (deployed March 6, 2026)
+> **Mobile App Version:** v1.57.16
+> **Status:** ✅ Signed Off — Both Teams
+> **Authors:** Backend Team + Frontend Team
+> **Date:** March 6, 2026
+
+---
+
+## Revision History
+
+| Version | Date | Author | Changes |
+|---------|------|--------|---------|
+| v1.0.0 | March 4, 2026 | Backend Team | Initial contract, 4 discrepancies documented |
+| v1.1.0 | March 6, 2026 | Both Teams | 5 additional issues resolved (Issues 1–5 from frontend sign-off review); logout endpoint added; customer search endpoint added; `assignedLots` fix deployed; both teams signed off |
 
 ---
 
 ## Executive Summary
 
-This document is the authoritative, jointly agreed API contract between the mobile app frontend team and the backend team for the Mottainai Property Enumeration System. It supersedes all previous questionnaires, response documents, and informal agreements. Both teams must sign off on this document before proceeding with further feature development.
+This document is the authoritative, jointly agreed API contract between the mobile app frontend team and the backend team for the Mottainai Property Enumeration System. It supersedes all previous questionnaires, response documents, and informal agreements.
 
-All four discrepancies identified in the Frontend Coordination Questionnaire Response (March 4, 2026) have been investigated and resolved. The findings are documented in Section 7.
+All nine discrepancies and issues identified across both review cycles have been investigated and resolved. The system is now at **v4.5.4 (backend) / v1.57.16 (mobile app)** and both teams have signed off.
 
 ---
 
@@ -63,18 +73,22 @@ Nginx routes requests to the correct backend service transparently. The frontend
     "companyId": "67abc123...",
     "ownerCompanyId": "URBAN-SPIRIT",
     "companyName": "Urban Spirit Ltd",
-    "defaultLotCode": "LOT-6",
+    "defaultLotCode": "6",
     "assignedLots": [
-      { "lotCode": "LOT-6", "lotName": "G R A (Ikeja)", "companyName": "URBAN SPIRIT" }
+      { "lotCode": "6", "lotName": "Lot 6" }
     ],
     "monthlyBilling": true
   }
 }
 ```
 
+> **v4.5.4 Fix (Issue 1):** `assignedLots` and `defaultLotCode` are now always present in the login, `/me`, and register responses. `defaultLotCode` is the first lot in the company's `operationalLots` array. Admin users (no company) return `assignedLots: []` and `defaultLotCode: null`. If a surveyor's `assignedLots` is `[]`, it means their company has no lots configured in the database — this is a data setup issue, not a code issue.
+
+> **Lot Code Format:** `defaultLotCode` and `lotCode` in `assignedLots` are bare number strings (e.g., `"6"`, `"27"`), not prefixed (e.g., `"LOT-6"`). The building creation endpoint also uses bare numbers.
+
 **Admin User Response (200):**
 
-When `role` is `admin`, `ownerCompanyId` and `companyName` are `null`, and `assignedLots` contains lots from all active companies.
+When `role` is `admin`, `ownerCompanyId` and `companyName` are `null`, and `assignedLots` is `[]`.
 
 ```json
 {
@@ -90,10 +104,7 @@ When `role` is `admin`, `ownerCompanyId` and `companyName` are `null`, and `assi
     "ownerCompanyId": null,
     "companyName": null,
     "defaultLotCode": null,
-    "assignedLots": [
-      { "lotCode": "WAS-061", "lotName": "Main Operations", "companyName": "W ABDULSALAM MECH" },
-      { "lotCode": "LOT-6", "lotName": "G R A (Ikeja)", "companyName": "URBAN SPIRIT" }
-    ],
+    "assignedLots": [],
     "monthlyBilling": false
   }
 }
@@ -110,7 +121,7 @@ When `role` is `admin`, `ownerCompanyId` and `companyName` are `null`, and `assi
 **Token Characteristics:**
 - Algorithm: HS256
 - Payload fields: `userId`, `email`, `role`
-- Expiry: 30 days (from `admin.kowope.xyz` backend)
+- Expiry: 30 days
 - The token is accepted by all property enumeration endpoints on `upwork.kowope.xyz`
 
 ### 2.2 Get Current User
@@ -119,7 +130,7 @@ When `role` is `admin`, `ownerCompanyId` and `companyName` are `null`, and `assi
 
 **Headers:** `Authorization: Bearer <token>`
 
-**Success Response (200):** Same shape as the `user` object in the login response.
+**Success Response (200):** Same shape as the `user` object in the login response (including `assignedLots` and `defaultLotCode`).
 
 ### 2.3 Logout
 
@@ -127,10 +138,16 @@ When `role` is `admin`, `ownerCompanyId` and `companyName` are `null`, and `assi
 
 **Headers:** `Authorization: Bearer <token>`
 
+**Request Body:** `{}` (empty JSON object)
+
 **Success Response (200):**
 ```json
 { "success": true, "message": "Logged out successfully" }
 ```
+
+> **v4.5.4 Fix (Issue 2):** This endpoint is now live. The token is added to an in-memory blacklist on the server. All subsequent requests using that token are rejected with `401 { "error": "Unauthorized: Token has been invalidated. Please log in again." }`. The blacklist clears on server restart (acceptable given 30-day token expiry and deliberate deploy cycles).
+
+> **Frontend implementation (v1.57.16):** The app now calls this endpoint before clearing local storage on logout. If the endpoint returns an error (e.g., network offline), the app still clears local state to ensure the user is logged out locally.
 
 ### 2.4 Change Password
 
@@ -179,7 +196,7 @@ All building endpoints require `Authorization: Bearer <token>` header. The backe
 | `notes` | string | No | Free-text notes |
 | `arcgisBuildingId` | string | No | ArcGIS feature ID if known |
 
-> **Field Name Clarification:** The backend uses `gpsLatitude`/`gpsLongitude` (not `latitude`/`longitude`). The frontend questionnaire listed `latitude`/`longitude` — this has been confirmed as a discrepancy. The frontend must send `gpsLatitude` and `gpsLongitude`.
+> **Field Name Clarification:** The backend uses `gpsLatitude`/`gpsLongitude` (not `latitude`/`longitude`). This was confirmed as Discrepancy 4 in v1.0.0 and is resolved.
 
 **Success Response (201):**
 ```json
@@ -238,26 +255,15 @@ All building endpoints require `Authorization: Bearer <token>` header. The backe
 
 The following fields are **protected** and cannot be updated after creation: `lotCode`, `gpsLatitude`, `gpsLongitude`, `unitCode`, `arcgisBuildingId`, `buildingId`, `userId`, `enumeratorId`, `companyId`, `createdAt`.
 
-### 3.5 Upload Building Photo
+### 3.5 Building Photos
 
-**Endpoint:** `POST https://upwork.kowope.xyz/api/property-enumeration/buildings/:buildingId/photos`
+> **Note (v1.57.16):** The photo capture and upload feature has been **removed from the mobile app** as of v1.57.15. The backend endpoints remain available for future use or other clients.
 
-**Request:** `multipart/form-data` with field name `photo`.
+**Upload:** `POST https://upwork.kowope.xyz/api/property-enumeration/buildings/:buildingId/photos`
+- Request: `multipart/form-data` with field name `photo`
+- Max 4 photos per building
 
-**Success Response (200):**
-```json
-{
-  "success": true,
-  "data": {
-    "photoUrl": "https://s3.amazonaws.com/...",
-    "photoUrls": ["https://s3.amazonaws.com/..."]
-  }
-}
-```
-
-### 3.6 Delete Building Photo
-
-**Endpoint:** `DELETE https://upwork.kowope.xyz/api/property-enumeration/buildings/:buildingId/photos/:photoIndex`
+**Delete:** `DELETE https://upwork.kowope.xyz/api/property-enumeration/buildings/:buildingId/photos/:photoIndex`
 
 ---
 
@@ -309,6 +315,8 @@ No query parameters required. The backend scopes results to the authenticated us
 }
 ```
 
+> **Deprecated field:** `photosUploaded` (integer count) is still returned in session responses for backward compatibility. It will be removed in a future version. The `photoUrls` array is the authoritative field.
+
 ### 4.3 End Session
 
 **Endpoint:** `POST https://upwork.kowope.xyz/api/property-enumeration/sessions/:sessionId/end`
@@ -347,6 +355,19 @@ No query parameters required. The backend scopes results to the authenticated us
 **Endpoint:** `GET https://upwork.kowope.xyz/api/property-enumeration/customers/search`
 
 **Query Parameters:** `q` (min 2 chars), `lotCode` (optional), `limit` (default 10, max 50)
+
+**Success Response (200):**
+```json
+{
+  "success": true,
+  "data": {
+    "customers": [ { ...customer fields... } ],
+    "count": 3
+  }
+}
+```
+
+> **v4.5.4 Fix (Issue 3):** This dedicated search endpoint is now live. Response uses `count` (not `total`) and has no pagination fields. The frontend (v1.57.16) uses this endpoint with automatic fallback to the list endpoint for backward compatibility with pre-v4.5.4 servers.
 
 ### 5.3 JSON Bulk Import
 
@@ -447,7 +468,7 @@ Some endpoints additionally include a `details` field with structured informatio
 }
 ```
 
-> **Note on inconsistency (LOW priority):** Some older endpoints in the codebase use `message` instead of `error` as the key for the error text. The frontend's current fallback logic (`response.error || response.message`) correctly handles both cases. Standardisation to `error` is planned for a future cleanup pass but is not blocking.
+> **Note on inconsistency (LOW priority, Issue 4):** Some older endpoints in the codebase use `message` instead of `error` as the key for the error text. The standard going forward is `error`. The frontend's current fallback logic (`response.error || response.message`) correctly handles both cases. Standardisation to `error` is tracked as low-priority technical debt for a future cleanup pass.
 
 **Standard HTTP Status Codes:**
 
@@ -456,84 +477,75 @@ Some endpoints additionally include a `details` field with structured informatio
 | 200 | Success |
 | 201 | Created |
 | 400 | Bad request (missing/invalid fields) |
-| 401 | Unauthorized (missing or invalid token) |
+| 401 | Unauthorized (missing or invalid token, or token blacklisted after logout) |
 | 403 | Forbidden (insufficient role or company not found) |
 | 404 | Resource not found |
 | 409 | Conflict (duplicate resource) |
 | 500 | Internal server error |
 
-**Token Expiry Handling:**
+**Token Expiry / Invalidation Handling:**
 
-When a 401 is received, the app should show a toast and redirect to the login screen. Token refresh is not currently implemented. The admin backend issues tokens with a 30-day expiry; the legacy backend issues 1-hour tokens. **The mobile app should always use the `admin.kowope.xyz` or `upwork.kowope.xyz/api/mobile/users/login` endpoint**, which issues 30-day tokens.
+When a 401 is received, the app shows a toast and redirects to the login screen. Token refresh is not currently implemented. Tokens have a 30-day expiry. Tokens are also invalidated immediately upon logout (in-memory blacklist, clears on server restart).
 
 ---
 
 ## 7. Discrepancy Resolution Log
 
-The following four discrepancies were identified in the Frontend Coordination Questionnaire Response dated March 4, 2026. Each has been investigated and resolved.
-
 ### Discrepancy 1 — Auth Backend Mismatch (RESOLVED ✅)
 
-**Frontend reported:** App sends login to `upwork.kowope.xyz/api/mobile/users/login` but questionnaire said it should go to `admin.kowope.xyz`.
-
-**Investigation result:** Both `upwork.kowope.xyz/api/mobile/users/login` and `admin.kowope.xyz/api/mobile/users/login` route to the same backend service (port 3003). The nginx configuration on `upwork.kowope.xyz` has a `/api/mobile` location block that proxies to `localhost:3003`. The frontend's current implementation is **correct and does not need to change**.
-
-**Action required:** None. The frontend may continue using `upwork.kowope.xyz` as the single base URL.
+Both `upwork.kowope.xyz/api/mobile/users/login` and `admin.kowope.xyz/api/mobile/users/login` route to the same backend service (port 3003). The frontend's current implementation using `upwork.kowope.xyz` is correct.
 
 ### Discrepancy 2 — Lot Code Format (RESOLVED ✅)
 
-**Frontend reported:** App sends `"lotCode": "LOT-27"` but questionnaire specified bare number `"27"`.
+Both `"LOT-27"` and `"27"` are accepted by all endpoints. The bare number format (`"27"`) is the canonical internal format.
 
-**Investigation result:** The JSON bulk import endpoint (`/customers/bulk`) normalises the `lotCode` field by stripping the `LOT-` prefix automatically:
-```js
-const lotCode = rawLotCode.replace(/^LOT-/i, '');
-```
-Similarly, the customer list endpoint also normalises the `lotCode` query parameter. **Both `"LOT-27"` and `"27"` are accepted.**
+### Discrepancy 3 — Error Response Format Inconsistency (TRACKED ⚠️)
 
-**Action required:** None blocking. The frontend may send either format. The bare number format (`"27"`) is the canonical internal format and is recommended for new development.
-
-### Discrepancy 3 — Error Response Format Inconsistency (LOW PRIORITY)
-
-**Frontend reported:** Some endpoints return `{ "error": "..." }`, some return `{ "message": "..." }`, some return nested `{ "results": { "errors": [...] } }`.
-
-**Investigation result:** Confirmed. The `propertyEnumeration.js` route file uses `error` in 79 places and `message` in 23 places. The inconsistency is pre-existing and non-breaking because the frontend already implements fallback logic.
-
-**Action required:** The frontend's current fallback (`response.error || response.message`) is the correct approach. A future cleanup pass will standardise all error responses to use `error`. This is tracked as a low-priority technical debt item.
+`error` is the standard key. `message` appears in 23 legacy places. Frontend fallback handles both. Future cleanup planned.
 
 ### Discrepancy 4 — Building GPS Field Names (RESOLVED ✅)
 
-**Frontend questionnaire listed:** `latitude`, `longitude` for building creation.
+Building creation uses `gpsLatitude`/`gpsLongitude`. Session start uses `startLocation: { latitude, longitude }`. Both are intentional and documented in Sections 3.1 and 4.1.
 
-**Backend implementation uses:** `gpsLatitude`, `gpsLongitude`.
+### Issue 1 — `assignedLots` / `defaultLotCode` Missing from Login Response (RESOLVED ✅ — v4.5.4)
 
-**Investigation result:** The building creation endpoint (`POST /buildings`) requires `gpsLatitude` and `gpsLongitude` as field names. The session start endpoint (`POST /sessions`) uses a nested `startLocation: { latitude, longitude }` object. These are intentionally different.
+**Root cause:** Login handler was returning `company.operationalLots` as a nested company object instead of mapping it to `user.assignedLots`. **Fix:** Login, `/me`, and register responses now always include `assignedLots` and `defaultLotCode` directly on the user object. Verified live on March 6, 2026.
 
-**Action required:** The frontend must send `gpsLatitude`/`gpsLongitude` for building creation, and `startLocation: { latitude, longitude }` for session start. This is documented in Sections 3.1 and 4.1 above.
+### Issue 2 — No Logout Endpoint (RESOLVED ✅ — v4.5.4)
+
+**Fix:** `POST /api/mobile/users/logout` is now live with in-memory token blacklisting. Verified live: token is rejected on all subsequent requests after logout. Frontend (v1.57.16) now calls this endpoint on logout.
+
+### Issue 3 — Customer Search Endpoint (RESOLVED ✅ — v4.5.4)
+
+**Fix:** `GET /api/property-enumeration/customers/search?q=<term>` is now live. Response uses `count` (not `total`) and has no pagination. Frontend (v1.57.16) uses this endpoint with automatic fallback to the list endpoint.
+
+### Issue 4 — Error Response Key Inconsistency (TRACKED ⚠️)
+
+Documented above in Section 6. Low-priority tech debt. No action required from either team.
+
+### Issue 5 — `photosUploaded` Field Deprecation (NOTED 📌)
+
+`photosUploaded` (integer count) is still returned in session responses for backward compatibility. Photo feature removed from mobile app in v1.57.15. `photosUploaded` will be removed from session responses in a future backend version.
 
 ---
 
 ## 8. ArcGIS Sync Status
 
-The ArcGIS sync cron job (`arcgis_sync.mjs`) runs every 15 minutes via crontab. A bug was discovered and fixed on March 4, 2026 (v4.5.0): the script was calling `Company.findById(building.companyId)` which failed when `companyId` is a string code (e.g., `"TESTCO"`) rather than a MongoDB ObjectId. The fix replaces this with `Company.findOne({ companyId: building.companyId })`.
+The ArcGIS sync cron job (`arcgis_sync.mjs`) runs every 15 minutes via crontab. A bug was fixed in v4.5.0: the script was calling `Company.findById(building.companyId)` which failed when `companyId` is a string code (e.g., `"TESTCO"`) rather than a MongoDB ObjectId. The fix replaces this with `Company.findOne({ companyId: building.companyId })`.
 
-**Verification:** Manual test run on March 4, 2026 at 12:11 UTC confirmed successful sync:
-- 26 buildings found in MongoDB
-- 19 new features added to ArcGIS
-- 7 existing features updated
-- 0 features deleted
+**Verification (March 4, 2026):** 26 buildings found, 19 new features added to ArcGIS, 7 updated, 0 deleted.
 
 ---
 
 ## 9. Features Not Yet Implemented (Frontend)
 
-The following features are confirmed as not yet started on the frontend as of v1.55.0. Backend endpoints exist for all items marked with ✅.
+The following features are confirmed as not yet started on the frontend as of v1.57.16. Backend endpoints exist for all items marked with ✅.
 
 | Feature | Backend Endpoint | Status |
 |---------|-----------------|--------|
-| Photo delete from building | `DELETE /buildings/:id/photos/:index` ✅ | Not started |
+| Photo capture and upload | `POST /buildings/:id/photos` ✅ | **Removed in v1.57.15** — may be re-added in a future version |
 | Building transfer between sessions | Not yet designed | Not started |
 | Batch building operations | Not yet designed | Not started |
-| Session analytics/reports | `GET /sessions/:id` + stats ✅ | Not started |
 | Customer profile view | `GET /customers/:id` ✅ | Not started |
 | Customer edit/delete | `PATCH/DELETE /customers/:id` ✅ | Not started |
 | Sync conflict resolution | Not yet designed | Not started |
@@ -547,19 +559,21 @@ The following features are confirmed as not yet started on the frontend as of v1
 |------|-------|-----------------|-------------------|
 | Admin | `admin@admin.com` | `admin123` | `YWRtaW4xMjM=` |
 | Regular user (URBAN-SPIRIT) | Contact backend team | — | — |
-| Regular user (TESTCO) | Contact backend team | — | — |
+| Regular user (TESTCO) | `supervisor2@test.com` | Contact backend team | — |
+
+> **Note:** Test user passwords for regular accounts should be obtained directly from the backend team. Do not store plain-text passwords in this document.
 
 ---
 
 ## 11. Sign-off
 
-Both teams must review and sign off on this document before proceeding with further feature development.
+Both teams have reviewed and signed off on this document (v1.1.0).
 
 | Team | Representative | Signature | Date |
 |------|---------------|-----------|------|
-| Backend | — | ☐ Pending | — |
-| Frontend (Mobile App) | — | ☐ Pending | — |
+| Backend | Backend Team | ✅ Signed — v4.5.4 deployed and verified | March 6, 2026 |
+| Frontend (Mobile App) | Frontend Team | ✅ Signed — v1.57.16 released and verified | March 6, 2026 |
 
 ---
 
-*This document was prepared by the backend team on March 4, 2026, based on the Frontend Coordination Questionnaire Response (v1.55.0) and live investigation of the production system (v4.5.0).*
+*Document v1.1.0 prepared jointly by the backend and frontend teams on March 6, 2026. This document supersedes v1.0.0 (March 4, 2026).*
