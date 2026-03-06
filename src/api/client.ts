@@ -184,7 +184,10 @@ export interface Lot {
   companyName?: string;
 }
 
-// Contract v1.0.0 §2.1: Login response shape (flat user object)
+// Contract v1.2.0 §2.1: Login response shape
+// companyId is the canonical company identifier (string code e.g. "URBAN-SPIRIT", null for admin)
+// ownerCompanyId / companyName / monthlyBilling do NOT exist on the backend user object
+// Company info is in the separate `company` object
 export interface LoginResponse {
   token: string;
   user: {
@@ -194,19 +197,29 @@ export interface LoginResponse {
     fullName: string;
     phone?: string;
     role: string;                 // 'admin' | 'user' | 'superadmin' | 'cherry_picker'
-    companyId?: string | null;    // MongoDB ObjectId or null for admin
-    ownerCompanyId?: string | null; // String code e.g. "URBAN-SPIRIT", null for admin
-    companyName?: string | null;  // Human-readable company name
+    companyId?: string | null;    // String code e.g. "URBAN-SPIRIT", null for admin (v1.2.0 canonical)
+    ownerCompanyId?: string | null; // Derived client-side from companyId for backward compat
+    companyName?: string | null;  // Derived client-side from company.companyName for backward compat
     defaultLotCode?: string | null;
-    monthlyBilling?: boolean;
     assignedLots: Lot[];
-    // Legacy nested company object (some backend versions)
+    // Nested company object returned by backend (v4.5.4+)
     company?: {
-      _id: string;
-      companyId?: string;
-      companyName: string;
+      _id?: string;
+      companyId?: string;         // String code e.g. "URBAN-SPIRIT"
+      companyName?: string;
+      operationalLots?: Lot[];
+      pin?: string;
+      active?: boolean;
     };
   };
+  // Top-level company object (v1.2.0 — company info lives here, not on user)
+  company?: {
+    companyId: string;
+    companyName: string;
+    operationalLots?: Lot[];
+    pin?: string;
+    active?: boolean;
+  } | null;
 }
 
 export const authApi = {
@@ -217,47 +230,57 @@ export const authApi = {
       email: credentials.email,
       password: encodedPassword,
     });
-    // Backend envelope: { success: true, data: { token, user } }
-    // parseData() in nativeHttp now correctly parses the response body,
-    // so response.data is the full envelope — we need the inner data object.
-    const result: LoginResponse = response.data?.data ?? response.data;
-    // Derive ownerCompanyId from company name if not explicitly set by backend
+    // v1.2.0: Backend returns { success, token, user, company } (not nested under data)
+    // Fallback to data envelope for older backend versions
+    const envelope = response.data?.data ?? response.data;
+    const result: LoginResponse = {
+      token: envelope.token,
+      user: envelope.user,
+      company: envelope.company ?? null,
+    };
+    // Derive ownerCompanyId for backward compat:
+    // v1.2.0: user.companyId IS the string code (e.g. "URBAN-SPIRIT")
+    // Fallback: derive from top-level company object or company name slug
     if (result?.user && !result.user.ownerCompanyId) {
-      const cName: string = result.user.company?.companyName ?? '';
+      const topCompany = result.company;
+      const nestedCompany = result.user.company;
+      const cName: string = topCompany?.companyName ?? nestedCompany?.companyName ?? '';
       result.user.ownerCompanyId =
-        result.user.company?.companyId ||
-        (cName ? cName.trim().toUpperCase().replace(/\s+/g, '-') : undefined);
+        result.user.companyId ||
+        topCompany?.companyId ||
+        nestedCompany?.companyId ||
+        (cName ? cName.trim().toUpperCase().replace(/\s+/g, '-') : null);
     }
     return result;
   },
 
   me: async (): Promise<LoginResponse['user']> => {
     const response = await apiClient.get('/api/mobile/users/me');
-    // Contract v1.0.0 §2.2: /me returns same shape as login user object
-    const raw = response.data?.data?.user ?? response.data?.user ?? response.data;
+    // v1.2.0 §2.2: /me returns { success, user, company } — same shape as login
+    const envelope = response.data?.data ?? response.data;
+    const raw = envelope.user ?? envelope;
+    const topCompany = envelope.company ?? null;
 
-    // Derive ownerCompanyId from multiple possible backend fields.
-    // Priority: explicit ownerCompanyId > company.companyId > company.companyName slug
-    const companyName: string =
-      raw.companyName ?? raw.company?.companyName ?? '';
-    const derivedCompanyId: string | undefined =
-      raw.ownerCompanyId ||
+    // Derive ownerCompanyId for backward compat:
+    // v1.2.0: user.companyId IS the string code (e.g. "URBAN-SPIRIT")
+    const cName: string = topCompany?.companyName ?? raw.company?.companyName ?? raw.companyName ?? '';
+    const derivedCompanyId: string | null =
+      raw.companyId ||
+      topCompany?.companyId ||
       raw.company?.companyId ||
-      raw.company?.ownerCompanyId ||
-      // Convert company name to uppercase slug: "Urban Spirit" → "URBAN-SPIRIT"
-      (companyName ? companyName.trim().toUpperCase().replace(/\s+/g, '-') : undefined);
+      (cName ? cName.trim().toUpperCase().replace(/\s+/g, '-') : null);
 
     return {
       ...raw,
       _id: raw._id ?? raw.id ?? '',
       fullName: raw.fullName ?? raw.name ?? '',
-      ownerCompanyId: derivedCompanyId ?? null,
-      companyName: raw.companyName ?? raw.company?.companyName ?? null,
+      companyId: raw.companyId ?? null,
+      ownerCompanyId: derivedCompanyId,  // backward compat alias for companyId
+      companyName: topCompany?.companyName ?? raw.company?.companyName ?? null,
       defaultLotCode: raw.defaultLotCode ?? null,
-      // Keep legacy nested company for backward compat
-      company: raw.company ?? (raw.companyId ? {
-        _id: raw.companyId,
-        companyName: raw.companyName ?? '',
+      company: raw.company ?? topCompany ?? (raw.companyId ? {
+        companyId: raw.companyId,
+        companyName: topCompany?.companyName ?? '',
       } : undefined),
       assignedLots: raw.assignedLots ?? [],
     };
@@ -620,10 +643,10 @@ export interface SessionStatistics {
 
 // ─── Session API ───────────────────────────────────────────────────────────────
 export const sessionApi = {
-  // Contract v1.0.0 §4.1: Session start endpoint is POST /sessions (no /start suffix)
+  // Contract v1.2.0 §4.1 Gap 3 correction: correct URL is POST /sessions/start (not /sessions)
   start: async (data: StartSessionRequest): Promise<Session | SessionConflictError> => {
     try {
-      const response = await apiClient.post('/api/property-enumeration/sessions', data);
+      const response = await apiClient.post('/api/property-enumeration/sessions/start', data);
       const raw: RawSession = response.data?.data?.session ?? response.data?.data ?? response.data;
       return normaliseSession(raw);
     } catch (error: any) {

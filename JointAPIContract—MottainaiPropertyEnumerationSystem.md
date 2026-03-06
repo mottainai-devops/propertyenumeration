@@ -1,7 +1,7 @@
 # Joint API Contract — Mottainai Property Enumeration System
 
-> **Document Version:** v1.1.0
-> **Backend Version:** v4.5.4 (deployed March 6, 2026)
+> **Document Version:** v1.2.0
+> **Backend Version:** v4.5.5 (deployed March 6, 2026)
 > **Mobile App Version:** v1.57.16
 > **Status:** ✅ Signed Off — Both Teams
 > **Authors:** Backend Team + Frontend Team
@@ -15,6 +15,7 @@
 |---------|------|--------|---------|
 | v1.0.0 | March 4, 2026 | Backend Team | Initial contract, 4 discrepancies documented |
 | v1.1.0 | March 6, 2026 | Both Teams | 5 additional issues resolved (Issues 1–5 from frontend sign-off review); logout endpoint added; customer search endpoint added; `assignedLots` fix deployed; both teams signed off |
+| v1.2.0 | March 6, 2026 | Backend Team | 6 gaps corrected from independent audit: removed non-existent fields (`ownerCompanyId`, `companyName`, `monthlyBilling`) from login response; corrected session start URL; corrected sessions list response shape (pagination wrapper); added Change Password endpoint (now implemented); added `arcgisBuildingId` filter to buildings list; documented analytics endpoints |
 
 ---
 
@@ -22,7 +23,7 @@
 
 This document is the authoritative, jointly agreed API contract between the mobile app frontend team and the backend team for the Mottainai Property Enumeration System. It supersedes all previous questionnaires, response documents, and informal agreements.
 
-All nine discrepancies and issues identified across both review cycles have been investigated and resolved. The system is now at **v4.5.4 (backend) / v1.57.16 (mobile app)** and both teams have signed off.
+All discrepancies and issues identified across both review cycles have been investigated and resolved. The system is now at **v4.5.5 (backend) / v1.57.16 (mobile app)**.
 
 ---
 
@@ -57,7 +58,7 @@ Nginx routes requests to the correct backend service transparently. The frontend
 }
 ```
 
-> **Note:** Passwords must be base64-encoded before sending. Example: `admin123` → `YWRtaW4xMjM=`.
+> **Note:** Passwords must be base64-encoded before sending. Example: `admin123` → `YWRtaW4xMjM=`. Plain text passwords are also accepted (v2.7+ behaviour) but base64 is the canonical format.
 
 **Success Response (200):**
 ```json
@@ -70,25 +71,31 @@ Nginx routes requests to the correct backend service transparently. The frontend
     "fullName": "Full Name",
     "phone": "08012345678",
     "role": "user",
-    "companyId": "67abc123...",
-    "ownerCompanyId": "URBAN-SPIRIT",
-    "companyName": "Urban Spirit Ltd",
+    "companyId": "URBAN-SPIRIT",
     "defaultLotCode": "6",
     "assignedLots": [
+      { "lotCode": "6", "lotName": "Lot 6", "companyName": "Urban Spirit Ltd" }
+    ]
+  },
+  "company": {
+    "companyId": "URBAN-SPIRIT",
+    "companyName": "Urban Spirit Ltd",
+    "operationalLots": [
       { "lotCode": "6", "lotName": "Lot 6" }
     ],
-    "monthlyBilling": true
+    "pin": "1234",
+    "active": true
   }
 }
 ```
 
-> **v4.5.4 Fix (Issue 1):** `assignedLots` and `defaultLotCode` are now always present in the login, `/me`, and register responses. `defaultLotCode` is the first lot in the company's `operationalLots` array. Admin users (no company) return `assignedLots: []` and `defaultLotCode: null`. If a surveyor's `assignedLots` is `[]`, it means their company has no lots configured in the database — this is a data setup issue, not a code issue.
+> **v1.2.0 Correction:** The `user` object does **not** contain `ownerCompanyId`, `companyName`, or `monthlyBilling` — these fields do not exist in the backend. Company information is in the separate `company` object. `companyId` on the user is the string code (e.g., `"URBAN-SPIRIT"`), not a MongoDB ObjectId.
 
-> **Lot Code Format:** `defaultLotCode` and `lotCode` in `assignedLots` are bare number strings (e.g., `"6"`, `"27"`), not prefixed (e.g., `"LOT-6"`). The building creation endpoint also uses bare numbers.
+> **v4.5.4 Fix (Issue 1):** `assignedLots` and `defaultLotCode` are now always present in the login, `/me`, and register responses. `defaultLotCode` is the first lot in the company's `operationalLots` array. Admin users (no company) return `assignedLots: []`, `defaultLotCode: null`, and `company: null`.
+
+> **Lot Code Format:** `defaultLotCode` and `lotCode` in `assignedLots` are bare number strings (e.g., `"6"`, `"27"`), not prefixed (e.g., `"LOT-6"`).
 
 **Admin User Response (200):**
-
-When `role` is `admin`, `ownerCompanyId` and `companyName` are `null`, and `assignedLots` is `[]`.
 
 ```json
 {
@@ -101,12 +108,10 @@ When `role` is `admin`, `ownerCompanyId` and `companyName` are `null`, and `assi
     "phone": "123546789",
     "role": "admin",
     "companyId": null,
-    "ownerCompanyId": null,
-    "companyName": null,
     "defaultLotCode": null,
-    "assignedLots": [],
-    "monthlyBilling": false
-  }
+    "assignedLots": []
+  },
+  "company": null
 }
 ```
 
@@ -114,15 +119,17 @@ When `role` is `admin`, `ownerCompanyId` and `companyName` are `null`, and `assi
 
 | Status | Body | Meaning |
 |--------|------|---------|
-| 400 | `{ "success": false, "error": "Email and password are required" }` | Missing fields |
-| 401 | `{ "success": false, "error": "Invalid email or password" }` | Bad credentials |
-| 500 | `{ "success": false, "error": "Internal server error" }` | Server error |
+| 400 | `{ "error": "Email and password are required" }` | Missing fields |
+| 400 | `{ "error": "Invalid email or password" }` | Bad credentials |
+| 500 | `{ "error": "Internal server error" }` | Server error |
 
 **Token Characteristics:**
 - Algorithm: HS256
-- Payload fields: `userId`, `email`, `role`
+- Payload fields: `userId`, `email`, `role`, `companyId`
 - Expiry: 30 days
 - The token is accepted by all property enumeration endpoints on `upwork.kowope.xyz`
+
+---
 
 ### 2.2 Get Current User
 
@@ -130,7 +137,34 @@ When `role` is `admin`, `ownerCompanyId` and `companyName` are `null`, and `assi
 
 **Headers:** `Authorization: Bearer <token>`
 
-**Success Response (200):** Same shape as the `user` object in the login response (including `assignedLots` and `defaultLotCode`).
+**Success Response (200):**
+```json
+{
+  "success": true,
+  "user": {
+    "id": "66212f85df2188147c7a81d7",
+    "email": "user@example.com",
+    "fullName": "Full Name",
+    "phone": "08012345678",
+    "role": "user",
+    "companyId": "URBAN-SPIRIT",
+    "defaultLotCode": "6",
+    "assignedLots": [
+      { "lotCode": "6", "lotName": "Lot 6", "companyName": "Urban Spirit Ltd" }
+    ]
+  },
+  "company": {
+    "companyId": "URBAN-SPIRIT",
+    "companyName": "Urban Spirit Ltd",
+    "operationalLots": [...],
+    "active": true
+  }
+}
+```
+
+> **v4.5.5 Fix:** The `/me` endpoint now returns `assignedLots` and `defaultLotCode` (same as the login response). Previously it returned only the bare user object without these fields, which caused surveyors to lose their lot assignments on app resume.
+
+---
 
 ### 2.3 Logout
 
@@ -145,9 +179,14 @@ When `role` is `admin`, `ownerCompanyId` and `companyName` are `null`, and `assi
 { "success": true, "message": "Logged out successfully" }
 ```
 
+**Error Response (401):**
+```json
+{ "success": false, "error": "No token provided" }
+```
+
 > **v4.5.4 Fix (Issue 2):** This endpoint is now live. The token is added to an in-memory blacklist on the server. All subsequent requests using that token are rejected with `401 { "error": "Unauthorized: Token has been invalidated. Please log in again." }`. The blacklist clears on server restart (acceptable given 30-day token expiry and deliberate deploy cycles).
 
-> **Frontend implementation (v1.57.16):** The app now calls this endpoint before clearing local storage on logout. If the endpoint returns an error (e.g., network offline), the app still clears local state to ensure the user is logged out locally.
+---
 
 ### 2.4 Change Password
 
@@ -168,6 +207,16 @@ When `role` is `admin`, `ownerCompanyId` and `companyName` are `null`, and `assi
 { "success": true, "message": "Password updated successfully" }
 ```
 
+**Error Responses:**
+
+| Status | Body | Meaning |
+|--------|------|---------|
+| 400 | `{ "error": "Current password and new password are required" }` | Missing fields |
+| 401 | `{ "error": "Current password is incorrect" }` | Wrong current password |
+| 401 | `{ "error": "Unauthorized" }` | Invalid or missing token |
+
+> **v1.2.0 Note:** This endpoint is implemented on the backend. The frontend team should implement the Change Password screen in a future version.
+
 ---
 
 ## 3. Property Enumeration — Buildings
@@ -178,7 +227,7 @@ All building endpoints require `Authorization: Bearer <token>` header. The backe
 
 **Endpoint:** `POST https://upwork.kowope.xyz/api/property-enumeration/buildings`
 
-**Request Body (JSON):**
+**Request:** `multipart/form-data` (required when including photos; also accepted for text-only requests)
 
 | Field | Type | Required | Notes |
 |-------|------|----------|-------|
@@ -195,6 +244,9 @@ All building endpoints require `Authorization: Bearer <token>` header. The backe
 | `contactPhoneNumber` | string | No | Contact phone |
 | `notes` | string | No | Free-text notes |
 | `arcgisBuildingId` | string | No | ArcGIS feature ID if known |
+| `photo` | file | No | Up to 4 photos; field name must be `photo` (not `photos`) |
+
+> **v4.5.2 Fix:** The building creation endpoint now correctly parses `multipart/form-data`. Previously, sending a multipart request (even without photos) caused all fields to appear missing. The fix adds `multer` middleware to the route.
 
 > **Field Name Clarification:** The backend uses `gpsLatitude`/`gpsLongitude` (not `latitude`/`longitude`). This was confirmed as Discrepancy 4 in v1.0.0 and is resolved.
 
@@ -203,19 +255,26 @@ All building endpoints require `Authorization: Bearer <token>` header. The backe
 {
   "success": true,
   "data": {
-    "buildingId": "URBAN-SPIRIT LOT-6 001",
-    "address": "12 Awolowo Road",
-    "lotCode": "6",
-    "propertyType": "Residential",
-    "numberOfUnits": 4,
-    "gpsLatitude": 6.5244,
-    "gpsLongitude": 3.3792,
-    "companyId": "URBAN-SPIRIT",
-    "enumeratorId": "66212f85...",
-    "createdAt": "2026-03-04T12:00:00.000Z"
+    "building": {
+      "buildingId": "URBAN-SPIRIT LOT-6 001",
+      "address": "12 Awolowo Road",
+      "lotCode": "6",
+      "propertyType": "Residential",
+      "numberOfUnits": 4,
+      "gpsLatitude": 6.5244,
+      "gpsLongitude": 3.3792,
+      "companyId": "URBAN-SPIRIT",
+      "enumeratorId": "66212f85...",
+      "photoUrls": [],
+      "createdAt": "2026-03-04T12:00:00.000Z"
+    }
   }
 }
 ```
+
+> **v1.2.0 Correction:** The building is returned under `data.building` (not directly under `data`).
+
+---
 
 ### 3.2 List Buildings
 
@@ -230,6 +289,7 @@ All building endpoints require `Authorization: Bearer <token>` header. The backe
 | `lotCode` | string | — | Filter by lot (bare number or `LOT-` prefix, both accepted) |
 | `propertyType` | string | — | Filter by type |
 | `search` | string | — | Search address/buildingId |
+| `arcgisBuildingId` | string | — | Filter by ArcGIS polygon ID (v4.5.3 fix — used for R1/R2/R3 counter) |
 
 **Success Response (200):**
 ```json
@@ -237,17 +297,35 @@ All building endpoints require `Authorization: Bearer <token>` header. The backe
   "success": true,
   "data": {
     "buildings": [...],
-    "total": 42,
-    "page": 1,
-    "limit": 20,
-    "totalPages": 3
+    "pagination": {
+      "total": 42,
+      "page": 1,
+      "limit": 20,
+      "totalPages": 3
+    }
   }
 }
 ```
 
+> **v1.2.0 Correction:** Pagination fields are nested inside a `pagination` wrapper object (not at the top level of `data`). Access as `data.pagination.total`, `data.pagination.totalPages`, etc.
+
+---
+
 ### 3.3 Get Building by ID
 
 **Endpoint:** `GET https://upwork.kowope.xyz/api/property-enumeration/buildings/:buildingId`
+
+**Success Response (200):**
+```json
+{
+  "success": true,
+  "data": {
+    "building": { ...full building object... }
+  }
+}
+```
+
+---
 
 ### 3.4 Update Building
 
@@ -255,15 +333,19 @@ All building endpoints require `Authorization: Bearer <token>` header. The backe
 
 The following fields are **protected** and cannot be updated after creation: `lotCode`, `gpsLatitude`, `gpsLongitude`, `unitCode`, `arcgisBuildingId`, `buildingId`, `userId`, `enumeratorId`, `companyId`, `createdAt`.
 
+---
+
 ### 3.5 Building Photos
 
-> **Note (v1.57.16):** The photo capture and upload feature has been **removed from the mobile app** as of v1.57.15. The backend endpoints remain available for future use or other clients.
+> **Note (v1.57.15+):** The photo capture and upload feature has been **removed from the mobile app** as of v1.57.15. The backend endpoints remain available for future use or other clients.
 
 **Upload:** `POST https://upwork.kowope.xyz/api/property-enumeration/buildings/:buildingId/photos`
-- Request: `multipart/form-data` with field name `photo`
+- Request: `multipart/form-data` with field name `photo` (not `photos`)
 - Max 4 photos per building
+- Response includes updated `photoUrls` array
 
 **Delete:** `DELETE https://upwork.kowope.xyz/api/property-enumeration/buildings/:buildingId/photos/:photoIndex`
+- `:photoIndex` is the URL-encoded photo URL (not a numeric index)
 
 ---
 
@@ -271,7 +353,9 @@ The following fields are **protected** and cannot be updated after creation: `lo
 
 ### 4.1 Start Session
 
-**Endpoint:** `POST https://upwork.kowope.xyz/api/property-enumeration/sessions`
+**Endpoint:** `POST https://upwork.kowope.xyz/api/property-enumeration/sessions/start`
+
+> **v1.2.0 Correction:** The correct URL is `/sessions/start` (not `/sessions`). Sending `POST /sessions` returns 404.
 
 **Request Body:**
 ```json
@@ -286,6 +370,25 @@ The following fields are **protected** and cannot be updated after creation: `lo
 ```
 
 > **Note:** `startLocation` uses `latitude`/`longitude` (not `gpsLatitude`/`gpsLongitude`). This is intentional — session location uses a nested object with standard field names.
+
+**Success Response (201):**
+```json
+{
+  "success": true,
+  "data": {
+    "session": {
+      "_id": "67abc123...",
+      "sessionId": "SESS-URBAN-SPIRIT-001",
+      "lotCode": "27",
+      "startTime": "2026-03-04T08:00:00.000Z",
+      "status": "active",
+      "companyId": "URBAN-SPIRIT"
+    }
+  }
+}
+```
+
+---
 
 ### 4.2 List Sessions
 
@@ -306,16 +409,24 @@ No query parameters required. The backend scopes results to the authenticated us
         "endTime": null,
         "status": "active",
         "buildingsRegistered": 5,
-        "buildingsSurveyed": 3,
         "companyId": "URBAN-SPIRIT"
       }
     ],
-    "total": 12
+    "pagination": {
+      "total": 12,
+      "page": 1,
+      "limit": 20,
+      "totalPages": 1
+    }
   }
 }
 ```
 
+> **v1.2.0 Correction:** Sessions list response uses the same `pagination` wrapper as buildings. Access total as `data.pagination.total` (not `data.total`).
+
 > **Deprecated field:** `photosUploaded` (integer count) is still returned in session responses for backward compatibility. It will be removed in a future version. The `photoUrls` array is the authoritative field.
+
+---
 
 ### 4.3 End Session
 
@@ -327,9 +438,23 @@ No query parameters required. The backend scopes results to the authenticated us
 { "sessionId": "67abc123...", "notes": "Optional closing notes" }
 ```
 
+---
+
 ### 4.4 Get Session Buildings
 
 **Endpoint:** `GET https://upwork.kowope.xyz/api/property-enumeration/sessions/:sessionId/buildings`
+
+---
+
+### 4.5 Session Analytics (Admin Only)
+
+The following endpoints exist but are not required by the mobile app. They are documented here for completeness.
+
+| Endpoint | Description |
+|----------|-------------|
+| `GET /api/property-enumeration/sessions/statistics` | Aggregate statistics |
+| `GET /api/property-enumeration/sessions/analytics` | Detailed analytics with date range |
+| `GET /api/property-enumeration/sessions/analytics/supervisor-performance` | Per-supervisor performance metrics |
 
 ---
 
@@ -350,6 +475,26 @@ No query parameters required. The backend scopes results to the authenticated us
 | `buildingId` | string | Filter by linked building |
 | `search` | string | Search name/address/phone |
 
+**Success Response (200):**
+```json
+{
+  "success": true,
+  "data": {
+    "customers": [...],
+    "pagination": {
+      "total": 150,
+      "page": 1,
+      "limit": 20,
+      "totalPages": 8
+    }
+  }
+}
+```
+
+> **v1.2.0 Correction:** Customers list also uses the `pagination` wrapper (same pattern as buildings and sessions).
+
+---
+
 ### 5.2 Search Customers (Autocomplete)
 
 **Endpoint:** `GET https://upwork.kowope.xyz/api/property-enumeration/customers/search`
@@ -367,7 +512,9 @@ No query parameters required. The backend scopes results to the authenticated us
 }
 ```
 
-> **v4.5.4 Fix (Issue 3):** This dedicated search endpoint is now live. Response uses `count` (not `total`) and has no pagination fields. The frontend (v1.57.16) uses this endpoint with automatic fallback to the list endpoint for backward compatibility with pre-v4.5.4 servers.
+> **Important:** This endpoint uses `count` (not `total`) and has **no pagination fields**. This is intentional — it is a lightweight autocomplete endpoint, not a paginated list.
+
+---
 
 ### 5.3 JSON Bulk Import
 
@@ -414,12 +561,13 @@ No query parameters required. The backend scopes results to the authenticated us
     "updated": 3,
     "failed": 2,
     "errors": [
-      "Row missing required fields (customerName, address, lotCode): {...}",
-      "Error processing \"Jane Doe\": duplicate key"
+      "Row missing required fields (customerName, address, lotCode): {...}"
     ]
   }
 }
 ```
+
+---
 
 ### 5.4 CSV File Import
 
@@ -429,6 +577,8 @@ No query parameters required. The backend scopes results to the authenticated us
 
 > **Recommendation:** Use the JSON bulk import (Section 5.3) for mobile apps. The CSV endpoint is provided for legacy compatibility only.
 
+---
+
 ### 5.5 Link Customer to Building
 
 **Endpoint:** `POST https://upwork.kowope.xyz/api/property-enumeration/customers/:customerId/link`
@@ -437,6 +587,8 @@ No query parameters required. The backend scopes results to the authenticated us
 ```json
 { "buildingId": "URBAN-SPIRIT LOT-6 001" }
 ```
+
+---
 
 ### 5.6 Unlink Customer from Building
 
@@ -460,15 +612,15 @@ Some endpoints additionally include a `details` field with structured informatio
 ```json
 {
   "success": false,
-  "error": "Missing required fields",
+  "error": "Missing required fields: gpsLatitude, gpsLongitude",
   "details": {
-    "required": ["address", "lotCode"],
-    "received": ["address"]
+    "required": ["address", "lotCode", "gpsLatitude"],
+    "received": ["address", "lotCode"]
   }
 }
 ```
 
-> **Note on inconsistency (LOW priority, Issue 4):** Some older endpoints in the codebase use `message` instead of `error` as the key for the error text. The standard going forward is `error`. The frontend's current fallback logic (`response.error || response.message`) correctly handles both cases. Standardisation to `error` is tracked as low-priority technical debt for a future cleanup pass.
+> **Note on inconsistency (LOW priority):** Some older endpoints in the codebase use `message` instead of `error` as the key for the error text. The standard going forward is `error`. The frontend's current fallback logic (`response.error || response.message`) correctly handles both cases. Standardisation to `error` is tracked as low-priority technical debt for a future cleanup pass.
 
 **Standard HTTP Status Codes:**
 
@@ -509,15 +661,15 @@ Building creation uses `gpsLatitude`/`gpsLongitude`. Session start uses `startLo
 
 ### Issue 1 — `assignedLots` / `defaultLotCode` Missing from Login Response (RESOLVED ✅ — v4.5.4)
 
-**Root cause:** Login handler was returning `company.operationalLots` as a nested company object instead of mapping it to `user.assignedLots`. **Fix:** Login, `/me`, and register responses now always include `assignedLots` and `defaultLotCode` directly on the user object. Verified live on March 6, 2026.
+**Root cause:** Login handler was returning `company.operationalLots` as a nested company object instead of mapping it to `user.assignedLots`. **Fix:** Login, `/me`, and register responses now always include `assignedLots` and `defaultLotCode` directly on the user object.
 
 ### Issue 2 — No Logout Endpoint (RESOLVED ✅ — v4.5.4)
 
-**Fix:** `POST /api/mobile/users/logout` is now live with in-memory token blacklisting. Verified live: token is rejected on all subsequent requests after logout. Frontend (v1.57.16) now calls this endpoint on logout.
+**Fix:** `POST /api/mobile/users/logout` is now live with in-memory token blacklisting. Verified live: token is rejected on all subsequent requests after logout.
 
 ### Issue 3 — Customer Search Endpoint (RESOLVED ✅ — v4.5.4)
 
-**Fix:** `GET /api/property-enumeration/customers/search?q=<term>` is now live. Response uses `count` (not `total`) and has no pagination. Frontend (v1.57.16) uses this endpoint with automatic fallback to the list endpoint.
+**Fix:** `GET /api/property-enumeration/customers/search?q=<term>` is live. Response uses `count` (not `total`) and has no pagination.
 
 ### Issue 4 — Error Response Key Inconsistency (TRACKED ⚠️)
 
@@ -526,6 +678,30 @@ Documented above in Section 6. Low-priority tech debt. No action required from e
 ### Issue 5 — `photosUploaded` Field Deprecation (NOTED 📌)
 
 `photosUploaded` (integer count) is still returned in session responses for backward compatibility. Photo feature removed from mobile app in v1.57.15. `photosUploaded` will be removed from session responses in a future backend version.
+
+### Gap 1 (v1.2.0) — Non-Existent Fields in Login Response (CORRECTED ✅)
+
+v1.1.0 documented `ownerCompanyId`, `companyName`, and `monthlyBilling` on the `user` object. These fields do not exist in the backend. Removed from contract. Company information is in the separate `company` object. `companyId` is the string code (e.g., `"URBAN-SPIRIT"`).
+
+### Gap 2 (v1.2.0) — `/me` Missing `assignedLots` (RESOLVED ✅ — v4.5.5)
+
+The `/me` endpoint was not updated when the `assignedLots` fix was applied to login in v4.5.4. Fixed in v4.5.5. The `/me` endpoint now returns the same `assignedLots` and `defaultLotCode` fields as the login response.
+
+### Gap 3 (v1.2.0) — Session Start URL Wrong (CORRECTED ✅)
+
+v1.1.0 documented `POST /sessions`. The correct URL is `POST /sessions/start`. Corrected in Section 4.1.
+
+### Gap 4 (v1.2.0) — Pagination Wrapper Not Documented (CORRECTED ✅)
+
+Buildings, sessions, and customers list responses all wrap pagination fields inside a `pagination` object (`data.pagination.total`, etc.). v1.1.0 showed these fields at the top level of `data`. Corrected in Sections 3.2, 4.2, and 5.1.
+
+### Gap 5 (v1.2.0) — Change Password Endpoint (DOCUMENTED ✅)
+
+v1.1.0 listed `PATCH /me/password` as a contract requirement but the endpoint did not exist. The endpoint is now implemented and documented in Section 2.4.
+
+### Gap 6 (v1.2.0) — Analytics Endpoints Not Documented (DOCUMENTED ✅)
+
+Three analytics endpoints exist on the backend but were absent from the contract. Added to Section 4.5.
 
 ---
 
@@ -544,6 +720,7 @@ The following features are confirmed as not yet started on the frontend as of v1
 | Feature | Backend Endpoint | Status |
 |---------|-----------------|--------|
 | Photo capture and upload | `POST /buildings/:id/photos` ✅ | **Removed in v1.57.15** — may be re-added in a future version |
+| Change Password screen | `PATCH /me/password` ✅ | Not started — endpoint now live (v4.5.5) |
 | Building transfer between sessions | Not yet designed | Not started |
 | Batch building operations | Not yet designed | Not started |
 | Customer profile view | `GET /customers/:id` ✅ | Not started |
@@ -558,8 +735,9 @@ The following features are confirmed as not yet started on the frontend as of v1
 | Role | Email | Password (plain) | Password (base64) |
 |------|-------|-----------------|-------------------|
 | Admin | `admin@admin.com` | `admin123` | `YWRtaW4xMjM=` |
-| Regular user (URBAN-SPIRIT) | Contact backend team | — | — |
+| Cherry Picker | `cherrypicker.test@mottainai.com` | `123456` | `MTIzNDU2` |
 | Regular user (TESTCO) | `supervisor2@test.com` | Contact backend team | — |
+| Regular user (URBAN-SPIRIT) | Contact backend team | — | — |
 
 > **Note:** Test user passwords for regular accounts should be obtained directly from the backend team. Do not store plain-text passwords in this document.
 
@@ -567,13 +745,11 @@ The following features are confirmed as not yet started on the frontend as of v1
 
 ## 11. Sign-off
 
-Both teams have reviewed and signed off on this document (v1.1.0).
-
 | Team | Representative | Signature | Date |
 |------|---------------|-----------|------|
-| Backend | Backend Team | ✅ Signed — v4.5.4 deployed and verified | March 6, 2026 |
-| Frontend (Mobile App) | Frontend Team | ✅ Signed — v1.57.16 released and verified | March 6, 2026 |
+| Backend | Backend Team | ✅ Signed — v4.5.5 deployed and verified | March 6, 2026 |
+| Frontend (Mobile App) | Frontend Team | ⏳ Pending review of v1.2.0 corrections | — |
 
 ---
 
-*Document v1.1.0 prepared jointly by the backend and frontend teams on March 6, 2026. This document supersedes v1.0.0 (March 4, 2026).*
+*Document v1.2.0 prepared by the backend team on March 6, 2026. This document supersedes v1.1.0 (March 6, 2026) and v1.0.0 (March 4, 2026).*
