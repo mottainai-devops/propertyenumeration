@@ -233,7 +233,9 @@ function App() {
     }
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    // Contract v1.0.0 §2.3: Invalidate token on server first, then clear local state
+    await authApi.logout();
     localStorage.removeItem('authToken');
     localStorage.removeItem('user');
     setActiveServerSession(null);

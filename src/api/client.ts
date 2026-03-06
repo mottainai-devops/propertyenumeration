@@ -269,6 +269,15 @@ export const authApi = {
       newPassword: btoa(data.newPassword),
     });
   },
+
+  // Contract v1.0.0 §2.3: Server-side logout — invalidates token in backend blacklist
+  logout: async (): Promise<void> => {
+    try {
+      await apiClient.post('/api/mobile/users/logout', {});
+    } catch {
+      // Ignore errors — even if the server call fails, we still clear local state
+    }
+  },
 };
 
 // ─── Building API ──────────────────────────────────────────────────────────────
@@ -406,34 +415,45 @@ export interface BulkCustomer {
 // ─── Customer API ──────────────────────────────────────────────────────────────
 export const customerApi = {
   search: async (params: CustomerSearchParams): Promise<Customer[]> => {
+    // Contract v1.0.0 §5.2: Use dedicated search endpoint (backend v4.5.4+)
+    // Falls back to list endpoint if dedicated search returns 404 (pre-v4.5.4 servers)
     let response: any;
     try {
-      response = await apiClient.get('/api/property-enumeration/customers', {
+      response = await apiClient.get('/api/property-enumeration/customers/search', {
         params: {
-          search: params.query,   // Backend uses 'search' key
+          q: params.query,          // Dedicated search endpoint uses 'q' key
           lotCode: params.lotCode,
           limit: params.limit,
-          page: params.page,
         },
       });
     } catch (err: any) {
-      // nativeHttp throws for non-2xx. Read status from err.response
       const status: number = err?.response?.status ?? 0;
-      const backendMsg: string = err?.response?.data?.message || err?.response?.data?.error || err?.message || 'Unknown error';
-      console.error(`[customerApi.search] HTTP ${status}: ${backendMsg}`);
-      // 404 = no customers loaded yet for this company — treat as empty list
+      const backendMsg: string = err?.response?.data?.error || err?.response?.data?.message || err?.message || 'Unknown error';
+      // 404 with 'customerId' in details = dedicated endpoint not yet deployed
+      // Fall back to list endpoint for backward compatibility
+      const isEndpointMissing = status === 404 && err?.response?.data?.details?.customerId === 'search';
+      if (isEndpointMissing) {
+        console.warn('[customerApi.search] Dedicated search endpoint not available, falling back to list endpoint');
+        try {
+          const fallback = await apiClient.get('/api/property-enumeration/customers', {
+            params: { search: params.query, lotCode: params.lotCode, limit: params.limit, page: params.page },
+          });
+          const fallbackRaw: any[] = fallback.data?.data?.customers ?? fallback.data?.customers ?? [];
+          return fallbackRaw.map(normaliseCustomer);
+        } catch { return []; }
+      }
+      // 404 without the endpoint-missing signature = no customers yet
       if (status === 404) return [];
-      // Re-throw with a clear message including the HTTP status
       const rethrow = new Error(backendMsg) as any;
       rethrow.httpStatus = status;
       throw rethrow;
     }
-    // Also handle cases where backend returns success:false with 200
     if (response.data?.success === false) {
-      const msg = response.data?.message || 'Search failed';
+      const msg = response.data?.error || response.data?.message || 'Search failed';
       console.error(`[customerApi.search] success:false — ${msg}`);
       return [];
     }
+    // Search endpoint returns { data: { customers: [...], count: N } }
     const raw: any[] = response.data?.data?.customers ?? response.data?.customers ?? [];
     return raw.map(normaliseCustomer);
   },
