@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { buildingApi, customerApi, sessionApi } from '../api/client';
-import type { Building } from '../api/client';
+import type { Building, Customer } from '../api/client';
 import BuildingEdit from './BuildingEdit';
 
 interface LocalBuilding {
@@ -78,6 +78,15 @@ export default function BuildingsList({ buildings, pendingBuildings, onClose, fi
   // Unlink state
   const [unlinkingId, setUnlinkingId] = useState<string | null>(null);
   const [unlinkError, setUnlinkError] = useState<Record<string, string>>({});
+
+  // Re-link state (shown after unlink or when building has no customer)
+  const [relinkBuildingId, setRelinkBuildingId] = useState<string | null>(null);
+  const [relinkSearch, setRelinkSearch] = useState('');
+  const [relinkResults, setRelinkResults] = useState<Customer[]>([]);
+  const [relinkSearching, setRelinkSearching] = useState(false);
+  const [relinkLinking, setRelinkLinking] = useState(false);
+  const [relinkError, setRelinkError] = useState<Record<string, string>>({});
+  const relinkDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Load-more sentinel
   const sentinelRef = useRef<HTMLDivElement | null>(null);
@@ -251,11 +260,68 @@ export default function BuildingsList({ buildings, pendingBuildings, onClose, fi
           sb._id === b._id ? { ...sb, linkedCustomerId: undefined, linkedCustomerName: undefined } : sb
         )
       );
+      // Automatically open re-link panel after successful unlink
+      setRelinkBuildingId(b._id);
+      setRelinkSearch('');
+      setRelinkResults([]);
     } catch (err: any) {
       const msg = err?.response?.data?.message ?? err?.message ?? 'Failed to unlink customer';
       setUnlinkError(prev => ({ ...prev, [b._id!]: msg }));
     } finally {
       setUnlinkingId(null);
+    }
+  };
+
+  // Handle re-link customer search (debounced)
+  const handleRelinkSearchChange = (query: string) => {
+    setRelinkSearch(query);
+    if (relinkDebounceRef.current) clearTimeout(relinkDebounceRef.current);
+    if (!query.trim()) { setRelinkResults([]); return; }
+    relinkDebounceRef.current = setTimeout(async () => {
+      setRelinkSearching(true);
+      try {
+        const results = await customerApi.search({ query: query.trim(), limit: 10 });
+        setRelinkResults(results);
+      } catch {
+        setRelinkResults([]);
+      } finally {
+        setRelinkSearching(false);
+      }
+    }, 400);
+  };
+
+  // Handle re-link: link selected customer to building
+  const handleRelinkCustomer = async (b: LocalBuilding, customer: Customer) => {
+    if (!b._id) return;
+    setRelinkLinking(true);
+    setRelinkError(prev => ({ ...prev, [b._id!]: '' }));
+    try {
+      const buildingIdCode = b.buildingId ?? b._id ?? '';
+      await customerApi.link(customer._id, buildingIdCode);
+      // Update local state to show new link
+      setServerBuildings(prev =>
+        prev.map(sb =>
+          sb._id === b._id
+            ? { ...sb, linkedCustomerId: customer._id, linkedCustomerName: customer.name }
+            : sb
+        )
+      );
+      // Close re-link panel
+      setRelinkBuildingId(null);
+      setRelinkSearch('');
+      setRelinkResults([]);
+    } catch (err: any) {
+      const raw = err?.response?.data?.message ?? err?.message ?? '';
+      const isDuplicate =
+        raw.toLowerCase().includes('already linked') ||
+        raw.toLowerCase().includes('already assigned') ||
+        raw.toLowerCase().includes('duplicate');
+      const msg = isDuplicate
+        ? `${customer.name} is already linked to another building. Each customer can only be linked to one building.`
+        : raw || 'Failed to link customer. Please try again.';
+      setRelinkError(prev => ({ ...prev, [b._id!]: msg }));
+    } finally {
+      setRelinkLinking(false);
     }
   };
 
@@ -501,6 +567,15 @@ export default function BuildingsList({ buildings, pendingBuildings, onClose, fi
                           {b.lotCode}
                         </span>
                       )}
+                      {/* Linked customer badge — visible on collapsed card */}
+                      {b.linkedCustomerName && (
+                        <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-medium flex items-center gap-1">
+                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                          </svg>
+                          {b.linkedCustomerName}
+                        </span>
+                      )}
                     </div>
 
                     <div className="flex items-center justify-between mt-2">
@@ -548,33 +623,144 @@ export default function BuildingsList({ buildings, pendingBuildings, onClose, fi
                     )}
 
                     {/* Customer link */}
-                    {b.linkedCustomerId && (
+                    {b.linkedCustomerId ? (
                       <div className="bg-blue-50 border border-blue-200 rounded-xl px-4 py-3">
                         <div className="flex items-start justify-between gap-2">
                           <div>
                             <p className="text-xs font-semibold text-blue-700 uppercase tracking-wide mb-0.5">Linked Customer</p>
                             <p className="text-sm font-medium text-blue-900">{b.linkedCustomerName ?? b.linkedCustomerId}</p>
                           </div>
-                          <button
-                            onClick={() => handleUnlink(b)}
-                            disabled={unlinkingId === b._id}
-                            className="shrink-0 px-3 py-1.5 bg-red-100 text-red-700 rounded-lg text-xs font-semibold hover:bg-red-200 transition disabled:opacity-50 flex items-center gap-1"
-                          >
-                            {unlinkingId === b._id ? (
-                              <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-red-600" />
-                            ) : (
-                              <>
+                          <div className="flex gap-1.5 shrink-0">
+                            {/* Re-link button — opens search panel */}
+                            {canEdit && (
+                              <button
+                                onClick={() => {
+                                  if (relinkBuildingId === b._id) {
+                                    setRelinkBuildingId(null);
+                                  } else {
+                                    setRelinkBuildingId(b._id!);
+                                    setRelinkSearch('');
+                                    setRelinkResults([]);
+                                    setRelinkError(prev => ({ ...prev, [b._id!]: '' }));
+                                  }
+                                }}
+                                className="px-3 py-1.5 bg-blue-100 text-blue-700 rounded-lg text-xs font-semibold hover:bg-blue-200 transition flex items-center gap-1"
+                              >
                                 <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                                 </svg>
-                                Unlink
-                              </>
+                                Re-link
+                              </button>
                             )}
-                          </button>
+                            <button
+                              onClick={() => handleUnlink(b)}
+                              disabled={unlinkingId === b._id}
+                              className="px-3 py-1.5 bg-red-100 text-red-700 rounded-lg text-xs font-semibold hover:bg-red-200 transition disabled:opacity-50 flex items-center gap-1"
+                            >
+                              {unlinkingId === b._id ? (
+                                <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-red-600" />
+                              ) : (
+                                <>
+                                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                                  </svg>
+                                  Unlink
+                                </>
+                              )}
+                            </button>
+                          </div>
                         </div>
                         {unlinkError[b._id!] && (
                           <p className="text-xs text-red-600 mt-2">{unlinkError[b._id!]}</p>
                         )}
+                      </div>
+                    ) : canEdit && (
+                      /* No customer linked — show Link Customer button */
+                      <div className="bg-gray-50 border border-dashed border-gray-300 rounded-xl px-4 py-3">
+                        <div className="flex items-center justify-between">
+                          <p className="text-xs text-gray-500">No customer linked to this building</p>
+                          <button
+                            onClick={() => {
+                              if (relinkBuildingId === b._id) {
+                                setRelinkBuildingId(null);
+                              } else {
+                                setRelinkBuildingId(b._id!);
+                                setRelinkSearch('');
+                                setRelinkResults([]);
+                                setRelinkError(prev => ({ ...prev, [b._id!]: '' }));
+                              }
+                            }}
+                            className="px-3 py-1.5 bg-blue-600 text-white rounded-lg text-xs font-semibold hover:bg-blue-700 transition flex items-center gap-1"
+                          >
+                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                            </svg>
+                            Link Customer
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Re-link / Link customer search panel */}
+                    {relinkBuildingId === b._id && (
+                      <div className="bg-white border border-blue-200 rounded-xl px-4 py-4 space-y-3">
+                        <p className="text-xs font-semibold text-gray-700 uppercase tracking-wide">
+                          {b.linkedCustomerId ? 'Re-link Customer' : 'Link Customer'}
+                        </p>
+                        <div className="relative">
+                          <input
+                            type="text"
+                            value={relinkSearch}
+                            onChange={e => handleRelinkSearchChange(e.target.value)}
+                            placeholder="Search by name, phone, or ID…"
+                            className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-400 pr-8"
+                            autoFocus
+                          />
+                          {relinkSearching && (
+                            <div className="absolute right-3 top-1/2 -translate-y-1/2 animate-spin rounded-full h-4 w-4 border-b-2 border-blue-500" />
+                          )}
+                        </div>
+                        {relinkResults.length > 0 && (
+                          <ul className="divide-y divide-gray-100 rounded-xl border border-gray-100 overflow-hidden max-h-48 overflow-y-auto">
+                            {relinkResults.map(c => (
+                              <li key={c._id}>
+                                <button
+                                  onClick={() => handleRelinkCustomer(b, c)}
+                                  disabled={relinkLinking}
+                                  className="w-full text-left px-3 py-2.5 hover:bg-blue-50 transition flex items-center justify-between gap-2 disabled:opacity-50"
+                                >
+                                  <div>
+                                    <p className="text-sm font-medium text-gray-900">{c.name}</p>
+                                    {(c.phone || c.customerId) && (
+                                      <p className="text-xs text-gray-500">
+                                        {[c.phone, c.customerId].filter(Boolean).join(' · ')}
+                                      </p>
+                                    )}
+                                  </div>
+                                  {relinkLinking ? (
+                                    <div className="animate-spin rounded-full h-3.5 w-3.5 border-b-2 border-blue-500" />
+                                  ) : (
+                                    <svg className="w-4 h-4 text-blue-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                    </svg>
+                                  )}
+                                </button>
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                        {relinkSearch.trim() && !relinkSearching && relinkResults.length === 0 && (
+                          <p className="text-xs text-gray-400 text-center py-2">No customers found for "{relinkSearch}"</p>
+                        )}
+                        {relinkError[b._id!] && (
+                          <p className="text-xs text-red-600">{relinkError[b._id!]}</p>
+                        )}
+                        <button
+                          onClick={() => { setRelinkBuildingId(null); setRelinkSearch(''); setRelinkResults([]); }}
+                          className="text-xs text-gray-400 hover:text-gray-600 transition"
+                        >
+                          Cancel
+                        </button>
                       </div>
                     )}
 

@@ -13,6 +13,11 @@ export default function SessionHistory({ onClose, onViewSessionBuildings }: Sess
   const [error, setError] = useState('');
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
+  // Force-end session state
+  const [forceEndingId, setForceEndingId] = useState<string | null>(null);
+  const [forceEndError, setForceEndError] = useState<Record<string, string>>({});
+  const [forceEndSuccess, setForceEndSuccess] = useState<string | null>(null);
+
   const fetchSessions = useCallback(async () => {
     setLoading(true);
     setError('');
@@ -25,6 +30,27 @@ export default function SessionHistory({ onClose, onViewSessionBuildings }: Sess
       setLoading(false);
     }
   }, []);
+
+  const handleForceEnd = async (session: Session) => {
+    if (!confirm(`Force-end session ${session._id.slice(-8)}? This will mark it as completed without GPS data.`)) return;
+    setForceEndingId(session._id);
+    setForceEndError(prev => ({ ...prev, [session._id]: '' }));
+    setForceEndSuccess(null);
+    try {
+      // Use 0,0 as dummy end location since we don't have GPS here
+      await sessionApi.end(session._id, {
+        endLocation: { latitude: 0, longitude: 0, accuracy: 0 },
+      });
+      setForceEndSuccess(session._id);
+      // Refresh session list
+      await fetchSessions();
+    } catch (err: any) {
+      const msg = err?.response?.data?.message ?? err?.message ?? 'Failed to end session';
+      setForceEndError(prev => ({ ...prev, [session._id]: msg }));
+    } finally {
+      setForceEndingId(null);
+    }
+  };
 
   useEffect(() => {
     fetchSessions();
@@ -222,6 +248,43 @@ export default function SessionHistory({ onClose, onViewSessionBuildings }: Sess
                     </div>
                   )}
                   <p className="text-xs text-gray-400 pt-1">Session ID: {session._id}</p>
+
+                  {/* Force-end button for active/stuck sessions */}
+                  {session.isActive && (
+                    <div className="mt-2 space-y-2">
+                      <div className="bg-amber-50 border border-amber-200 rounded-xl px-3 py-2.5">
+                        <p className="text-xs text-amber-800 font-medium mb-2">
+                          This session is still active. If it is stuck or you cannot end it normally, use Force End.
+                        </p>
+                        <button
+                          onClick={() => handleForceEnd(session)}
+                          disabled={forceEndingId === session._id}
+                          className="w-full flex items-center justify-center gap-2 bg-amber-100 hover:bg-amber-200 border border-amber-300 text-amber-800 font-semibold text-xs py-2 px-3 rounded-lg transition disabled:opacity-50"
+                        >
+                          {forceEndingId === session._id ? (
+                            <>
+                              <div className="animate-spin rounded-full h-3.5 w-3.5 border-b-2 border-amber-700" />
+                              Ending session…
+                            </>
+                          ) : (
+                            <>
+                              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 10a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z" />
+                              </svg>
+                              Force End Session
+                            </>
+                          )}
+                        </button>
+                        {forceEndError[session._id] && (
+                          <p className="text-xs text-red-600 mt-1.5">{forceEndError[session._id]}</p>
+                        )}
+                        {forceEndSuccess === session._id && (
+                          <p className="text-xs text-green-700 mt-1.5">Session ended successfully.</p>
+                        )}
+                      </div>
+                    </div>
+                  )}
 
                   {/* Drill-down CTA */}
                   {onViewSessionBuildings && (
