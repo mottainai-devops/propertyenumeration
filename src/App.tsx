@@ -433,9 +433,16 @@ function App() {
             console.log('[Link] Linking customer', linkedCustomerId, 'to building', buildingIdCode);
             await customerApi.link(linkedCustomerId, buildingIdCode);
             showToast('Building registered and customer linked!', 'success');
-          } catch (error) {
+          } catch (error: any) {
             logError('Customer Linking', error, { linkedCustomerId, buildingId: building.buildingId, building_id: building._id });
-            showToast('Building registered but customer linking failed — please link manually', 'warning');
+            // Check if the backend rejected because the customer is already linked to another building
+            const errMsg: string = error?.response?.data?.error ?? error?.message ?? '';
+            const alreadyLinked = errMsg.toLowerCase().includes('already') || errMsg.toLowerCase().includes('linked');
+            if (alreadyLinked) {
+              showToast('Building registered! Note: this customer is already linked to another building — each customer can only be linked to one building.', 'warning');
+            } else {
+              showToast('Building registered but customer linking failed — please link manually', 'warning');
+            }
           }
         } else {
           showToast('Building registered successfully!', 'success');
