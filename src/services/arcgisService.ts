@@ -1,6 +1,12 @@
 /**
  * ArcGIS Service
  * Fetches building polygons from ArcGIS Feature Service with error handling
+ *
+ * NOTE: All spatial queries use HTTP POST with application/x-www-form-urlencoded
+ * body instead of GET with URL query parameters. The GET URLs exceed ~600 chars
+ * and are silently dropped by the network path in the field (HTTP 000 / empty
+ * response on long GET, HTTP 200 with full results on POST).
+ * Ref: Fix Specification — arcgis_service.dart (Backend Team, 2026-03-10)
  */
 
 import type {
@@ -25,6 +31,35 @@ const ARCGIS_API_KEY =
 const REQUEST_TIMEOUT = 15000;
 
 /**
+ * Internal helper: POST a spatial query to the ArcGIS Feature Service.
+ * Uses application/x-www-form-urlencoded body to avoid long-URL truncation.
+ */
+async function postArcGISQuery(
+  params: Record<string, string>,
+  signal: AbortSignal
+): Promise<ArcGISQueryResponse> {
+  const body = new URLSearchParams(params);
+  const response = await fetch(`${ARCGIS_BASE_URL}/query`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: body.toString(),
+    signal,
+  });
+
+  if (!response.ok) {
+    throw new Error(`ArcGIS API request failed: ${response.status}`);
+  }
+
+  const data: ArcGISQueryResponse = await response.json();
+
+  if (data.error) {
+    throw new Error(`ArcGIS API Error: ${data.error.message}`);
+  }
+
+  return data;
+}
+
+/**
  * Fetch building polygons within a bounding box (viewport)
  * @param bounds - Map bounds { north, south, east, west }
  * @returns Array of BuildingPolygon objects or empty array on error
@@ -33,15 +68,15 @@ export async function fetchPolygonsInBounds(
   bounds: { north: number; south: number; east: number; west: number }
 ): Promise<BuildingPolygon[]> {
   try {
-    // Build query parameters with bounding box
-    const params = new URLSearchParams({
-      where: '1=1', // Get all features within geometry
+    // ✅ POST with form body — avoids long-URL truncation in the field
+    const params: Record<string, string> = {
+      where: '1=1',
       geometry: JSON.stringify({
         xmin: bounds.west,
         ymin: bounds.south,
         xmax: bounds.east,
         ymax: bounds.north,
-        spatialReference: { wkid: 4326 }, // WGS84
+        spatialReference: { wkid: 4326 },
       }),
       geometryType: 'esriGeometryEnvelope',
       spatialRel: 'esriSpatialRelIntersects',
@@ -50,32 +85,18 @@ export async function fetchPolygonsInBounds(
       returnGeometry: 'true',
       f: 'json',
       token: ARCGIS_API_KEY,
-    });
+    };
 
-    const url = `${ARCGIS_BASE_URL}/query?${params.toString()}`;
-    console.log('[ArcGIS] Fetching polygons in bounds:', bounds);
+    console.log('[ArcGIS] Fetching polygons in bounds (POST):', bounds);
 
-    // Create abort controller for timeout
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT);
 
     try {
-      const response = await fetch(url, { signal: controller.signal });
+      const data = await postArcGISQuery(params, controller.signal);
       clearTimeout(timeoutId);
 
-      if (!response.ok) {
-        throw new Error(`ArcGIS API request failed: ${response.status}`);
-      }
-
-      const data: ArcGISQueryResponse = await response.json();
-
-      if (data.error) {
-        throw new Error(`ArcGIS API Error: ${data.error.message}`);
-      }
-
       console.log(`[ArcGIS] Fetched ${data.features.length} polygons in viewport`);
-
-      // Convert ArcGIS features to BuildingPolygon objects
       return data.features.map((feature) => convertArcGISFeatureToBuildingPolygon(feature));
     } catch (fetchError) {
       clearTimeout(timeoutId);
@@ -107,13 +128,13 @@ export async function fetchPolygonsNearLocation(
   try {
     const radiusMeters = radiusKm * 1000;
 
-    // Build query parameters
-    const params = new URLSearchParams({
-      where: '1=1', // Get all features within geometry
+    // ✅ POST with form body — avoids long-URL truncation in the field
+    const params: Record<string, string> = {
+      where: '1=1',
       geometry: JSON.stringify({
         x: lon,
         y: lat,
-        spatialReference: { wkid: 4326 }, // WGS84
+        spatialReference: { wkid: 4326 },
       }),
       geometryType: 'esriGeometryPoint',
       spatialRel: 'esriSpatialRelIntersects',
@@ -124,37 +145,22 @@ export async function fetchPolygonsNearLocation(
       returnGeometry: 'true',
       f: 'json',
       token: ARCGIS_API_KEY,
-    });
+    };
 
-    const url = `${ARCGIS_BASE_URL}/query?${params.toString()}`;
-    console.log('[ArcGIS] Fetching polygons near:', { lat, lon, radiusKm });
+    console.log('[ArcGIS] Fetching polygons near (POST):', { lat, lon, radiusKm });
 
-    // Create abort controller for timeout
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT);
 
     try {
-      const response = await fetch(url, { signal: controller.signal });
+      const data = await postArcGISQuery(params, controller.signal);
       clearTimeout(timeoutId);
 
-      if (!response.ok) {
-        throw new Error(`ArcGIS API request failed: ${response.status}`);
-      }
-
-      const data: ArcGISQueryResponse = await response.json();
-
       // Comprehensive logging for debugging
-      console.log('[ArcGIS] Raw API Response:', JSON.stringify(data, null, 2));
       console.log('[ArcGIS] Features count:', data.features?.length || 0);
-      
-      if (data.error) {
-        console.error('[ArcGIS] API Error:', data.error);
-        throw new Error(`ArcGIS API Error: ${data.error.message}`);
-      }
 
       if (!data.features || data.features.length === 0) {
         console.warn('[ArcGIS] No features returned from API');
-        console.warn('[ArcGIS] Query URL:', url);
         return [];
       }
 
@@ -172,7 +178,7 @@ export async function fetchPolygonsNearLocation(
         });
         return converted;
       });
-      
+
       return polygons;
     } catch (fetchError) {
       clearTimeout(timeoutId);
@@ -198,6 +204,7 @@ export async function fetchPolygonByBuildingId(
   buildingId: string
 ): Promise<BuildingPolygon | null> {
   try {
+    // Short URL — GET is fine here (building ID string is not long)
     const params = new URLSearchParams({
       where: `building_id='${buildingId}'`,
       outFields:
@@ -208,7 +215,7 @@ export async function fetchPolygonByBuildingId(
     });
 
     const url = `${ARCGIS_BASE_URL}/query?${params.toString()}`;
-    
+
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT);
 
@@ -247,6 +254,7 @@ export async function fetchPolygonByBuildingId(
  */
 export async function testArcGISConnection(): Promise<boolean> {
   try {
+    // Short metadata URL — GET is fine here
     const url = `${ARCGIS_BASE_URL}?f=json&token=${ARCGIS_API_KEY}`;
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 5000);
