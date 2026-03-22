@@ -260,17 +260,22 @@ function ExistingRegistrationsSheet({
           )}
         </div>
 
-        {/* Footer */}
-        <div className="px-4 py-4 border-t border-gray-100 flex gap-3">
+        {/* Footer — safe-area aware so buttons sit above Android nav bar */}
+        <div
+          className="px-4 pt-3 border-t border-gray-100 flex gap-3"
+          style={{ paddingBottom: 'calc(16px + env(safe-area-inset-bottom, 0px))' }}
+        >
           <button
             onClick={onClose}
-            className="flex-1 py-3 border border-gray-300 text-gray-700 rounded-xl text-sm font-semibold hover:bg-gray-50 transition"
+            className="flex-1 py-3 border-2 border-gray-300 text-gray-600 rounded-xl text-sm font-semibold bg-white hover:bg-gray-50 active:bg-gray-100 transition"
+            style={{ minHeight: 50 }}
           >
             Cancel
           </button>
           <button
             onClick={onProceedNew}
-            className="flex-1 py-3 bg-green-600 text-white rounded-xl text-sm font-semibold hover:bg-green-700 transition"
+            className="flex-1 py-3 bg-green-600 text-white rounded-xl text-sm font-bold hover:bg-green-700 active:bg-green-800 transition shadow-sm"
+            style={{ minHeight: 50 }}
           >
             + Register New Unit
           </button>
@@ -664,7 +669,7 @@ export function EnhancedLocationMapWithPolygons({
 
   try {
     return (
-      <div className="w-full flex flex-col gap-2">
+      <div className="w-full h-full flex flex-col gap-1 px-2 pt-1">
         {/* Search bar */}
         <div className="relative">
           <div className="flex items-center bg-white border border-gray-300 rounded-xl shadow-sm px-3 py-2 gap-2">
@@ -741,8 +746,11 @@ export function EnhancedLocationMapWithPolygons({
           </div>
         </div>
 
-        {/* Map */}
-        <div className="w-full h-96 rounded-lg overflow-hidden border border-gray-200 relative">
+        {/* Map — fills available screen height */}
+        <div
+          className="w-full flex-1 rounded-lg overflow-hidden border border-gray-200 relative"
+          style={{ minHeight: 320 }}
+        >
           <MapContainer
             center={position}
             zoom={18}

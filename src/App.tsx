@@ -639,7 +639,7 @@ function App() {
   return (
     <ErrorBoundary>
       <ToastContainer />
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-teal-50 to-green-50">
+      <div className="h-screen flex flex-col overflow-hidden bg-gradient-to-br from-blue-50 via-teal-50 to-green-50">
 
         {/* Network Status Banner */}
         {!isOnline && (
@@ -837,14 +837,17 @@ function App() {
         })()}
 
         {currentScreen === 'location' && (
-          <div className="container mx-auto px-4 pt-4 pb-4">
-            <div className="flex justify-between items-center mb-3">
+          <div className="flex flex-col flex-1 overflow-hidden">
+            {/* Compact header bar */}
+            <div className="flex justify-between items-center px-4 py-2 bg-white border-b border-gray-100 shrink-0 shadow-sm">
               <div>
-                <h1 className="text-xl font-bold text-gray-900">Property Enumeration</h1>
-                {surveyedBuildingIds.size > 0 && (
-                  <p className="text-xs text-green-700 font-semibold mt-0.5">
-                    ✓ {surveyedBuildingIds.size} building{surveyedBuildingIds.size !== 1 ? 's' : ''} surveyed this session
+                <h1 className="text-base font-bold text-gray-900 leading-tight">Select Building</h1>
+                {surveyedBuildingIds.size > 0 ? (
+                  <p className="text-xs text-green-700 font-semibold">
+                    ✓ {surveyedBuildingIds.size} building{surveyedBuildingIds.size !== 1 ? 's' : ''} surveyed
                   </p>
+                ) : (
+                  <p className="text-xs text-gray-400">Tap a building polygon to select it</p>
                 )}
               </div>
               <div className="flex items-center gap-2">
@@ -865,11 +868,8 @@ function App() {
                 </button>
               </div>
             </div>
-            <div className="bg-white rounded-2xl shadow-xl p-4">
-              <h2 className="text-lg font-bold text-gray-900 mb-1">Step 1: Select Location</h2>
-              <p className="text-gray-500 text-sm mb-3">
-                Tap a building polygon to select it.
-              </p>
+            {/* Map fills remaining height */}
+            <div className="flex-1 overflow-hidden">
               <LocationPickerWithMap
                 onLocationSelect={handleLocationSelect}
                 surveyedBuildingIds={surveyedBuildingIds}
