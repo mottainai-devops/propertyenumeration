@@ -53,6 +53,7 @@ function App() {
   const [currentScreen, setCurrentScreen] = useState<AppScreen>('login');
   const [location, setLocation] = useState<LocationData | null>(null);
   const [selectedBuildingData, setSelectedBuildingData] = useState<any>(null);
+  const [existingRegistrationId, setExistingRegistrationId] = useState<string | null>(null);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [pendingBuildings, setPendingBuildings] = useState<any[]>([]);
   const [isSyncing, setIsSyncing] = useState(false);
@@ -375,7 +376,25 @@ function App() {
 
   const handleLocationSelect = (locationData: LocationData, buildingData?: any) => {
     setLocation(locationData);
-    setSelectedBuildingData(buildingData || null);
+    // If the map bottom sheet passed an existing registration to update
+    if (buildingData?._existingRegistrationId) {
+      const { _existingRegistrationId, _existingRegistration, ...rest } = buildingData;
+      setExistingRegistrationId(_existingRegistrationId);
+      // Pre-fill the form with the existing record's data
+      setSelectedBuildingData({
+        ...rest,
+        buildingName: _existingRegistration?.buildingName,
+        propertyType: _existingRegistration?.propertyType,
+        numberOfUnits: _existingRegistration?.numberOfUnits,
+        contactPersonName: _existingRegistration?.contactPersonName,
+        contactPhoneNumber: _existingRegistration?.contactPhoneNumber,
+        unitCode: _existingRegistration?.unitCode,
+        _isUpdate: true,
+      });
+    } else {
+      setExistingRegistrationId(null);
+      setSelectedBuildingData(buildingData || null);
+    }
     setCurrentScreen('building');
   };
 
@@ -396,6 +415,37 @@ function App() {
   };
 
   const handleBuildingSubmit = async (buildingData: any) => {
+    // Handle update of an existing registration
+    if (existingRegistrationId) {
+      const { linkedCustomerId: _lc, _isUpdate: _iu, ...updateFields } = buildingData;
+      const activeSessionId = localStorage.getItem(userKey('serverSessionId')) || activeServerSession?._id;
+      const updatePayload = {
+        ...updateFields,
+        sessionId: activeSessionId,
+        gpsCoordinates: {
+          latitude: location!.latitude,
+          longitude: location!.longitude,
+          accuracy: location!.accuracy,
+        },
+      };
+      if (isOnline) {
+        try {
+          const updated = await buildingApi.update(existingRegistrationId, updatePayload);
+          showToast('Building record updated successfully!', 'success');
+          if (updated.buildingId) markBuildingSurveyed(updated.buildingId);
+          addToRecentBuildings({ ...updated, synced: true, timestamp: Date.now() });
+          setBuildingsRefreshKey(k => k + 1);
+          setExistingRegistrationId(null);
+          setCurrentScreen('success');
+        } catch (error) {
+          logError('Building Update', error, updatePayload);
+          showToast('Update failed — please try again', 'error');
+        }
+      } else {
+        showToast('Cannot update while offline — please connect to the internet', 'warning');
+      }
+      return;
+    }
     const { linkedCustomerId, ...buildingFields } = buildingData;
     // FIX #1: Always include the active sessionId in the create request
     const activeSessionId = localStorage.getItem(userKey('serverSessionId')) || activeServerSession?._id;

@@ -59,6 +59,22 @@ export default function LocationPickerWithMap({
 
   const handleBuildingSelected = (building: BuildingPolygon) => {
     console.log('[LocationPicker] Building selected:', building.buildingId);
+    // If the map bottom sheet chose an existing registration, pass it through immediately
+    const b = building as any;
+    if (b._existingRegistrationId) {
+      onLocationSelect(
+        { latitude: building.centerLat, longitude: building.centerLon },
+        {
+          buildingId: building.buildingId,
+          address: building.address,
+          businessName: building.businessName,
+          zone: building.zone,
+          _existingRegistrationId: b._existingRegistrationId,
+          _existingRegistration: b._existingRegistration,
+        } as any
+      );
+      return;
+    }
     setSelectedBuilding(building);
     setLocation({ latitude: building.centerLat, longitude: building.centerLon });
   };

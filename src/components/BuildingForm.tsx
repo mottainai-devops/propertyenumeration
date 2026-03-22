@@ -18,6 +18,12 @@ interface BuildingFormProps {
     address?: string;
     businessName?: string;
     zone?: string;
+    // Update mode: pre-fill from existing registration
+    _isUpdate?: boolean;
+    buildingName?: string;
+    propertyType?: 'Residential' | 'Commercial' | 'Industrial' | 'Mixed-Use';
+    numberOfUnits?: number;
+    unitCode?: string;
   } | null;
   onBack: () => void;
 }
@@ -42,15 +48,28 @@ export default function BuildingForm({ onSubmit, location, selectedBuilding, onB
   const [unitCodeLoading, setUnitCodeLoading] = useState(false);
   const [existingUnitCodes, setExistingUnitCodes] = useState<string[]>([]);
 
-  // Auto-fill form when building is selected from map
+  // Auto-fill form when building is selected from map (or pre-fill for update)
   useEffect(() => {
     if (selectedBuilding) {
-      setFormData(prev => ({
-        ...prev,
-        address: selectedBuilding.address || '',
-        buildingName: selectedBuilding.businessName || '',
-        notes: `Building ID: ${selectedBuilding.buildingId}${selectedBuilding.zone ? ` | Zone: ${selectedBuilding.zone}` : ''}`,
-      }));
+      if (selectedBuilding._isUpdate) {
+        // Update mode: pre-fill all fields from existing registration
+        setFormData(prev => ({
+          ...prev,
+          address: selectedBuilding.address || '',
+          buildingName: selectedBuilding.buildingName || selectedBuilding.businessName || '',
+          propertyType: selectedBuilding.propertyType || prev.propertyType,
+          numberOfUnits: selectedBuilding.numberOfUnits ?? prev.numberOfUnits,
+          notes: `Building ID: ${selectedBuilding.buildingId}${selectedBuilding.zone ? ` | Zone: ${selectedBuilding.zone}` : ''}`,
+        }));
+        if (selectedBuilding.unitCode) setUnitCode(selectedBuilding.unitCode);
+      } else {
+        setFormData(prev => ({
+          ...prev,
+          address: selectedBuilding.address || '',
+          buildingName: selectedBuilding.businessName || '',
+          notes: `Building ID: ${selectedBuilding.buildingId}${selectedBuilding.zone ? ` | Zone: ${selectedBuilding.zone}` : ''}`,
+        }));
+      }
     }
   }, [selectedBuilding]);
 
@@ -169,7 +188,9 @@ export default function BuildingForm({ onSubmit, location, selectedBuilding, onB
                 </svg>
               </button>
               <h2 className="text-xl font-bold text-gray-900">
-                {currentStep === 'building-details' ? 'Register Building' : 'Link Customer'}
+                {selectedBuilding?._isUpdate
+                  ? (currentStep === 'building-details' ? 'Update Building' : 'Link Customer')
+                  : (currentStep === 'building-details' ? 'Register Building' : 'Link Customer')}
               </h2>
             </div>
             {/* Step Indicator */}
@@ -213,17 +234,21 @@ export default function BuildingForm({ onSubmit, location, selectedBuilding, onB
 
             {/* Building Selection Indicator */}
             {selectedBuilding && (
-              <div className="bg-green-50 border-2 border-green-500 rounded-lg p-4">
+              <div className={`border-2 rounded-lg p-4 ${selectedBuilding._isUpdate ? 'bg-amber-50 border-amber-500' : 'bg-green-50 border-green-500'}`}>
                 <div className="flex items-center gap-2 mb-2">
-                  <span className="text-lg">🏢</span>
-                  <p className="text-sm text-green-900 font-bold">Building Auto-Selected from Map</p>
+                  <span className="text-lg">{selectedBuilding._isUpdate ? '✏️' : '🏢'}</span>
+                  <p className={`text-sm font-bold ${selectedBuilding._isUpdate ? 'text-amber-900' : 'text-green-900'}`}>
+                    {selectedBuilding._isUpdate ? 'Updating Existing Registration' : 'Building Auto-Selected from Map'}
+                  </p>
                 </div>
-                <div className="text-xs text-green-800 space-y-1">
+                <div className={`text-xs space-y-1 ${selectedBuilding._isUpdate ? 'text-amber-800' : 'text-green-800'}`}>
                   <p><strong>Building ID:</strong> {selectedBuilding.buildingId}</p>
                   {selectedBuilding.zone && <p><strong>Zone:</strong> {selectedBuilding.zone}</p>}
                 </div>
-                <p className="text-xs text-green-700 mt-2 italic">
-                  ℹ️ Form fields have been pre-filled. You can edit them if needed.
+                <p className={`text-xs mt-2 italic ${selectedBuilding._isUpdate ? 'text-amber-700' : 'text-green-700'}`}>
+                  {selectedBuilding._isUpdate
+                    ? '⚠️ This will update the existing record. Edit fields as needed.'
+                    : 'ℹ️ Form fields have been pre-filled. You can edit them if needed.'}
                 </p>
               </div>
             )}
