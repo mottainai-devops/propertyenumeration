@@ -487,17 +487,19 @@ export const customerApi = {
     return raw.map(normaliseCustomer);
   },
 
-  // FIX #5: Backend expects buildingId CODE (e.g. "URBAN-SPIRITLOT-6005"), not MongoDB _id
-  link: async (customerId: string, buildingIdCode: string): Promise<void> => {
+  // v1.58.2: Use MongoDB _id to link to a specific unit (R1, R2, C1, etc.).
+  // Sending arcgisBuildingId (parent polygon) is ambiguous when multiple units share
+  // the same polygon — the backend picks the first match. _id is always unit-specific.
+  link: async (customerId: string, buildingMongoId: string): Promise<void> => {
     await apiClient.post(`/api/property-enumeration/customers/${customerId}/link`, {
-      buildingId: buildingIdCode,  // Must be the auto-generated code, not MongoDB _id
+      buildingId: buildingMongoId,  // MongoDB _id of the specific unit (R1, R2, C1, etc.)
     });
   },
 
-  // FIX #4: Backend requires { buildingId } in the DELETE request body
-  unlink: async (customerId: string, buildingIdCode: string): Promise<void> => {
+  // v1.58.2: Use MongoDB _id for unlink — same reason as link above.
+  unlink: async (customerId: string, buildingMongoId: string): Promise<void> => {
     await apiClient.delete(`/api/property-enumeration/customers/${customerId}/unlink`, {
-      data: { buildingId: buildingIdCode },
+      data: { buildingId: buildingMongoId },  // MongoDB _id of the specific unit
     });
   },
 

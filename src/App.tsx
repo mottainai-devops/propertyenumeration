@@ -473,15 +473,15 @@ function App() {
 
         if (linkedCustomerId) {
           try {
-            // Use buildingId (auto-generated code e.g. "URBAN-SPIRIT6009") for the link.
-            // _id is always populated by normaliseBuilding (raw.buildingId ?? raw._id ?? '').
-            // Prefer buildingId over _id since the backend link endpoint expects the code.
-            const buildingIdCode = (building.buildingId || building._id || '').trim();
-            if (!buildingIdCode) {
-              throw new Error(`Building ID missing from create response: ${JSON.stringify(building)}`);
+            // v1.58.2: Use MongoDB _id (not buildingId code) to link to the specific unit.
+            // arcgisBuildingId is the parent polygon and is ambiguous when multiple units
+            // share the same polygon. _id is always unique to one unit (R1, R2, C1, etc.).
+            const buildingMongoId = building._id.trim();
+            if (!buildingMongoId) {
+              throw new Error(`Building _id missing from create response: ${JSON.stringify(building)}`);
             }
-            console.log('[Link] Linking customer', linkedCustomerId, 'to building', buildingIdCode);
-            await customerApi.link(linkedCustomerId, buildingIdCode);
+            console.log('[Link] Linking customer', linkedCustomerId, 'to building _id', buildingMongoId, '(arcgis:', building.arcgisBuildingId, ')');
+            await customerApi.link(linkedCustomerId, buildingMongoId);
             showToast('Building registered and customer linked!', 'success');
           } catch (error: any) {
             logError('Customer Linking', error, { linkedCustomerId, buildingId: building.buildingId, building_id: building._id });

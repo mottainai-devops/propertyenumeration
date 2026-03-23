@@ -212,7 +212,8 @@ export default function BuildingsList({ buildings, pendingBuildings, onClose, fi
         b.address?.toLowerCase().includes(search.toLowerCase()) ||
         b.buildingName?.toLowerCase().includes(search.toLowerCase()) ||
         b.lotCode?.toLowerCase().includes(search.toLowerCase()) ||
-        b.buildingId?.toLowerCase().includes(search.toLowerCase());
+        b.buildingId?.toLowerCase().includes(search.toLowerCase()) ||
+        b.arcgisBuildingId?.toLowerCase().includes(search.toLowerCase());
       return matchesFilter && matchesSearch;
     });
   }, [allBuildings, filter, search]);
@@ -251,9 +252,9 @@ export default function BuildingsList({ buildings, pendingBuildings, onClose, fi
     setUnlinkingId(b._id);
     setUnlinkError(prev => ({ ...prev, [b._id!]: '' }));
     try {
-      // FIX #4: Pass buildingId CODE (not MongoDB _id) as second arg; backend requires it in request body
-      const buildingIdCode = b.buildingId ?? b._id ?? '';
-      await customerApi.unlink(b.linkedCustomerId, buildingIdCode);
+      // v1.58.2: Use MongoDB _id for unlink — unit-specific, avoids parent polygon ambiguity
+      const buildingMongoId = b._id ?? '';
+      await customerApi.unlink(b.linkedCustomerId, buildingMongoId);
       // Update local state to remove link
       setServerBuildings(prev =>
         prev.map(sb =>
@@ -296,8 +297,9 @@ export default function BuildingsList({ buildings, pendingBuildings, onClose, fi
     setRelinkLinking(true);
     setRelinkError(prev => ({ ...prev, [b._id!]: '' }));
     try {
-      const buildingIdCode = b.buildingId ?? b._id ?? '';
-      await customerApi.link(customer._id, buildingIdCode);
+      // v1.58.2: Use MongoDB _id for link — unit-specific, avoids parent polygon ambiguity
+      const buildingMongoId = b._id ?? '';
+      await customerApi.link(customer._id, buildingMongoId);
       // Update local state to show new link
       setServerBuildings(prev =>
         prev.map(sb =>
@@ -606,6 +608,19 @@ export default function BuildingsList({ buildings, pendingBuildings, onClose, fi
                       <div>
                         <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Notes</p>
                         <p className="text-sm text-gray-700">{b.notes}</p>
+                      </div>
+                    )}
+
+                    {/* Building ID — arcgisBuildingId is primary, buildingId is secondary */}
+                    {(b.arcgisBuildingId || b.buildingId) && (
+                      <div>
+                        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Building ID</p>
+                        {b.arcgisBuildingId && (
+                          <p className="text-sm font-mono text-gray-900 font-semibold">{b.arcgisBuildingId}</p>
+                        )}
+                        {b.buildingId && (
+                          <p className="text-xs font-mono text-gray-400 mt-0.5">System: {b.buildingId}</p>
+                        )}
                       </div>
                     )}
 
