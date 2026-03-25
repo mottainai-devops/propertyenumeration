@@ -158,6 +158,15 @@ export default function BuildingForm({ onSubmit, location, selectedBuilding, onB
         ...formData,
         buildingName,
         linkedCustomerId: linkedCustomer?._id,
+        // v1.58.3: Pass full customer snapshot for ArcGIS Customer Layer write-back.
+        // This avoids a second API call in App.tsx to fetch customer details.
+        linkedCustomerData: linkedCustomer ? {
+          name: linkedCustomer.name ?? linkedCustomer.customerName ?? '',
+          phone: linkedCustomer.phone ?? linkedCustomer.phoneNumber ?? '',
+          email: linkedCustomer.email ?? '',
+          address: linkedCustomer.address ?? '',
+          propertyType: linkedCustomer.propertyType ?? '',
+        } : undefined,
         unitCode: unitCode || undefined,
         arcgisBuildingId: selectedBuilding?.buildingId || undefined,
       };

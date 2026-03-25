@@ -16,6 +16,7 @@ import ErrorBoundary from './components/ErrorBoundary';
 import { useToast } from './components/Toast';
 import { authApi, buildingApi, customerApi, sessionApi, type Session, type SessionConflictError } from './api/client';
 import { getOperationErrorMessage, logError, retryOperation } from './utils/errorHandler';
+import { updatePolygonAfterRegistration, upsertCustomerPoint } from './services/arcgisService';
 
 type AppScreen = 'login' | 'session' | 'location' | 'building' | 'success' | 'offline-queue' | 'statistics' | 'buildings-list' | 'session-history' | 'profile-settings' | 'session-buildings' | 'customer-import';
 
@@ -446,7 +447,7 @@ function App() {
       }
       return;
     }
-    const { linkedCustomerId, ...buildingFields } = buildingData;
+    const { linkedCustomerId, linkedCustomerData, ...buildingFields } = buildingData;
     // FIX #1: Always include the active sessionId in the create request
     const activeSessionId = localStorage.getItem(userKey('serverSessionId')) || activeServerSession?._id;
     const buildingWithLocation = {
@@ -502,6 +503,45 @@ function App() {
         addToRecentBuildings({ ...building, synced: true, timestamp: Date.now() });
         // Trigger buildings list to re-fetch from server
         setBuildingsRefreshKey(k => k + 1);
+
+        // ── v1.58.3: ArcGIS write-back (fire-and-forget, non-blocking) ──────
+        // Only write back when the unit has an ArcGIS polygon ID.
+        // Both calls are best-effort: failures are logged but do not block the
+        // surveyor's workflow — the MongoDB record is already saved.
+        if (building.arcgisBuildingId) {
+          const enumeratorName = (() => {
+            try { return JSON.parse(localStorage.getItem('user') || '{}').fullName || ''; } catch { return ''; }
+          })();
+
+          // 1. Update parent polygon: mark as Enumerated
+          updatePolygonAfterRegistration({
+            arcgisBuildingId: building.arcgisBuildingId,
+            validatedBy: enumeratorName,
+            validationDate: building.enumeratedAt || building.createdAt || new Date().toISOString(),
+            unitCode: building.unitCode,
+            buildingType: building.propertyType,
+          }).catch(err => console.warn('[ArcGIS] Polygon update failed (non-blocking):', err));
+
+          // 2. Upsert customer point: one point per unit
+          if (building.unitCode) {
+            const nameParts = (linkedCustomerData?.name ?? '').trim().split(' ');
+            upsertCustomerPoint({
+              arcgisBuildingId: building.arcgisBuildingId,
+              unitCode: building.unitCode,
+              lat: location!.latitude,
+              lon: location!.longitude,
+              firstName: nameParts[0] || undefined,
+              lastName: nameParts.slice(1).join(' ') || undefined,
+              phone: linkedCustomerData?.phone || undefined,
+              email: linkedCustomerData?.email || undefined,
+              customerType: linkedCustomerData?.propertyType || building.propertyType || undefined,
+              address: linkedCustomerData?.address || building.address || undefined,
+              enumeratorName: enumeratorName || undefined,
+            }).catch(err => console.warn('[ArcGIS] Customer point upsert failed (non-blocking):', err));
+          }
+        }
+        // ── End ArcGIS write-back ─────────────────────────────────────────────
+
         setCurrentScreen('success');
       } catch (error) {
         logError('Building Creation', error, buildingWithLocation);
