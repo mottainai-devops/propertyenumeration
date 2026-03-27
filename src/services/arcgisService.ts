@@ -389,7 +389,7 @@ export async function fetchPolygonsInBounds(
       geometryType: 'esriGeometryEnvelope',
       spatialRel: 'esriSpatialRelIntersects',
       outFields:
-        'building_id,business_name,cust_phone,customer_email,address,Zone,socio_economic_groups',
+        'building_id,business_name,first_name,last_name,cust_phone,customer_email,address,Zone,socio_economic_groups',
       returnGeometry: 'true',
       f: 'json',
       token: ARCGIS_API_KEY,
@@ -449,7 +449,7 @@ export async function fetchPolygonsNearLocation(
       distance: radiusMeters.toString(),
       units: 'esriSRUnit_Meter',
       outFields:
-        'building_id,business_name,cust_phone,customer_email,address,Zone,socio_economic_groups',
+        'building_id,business_name,first_name,last_name,cust_phone,customer_email,address,Zone,socio_economic_groups',
       returnGeometry: 'true',
       f: 'json',
       token: ARCGIS_API_KEY,
@@ -516,7 +516,7 @@ export async function fetchPolygonByBuildingId(
     const params = new URLSearchParams({
       where: `building_id='${buildingId}'`,
       outFields:
-        'building_id,business_name,cust_phone,customer_email,address,Zone,socio_economic_groups',
+        'building_id,business_name,first_name,last_name,cust_phone,customer_email,address,Zone,socio_economic_groups',
       returnGeometry: 'true',
       f: 'json',
       token: ARCGIS_API_KEY,
@@ -604,6 +604,8 @@ function convertArcGISFeatureToBuildingPolygon(feature: ArcGISFeature): Building
   return {
     buildingId: attributes.building_id || '',
     businessName: attributes.business_name,
+    firstName: attributes.first_name,
+    lastName: attributes.last_name,
     custPhone: attributes.cust_phone,
     customerEmail: attributes.customer_email,
     address: attributes.address,

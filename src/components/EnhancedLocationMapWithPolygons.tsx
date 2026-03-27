@@ -23,7 +23,18 @@ L.Icon.Default.mergeOptions({
 });
 
 function isValidBusinessName(name?: string): boolean {
-  return !!name && name !== 'None' && name !== 'none' && name.trim() !== '';
+  return !!name && name !== 'None' && name !== 'none' && name !== 'null' && name.trim() !== '' && name.toLowerCase() !== 'esteemed customer';
+}
+
+/** Resolve the best display name for a polygon: business_name → first+last → buildingId */
+function resolveDisplayName(polygon: BuildingPolygon): string {
+  if (isValidBusinessName(polygon.businessName)) return polygon.businessName!;
+  const fullName = [polygon.firstName, polygon.lastName]
+    .filter(n => n && n.trim() !== '' && n !== 'None' && n !== 'null')
+    .join(' ')
+    .trim();
+  if (fullName && fullName.toLowerCase() !== 'esteemed customer') return fullName;
+  return polygon.buildingId;
 }
 
 // ─── Overlap ratio helper ─────────────────────────────────────────────────────
@@ -114,9 +125,7 @@ function ZoomDependentLabel({
 
   if (!showLabel) return null;
 
-  const labelText = isValidBusinessName(polygon.businessName)
-    ? polygon.businessName!
-    : polygon.buildingId;
+  const labelText = resolveDisplayName(polygon);
   const maxChars = 18;
   const displayText = labelText.length > maxChars
     ? labelText.slice(0, maxChars - 1) + '…'
@@ -380,7 +389,8 @@ export function EnhancedLocationMapWithPolygons({
     const q = searchQuery.toLowerCase();
     const matches = polygons.filter(p => {
       const idMatch = p.buildingId.toLowerCase().includes(q);
-      const nameMatch = isValidBusinessName(p.businessName) && p.businessName!.toLowerCase().includes(q);
+      const displayName = resolveDisplayName(p);
+      const nameMatch = displayName.toLowerCase().includes(q);
       const addrMatch = p.address && p.address.toLowerCase().includes(q);
       return idMatch || nameMatch || addrMatch;
     }).slice(0, 6);
@@ -710,7 +720,7 @@ export function EnhancedLocationMapWithPolygons({
                       <span className="text-lg shrink-0">🏢</span>
                       <div className="min-w-0">
                         <p className="text-sm font-semibold text-gray-900 truncate">
-                          {isValidBusinessName(p.businessName) ? p.businessName : p.buildingId}
+                          {resolveDisplayName(p)}
                         </p>
                         <p className="text-xs text-gray-500 truncate">
                           {p.buildingId}{p.address ? ` · ${p.address}` : ''}
@@ -722,10 +732,6 @@ export function EnhancedLocationMapWithPolygons({
                       {status === 'surveyed-session' && (
                         <span className="ml-auto shrink-0 text-blue-700 font-bold text-xs bg-blue-100 px-1.5 py-0.5 rounded-md">✓ This session</span>
                       )}
-                    </div>
-                  </button>
-                );
-              })}
             </div>
           )}
         </div>

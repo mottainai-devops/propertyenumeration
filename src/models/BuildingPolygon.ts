@@ -9,6 +9,8 @@
 export interface BuildingPolygon {
   buildingId: string;
   businessName?: string;
+  firstName?: string;
+  lastName?: string;
   custPhone?: string;
   customerEmail?: string;
   address?: string;
@@ -38,6 +40,8 @@ export interface ArcGISFeature {
   attributes: {
     building_id: string;
     business_name?: string;
+    first_name?: string;
+    last_name?: string;
     cust_phone?: string;
     customer_email?: string;
     address?: string;
