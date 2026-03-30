@@ -753,3 +753,154 @@ The following features are confirmed as not yet started on the frontend as of v1
 ---
 
 *Document v1.2.0 prepared by the backend team on March 6, 2026. This document supersedes v1.1.0 (March 6, 2026) and v1.0.0 (March 4, 2026).*
+
+---
+
+## REVISION v1.3.0 — March 30, 2026
+
+> **Document Version:** v1.3.0
+> **Backend Versions:** mottainai-backend v2.3.0 (Survey App) | mottainai-backend v4.5.5+ (Property Enumeration)
+> **Mobile App Versions:** Survey App v3.3.0 | Property Enumeration App v1.58.3+
+> **Status:** ✅ Active — Updated by Frontend Team (March 30, 2026)
+> **Authors:** Frontend Team + Backend Team
+
+### Revision History Addition
+
+| Version | Date | Author | Changes |
+|---------|------|--------|---------|
+| v1.3.0 | March 30, 2026 | Frontend Team | Geographic fields added to Survey App API contract; ArcGIS Customer Layer bulk import documented; customer-synchronize endpoint added; Nginx routing gaps fixed on both domains; JWT secret aligned across all services; Survey App v3.3.0 released |
+
+---
+
+### R1. Survey App — New Fields in POST /forms/submit
+
+As of Survey App v3.3.0, the following fields are now sent in the multipart form POST to `https://upwork.kowope.xyz/forms/submit`. All fields are optional and null-safe on the backend.
+
+| Field | Type | Example | Notes |
+|-------|------|---------|-------|
+| `arcgisBuildingId` | string? | "8038 LASIKA06 006" | ArcGIS Footprint Polygon building_id. New in v3.3.0. Same value as buildingId for the Survey App; kept as a separate explicit field for backend clarity. |
+| `lotCode` | string? | "006" | Operational lot code |
+| `lgaName` | string? | "Ikeja" | LGA display name |
+| `lgaCode` | string? | "25011" | LGA numeric code |
+| `stateCode` | string? | "LA" | 2-letter state code |
+| `country` | string? | "Nigeria" | Country name |
+| `wardCode` | string? | "LASIKA06" | ArcGIS ward code |
+| `wardName` | string? | "G R A" | Ward display name |
+
+Backend confirmation: All 8 fields are now persisted in FormSubmission (MongoDB). Historical records (pre-v3.3.0) have null for these fields — this is expected and correct.
+
+---
+
+### R2. New Backend Endpoints — customer-synchronize and triggerGeoBackfill
+
+Two new endpoints are live on `https://upwork.kowope.xyz`:
+
+**POST /customer/synchronize** (also POST /api/v1/customer/synchronize)
+Writes a customer record to the ArcGIS Customer Layer after a pickup is saved.
+
+Request Body: { customerId, buildingId, customerName, customerPhone?, customerAddress?, lat?, lng?, lgaName?, lgaCode?, stateCode?, wardCode?, wardName? }
+
+Success Response: { "success": true, "message": "ArcGIS Customer Layer added successfully", "arcgis": { "action": "added", "objectId": 2485544 } }
+
+Note: lng and lon are both accepted as field names for longitude (backward-compatible alias).
+
+**POST /customer/triggerGeoBackfill** (also POST /api/v1/customer/triggerGeoBackfill)
+Triggers a background job to backfill geographic data for all existing customers lacking geographic fields.
+
+Success Response: { "success": true, "message": "Geo backfill started in background." }
+
+---
+
+### R3. ArcGIS Customer Layer — Bulk Import Complete (March 30, 2026)
+
+The ArcGIS Customer Layer (Customer_Layer_gdb/FeatureServer/0) was fully populated with the Lagos State building enrichment dataset.
+
+| Metric | Before | After |
+|--------|--------|-------|
+| Total records | ~12,616 | 2,381,047 |
+| LOT 006 / Ikeja GRA (LASIKA06) | 5,795 | 70,048 |
+| Ikorodu | 6,841 | 410,881 |
+| All other LGAs | ~0 | 1,900,118 |
+
+Frontend impact: CustomerSearch and arcgis_service.dart will now return results for all 20 Lagos LGAs. No code change required — layer URL and query format are unchanged. All 5,795 pre-existing Ikeja GRA records were preserved untouched.
+
+---
+
+### R4. Server Architecture Update — Nginx Routing Corrected (Authoritative Reference)
+
+IMPORTANT: sites-available and sites-enabled are COPIES (not symlinks) on this server. Any Nginx change must be applied to /etc/nginx/sites-enabled/ (the active file) and then synced to sites-available. Always run: nginx -t && nginx -s reload
+
+**upwork.kowope.xyz routing:**
+
+| Path Prefix | Internal Port | Service |
+|-------------|--------------|---------|
+| /api/v1/ | 3003 | mottainai-backend (Property Enumeration API) |
+| /users/ | 3003 | mottainai-backend (Survey App auth) |
+| /forms/ | 3003 | mottainai-backend (Survey App submissions) |
+| /survey/ | 3003 | mottainai-backend |
+| /api/pickups/ | 3003 | mottainai-backend |
+| /customer/ | 3003 | mottainai-backend (ArcGIS sync) |
+| /api/trpc/ | 3005 | mottainai-dashboard (Admin tRPC) |
+| /api/mobile/users/ | 3003 (rewrite) | Rewrites to /users/ on port 3003 |
+| /*.apk | static | /var/www/html/ (direct file serve) |
+
+**admin.kowope.xyz routing:**
+
+| Path Prefix | Internal Port | Service |
+|-------------|--------------|---------|
+| /api/trpc/ | 3005 | mottainai-dashboard (Admin tRPC) |
+| /dashboard/ | 3005 (auth-gated) | Admin Dashboard SPA (Basic Auth: admin/admin123) |
+| / | 3005 | mottainai-dashboard SPA |
+
+---
+
+### R5. JWT Secret — Aligned Across All Services
+
+| Service | JWT Secret | Status |
+|---------|-----------|--------|
+| mottainai-backend (jwtToken.js) | mottainai-secret-key-2025 | Aligned |
+| mottainai-dashboard (runtime env) | mottainai-secret-key-2025 | Aligned |
+
+ACTION FOR BACKEND TEAM: When restarting mottainai-dashboard via PM2, always ensure JWT_SECRET=mottainai-secret-key-2025 is set in the environment. The compiled dist/index.js fallback is mottainai-secret-key-change-in-production — if the env var is missing, tokens will be rejected.
+
+---
+
+### R6. Admin Dashboard — Geographic Fields Added (Frontend Action Required)
+
+| Model | New Fields | Frontend File to Update |
+|-------|-----------|------------------------|
+| Customer.ts | arcgisBuildingId, lgaName, lgaCode, stateCode, country, wardCode, wardName | client/src/pages/Customers.tsx |
+| FormSubmission.ts | arcgisBuildingId, lotCode, lgaName, lgaCode, stateCode, country, wardCode, wardName | client/src/pages/PickupRecords.tsx |
+
+The pickups.ts tRPC router now returns lgaName, lgaCode, stateCode, country, wardCode, wardName, lotCode in every pickup record. Historical records return null for these fields.
+
+---
+
+### R7. Survey App v3.3.0 APK Released
+
+| Property | Value |
+|----------|-------|
+| Version | 3.3.0 |
+| Download URL | https://upwork.kowope.xyz/mottainai-survey-app-v3.3.0.apk |
+| File size | 24.2 MB |
+| Min SDK | Android 5.0 (API 21) |
+| SQLite DB version | 14 |
+| Key changes | arcgisBuildingId field added; withValues to withOpacity Flutter compat fix |
+
+---
+
+### R8. Outstanding Items (March 30, 2026)
+
+| Item | Owner | Priority |
+|------|-------|----------|
+| Admin Dashboard Phases 1-6 (analytics, customer mgmt, operations, financial) | Frontend | High |
+| Role-based access control (superadmin vs admin) | Frontend | High |
+| PickupRecords.tsx geographic columns (lgaName, wardName, lotCode) | Frontend | High |
+| triggerGeoBackfill button in Admin Dashboard QA Tools | Frontend | Medium |
+| Port 3004 unknown process — identify and document | Backend | Medium |
+| Port 3000 (Field Operations App) — currently down | Backend | Medium |
+| 1,022 quarantined LASIKA06 records (bad coordinates) | Backend/Operations | Low |
+
+---
+
+*v1.3.0 prepared by the Frontend Team on March 30, 2026. This revision is additive — all v1.2.0 content remains valid.*
