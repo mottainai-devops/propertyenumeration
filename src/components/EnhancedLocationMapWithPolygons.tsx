@@ -502,19 +502,33 @@ export function EnhancedLocationMapWithPolygons({
           // This handles lots where customer points have null Lat/Long (e.g. LOT-242).
           // The building_id format is '<num> <zone_code> <lot_num>' so we match on
           // the lot number suffix (e.g. ' 242' for LOT-242, ' 006' for LOT-6).
-          const lotId = lotCodeToArcGISLotId(lotCode);
-          if (lotId) {
-            // Use ' <lotId>' as suffix — space before ensures we don't match partial numbers
-            fetchCustomerPointsForLot(` ${lotId}`).then(cpMap => {
-              if (cpMap.size > 0) {
-                setCustomerPointsMap(prev => {
-                  const merged = new Map(prev);
-                  cpMap.forEach((v, k) => merged.set(k, v));
-                  return merged;
-                });
-                console.log(`[CustomerLayer] Lot-based load: ${cpMap.size} customer points for lot ${lotId}`);
-              }
-            }).catch(e => console.warn('[CustomerLayer] Lot-based load failed:', e));
+          //
+          // IMPORTANT: Wrapped in try/catch so any error here (including errors
+          // thrown inside .then() during state update) does NOT bubble up into
+          // the React render tree and trigger the MapErrorBoundary fallback.
+          try {
+            const lotId = lotCodeToArcGISLotId(lotCode);
+            if (lotId) {
+              // Use ' <lotId>' as suffix — space before ensures we don't match partial numbers
+              fetchCustomerPointsForLot(` ${lotId}`)
+                .then(cpMap => {
+                  try {
+                    if (cpMap.size > 0) {
+                      setCustomerPointsMap(prev => {
+                        const merged = new Map(prev);
+                        cpMap.forEach((v, k) => merged.set(k, v));
+                        return merged;
+                      });
+                      console.log(`[CustomerLayer] Lot-based load: ${cpMap.size} customer points for lot ${lotId}`);
+                    }
+                  } catch (stateErr) {
+                    console.warn('[CustomerLayer] State update failed (non-fatal):', stateErr);
+                  }
+                })
+                .catch(e => console.warn('[CustomerLayer] Lot-based load failed (non-fatal):', e));
+            }
+          } catch (lotErr) {
+            console.warn('[CustomerLayer] Lot ID resolution failed (non-fatal):', lotErr);
           }
         } else if (cachedPolygons.length === 0) {
           // Progressive loader returned nothing — fall through to legacy loader below
