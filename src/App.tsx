@@ -913,6 +913,7 @@ function App() {
               <LocationPickerWithMap
                 onLocationSelect={handleLocationSelect}
                 surveyedBuildingIds={surveyedBuildingIds}
+                lotCode={activeServerSession?.lotCode || getDefaultLotCode()}
               />
             </div>
           </div>

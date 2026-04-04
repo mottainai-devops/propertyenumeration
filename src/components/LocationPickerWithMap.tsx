@@ -19,11 +19,15 @@ interface LocationPickerWithMapProps {
   }) => void;
   /** Building IDs already surveyed this session */
   surveyedBuildingIds?: Set<string>;
+  /** MongoDB lot code for the active session (e.g. "LOT-242") — enables the
+   *  fast two-phase progressive polygon loader. */
+  lotCode?: string;
 }
 
 export default function LocationPickerWithMap({
   onLocationSelect,
   surveyedBuildingIds = new Set(),
+  lotCode,
 }: LocationPickerWithMapProps) {
   const [location, setLocation] = useState<LocationData>({ latitude: 6.5244, longitude: 3.3792 });
   const [useMap, setUseMap] = useState(true);
@@ -106,6 +110,7 @@ export default function LocationPickerWithMap({
             onLocationChange={handleMapLocationChange}
             onBuildingSelected={handleBuildingSelected}
             surveyedBuildingIds={surveyedBuildingIds}
+            lotCode={lotCode}
           />
         </MapErrorBoundary>
       ) : (

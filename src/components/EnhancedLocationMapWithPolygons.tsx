@@ -3,7 +3,7 @@ import { MapContainer, TileLayer, Marker, Polygon, useMap, useMapEvents } from '
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import type { BuildingPolygon } from '../models/BuildingPolygon';
-import { fetchPolygonsNearLocation, fetchPolygonsInBounds, fetchCustomerPointsInBounds } from '../services/arcgisService';
+import { fetchPolygonsNearLocation, fetchPolygonsInBounds, fetchCustomerPointsInBounds, fetchPolygonsForLotProgressive } from '../services/arcgisService';
 import type { CustomerPoint } from '../services/arcgisService';
 import { getCachedPolygonsNearLocation, savePolygonsToCache, getCacheTimestamp } from '../services/simplePolygonCache';
 import { getMockPolygons } from '../services/mockPolygonData';
@@ -57,6 +57,10 @@ interface EnhancedLocationMapWithPolygonsProps {
   onBuildingSelected?: (polygon: BuildingPolygon) => void;
   /** Set of building IDs that have already been surveyed this session */
   surveyedBuildingIds?: Set<string>;
+  /** MongoDB lot code for the active session (e.g. "LOT-242"). Used by the
+   *  progressive loader to fetch all polygons for the lot by Lot_ID instead
+   *  of a slow spatial radius query. Falls back to spatial query if omitted. */
+  lotCode?: string;
 }
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
@@ -336,6 +340,7 @@ export function EnhancedLocationMapWithPolygons({
   onLocationChange,
   onBuildingSelected,
   surveyedBuildingIds = new Set(),
+  lotCode,
 }: EnhancedLocationMapWithPolygonsProps) {
   const [position, setPosition] = useState<[number, number]>([latitude, longitude]);
   const [mapError, setMapError] = useState<string | null>(null);
@@ -441,11 +446,6 @@ export function EnhancedLocationMapWithPolygons({
     setIsLoadingPolygons(true);
     setPolygonError(null);
 
-    // Use a tight 0.5km initial radius so the first load is fast even for dense lots
-    // (e.g. LOT-242 Anthony has 8,169 polygons — 5km radius took 24s; 0.5km takes ~3s)
-    // The viewport handler progressively loads more as the agent pans.
-    const INITIAL_RADIUS_KM = 0.5;
-
     try {
       if (USE_MOCK_DATA) {
         const mockPolygons = getMockPolygons();
@@ -455,14 +455,75 @@ export function EnhancedLocationMapWithPolygons({
         return;
       }
 
-      const cachedPolygons = getCachedPolygonsNearLocation(lat, lon, INITIAL_RADIUS_KM);
+      // ── Progressive two-phase loader (v1.59.2) ────────────────────────────
+      // When a lotCode is available, use the fast Lot_ID-based OBJECTID fetch
+      // (Phase 1: ~2.5s) followed by parallel geometry batches (Phase 2: ~2s
+      // per 400 polygons). This avoids the slow spatial radius query that was
+      // timing out for dense lots like LOT-242 (8,169 polygons, ~24s before).
+      //
+      // The onBatch callback merges each background batch into the map state
+      // so polygons appear progressively as they load.
+      // ─────────────────────────────────────────────────────────────────────
+      if (lotCode) {
+        // Show cached data immediately while fresh data loads
+        const cachedPolygons = getCachedPolygonsNearLocation(lat, lon, 5);
+        if (cachedPolygons.length > 0) {
+          polygonsRef.current = cachedPolygons;
+          setPolygons(cachedPolygons);
+          tryAutoSelect(lat, lon, cachedPolygons);
+        }
+
+        const onBatch = (batch: BuildingPolygon[]) => {
+          // Merge background batches, deduplicating by buildingId
+          const existingIds = new Set(polygonsRef.current.map(p => p.buildingId));
+          const newOnes = batch.filter(p => !existingIds.has(p.buildingId));
+          if (newOnes.length === 0) return;
+          const merged = [...polygonsRef.current, ...newOnes];
+          polygonsRef.current = merged;
+          setPolygons([...merged]);
+          savePolygonsToCache(merged, lat, lon);
+          setCacheTimestamp(Date.now());
+        };
+
+        const initialPolygons = await fetchPolygonsForLotProgressive(lotCode, onBatch);
+
+        if (initialPolygons.length > 0) {
+          // Merge initial batch with any cached polygons already shown
+          const existingIds = new Set(polygonsRef.current.map(p => p.buildingId));
+          const newOnes = initialPolygons.filter(p => !existingIds.has(p.buildingId));
+          const merged = [...polygonsRef.current, ...newOnes];
+          polygonsRef.current = merged;
+          setPolygons([...merged]);
+          savePolygonsToCache(merged, lat, lon);
+          setCacheTimestamp(Date.now());
+          tryAutoSelect(lat, lon, merged);
+        } else if (cachedPolygons.length === 0) {
+          // Progressive loader returned nothing — fall through to legacy loader below
+          console.warn('[loadPolygons] Progressive loader returned 0 — falling back to legacy spatial query');
+          const fallback = await fetchPolygonsNearLocation(lat, lon, 2);
+          if (fallback.length > 0) {
+            polygonsRef.current = fallback;
+            setPolygons(fallback);
+            savePolygonsToCache(fallback, lat, lon);
+            setCacheTimestamp(Date.now());
+            tryAutoSelect(lat, lon, fallback);
+          } else {
+            setPolygonError('No building data found for this lot');
+          }
+        }
+        return;
+      }
+
+      // ── Legacy spatial query (no lotCode available) ───────────────────────
+      const LEGACY_RADIUS_KM = 2;
+      const cachedPolygons = getCachedPolygonsNearLocation(lat, lon, LEGACY_RADIUS_KM);
       if (cachedPolygons.length > 0) {
         polygonsRef.current = cachedPolygons;
         setPolygons(cachedPolygons);
         tryAutoSelect(lat, lon, cachedPolygons);
       }
 
-      const freshPolygons = await fetchPolygonsNearLocation(lat, lon, INITIAL_RADIUS_KM);
+      const freshPolygons = await fetchPolygonsNearLocation(lat, lon, LEGACY_RADIUS_KM);
       if (freshPolygons.length > 0) {
         polygonsRef.current = freshPolygons;
         setPolygons(freshPolygons);
@@ -474,7 +535,7 @@ export function EnhancedLocationMapWithPolygons({
       }
     } catch (error) {
       console.error('Error loading polygons:', error);
-      const cachedPolygons = getCachedPolygonsNearLocation(lat, lon, INITIAL_RADIUS_KM);
+      const cachedPolygons = getCachedPolygonsNearLocation(lat, lon, 2);
       if (cachedPolygons.length > 0) {
         polygonsRef.current = cachedPolygons;
         setPolygons(cachedPolygons);
@@ -905,7 +966,19 @@ export function EnhancedLocationMapWithPolygons({
                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
               </svg>
-              Loading buildings…
+              {polygons.length > 0
+                ? `Loading buildings… (${polygons.length.toLocaleString()} so far)`
+                : 'Connecting to ArcGIS…'}
+            </div>
+          )}
+          {/* Progressive background load indicator (after initial load completes) */}
+          {!isLoadingPolygons && polygons.length > 0 && polygons.length < 400 && lotCode && (
+            <div className="absolute top-2 left-1/2 -translate-x-1/2 bg-blue-50 border border-blue-200 px-3 py-1.5 rounded-full shadow-sm text-xs text-blue-700 z-[1001] flex items-center gap-1.5">
+              <svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+              </svg>
+              Loading more buildings in background…
             </div>
           )}
 

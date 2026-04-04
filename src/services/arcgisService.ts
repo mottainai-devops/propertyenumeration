@@ -463,6 +463,161 @@ export async function fetchCustomerPointsInBounds(
   return result;
 }
 
+// ─── Two-phase progressive loader (v1.59.2) ─────────────────────────────────
+
+/**
+ * Convert a MongoDB lotCode (e.g. "LOT-242", "MOT-027") to the ArcGIS Lot_ID
+ * string (e.g. "242", "027") used in the Footprint layer.
+ *
+ * Rules:
+ *   1. Strip any alphabetic prefix up to and including the first hyphen.
+ *   2. The remaining numeric string is the Lot_ID (ArcGIS stores it as a
+ *      zero-padded 3-digit string, e.g. "006", "027", "242").
+ *   3. If the input already looks like a bare number, use it as-is.
+ */
+function lotCodeToArcGISLotId(lotCode: string): string | null {
+  if (!lotCode) return null;
+  // Strip prefix like "LOT-", "MOT-", "ADK-", "AFT-", etc.
+  const match = lotCode.match(/(?:^[A-Z]+-)(\d+)$/);
+  if (match) return match[1]; // e.g. "242", "027"
+  // Already numeric
+  if (/^\d+$/.test(lotCode)) return lotCode;
+  return null;
+}
+
+/**
+ * Fetch a single batch of building polygons by OBJECTID list.
+ * Used internally by fetchPolygonsForLotProgressive.
+ */
+async function fetchPolygonsByObjectIds(
+  objectIds: number[]
+): Promise<BuildingPolygon[]> {
+  if (objectIds.length === 0) return [];
+  const params: Record<string, string> = {
+    objectIds: objectIds.join(','),
+    outFields:
+      'building_id,business_name,first_name,last_name,cust_phone,customer_email,address,Zone,socio_economic_groups',
+    returnGeometry: 'true',
+    f: 'json',
+    token: ARCGIS_API_KEY,
+  };
+  const body = new URLSearchParams(params);
+  const response = await fetch(`${ARCGIS_BASE_URL}/query`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: body.toString(),
+  });
+  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+  const data = await response.json();
+  if (data.error) throw new Error(data.error.message);
+  return (data.features ?? []).map((f: ArcGISFeature) =>
+    convertArcGISFeatureToBuildingPolygon(f)
+  );
+}
+
+/**
+ * Progressive two-phase polygon loader.
+ *
+ * Phase 1 (~2.5s): Fetch all OBJECTIDs for the lot using a lightweight
+ *   attribute-only query filtered by Lot_ID. No geometry, no spatial index.
+ *
+ * Phase 2 (~2s per 400): Stream geometry in parallel batches of BATCH_SIZE.
+ *   The first INITIAL_BATCHES batches are awaited before returning so the
+ *   map gets its first polygons quickly. Remaining batches are dispatched
+ *   in the background and delivered via the onBatch callback.
+ *
+ * Falls back to the legacy spatial query if lotCode cannot be mapped.
+ *
+ * @param lotCode    MongoDB lotCode (e.g. "LOT-242")
+ * @param onBatch    Called with each subsequent batch of polygons after the
+ *                   initial set has been returned. Use this to merge into
+ *                   the map's polygon state progressively.
+ * @returns          First INITIAL_BATCHES × BATCH_SIZE polygons (or all if
+ *                   the lot is small), ready to render immediately.
+ */
+export async function fetchPolygonsForLotProgressive(
+  lotCode: string,
+  onBatch: (polygons: BuildingPolygon[]) => void
+): Promise<BuildingPolygon[]> {
+  const BATCH_SIZE = 100;
+  const PARALLEL_WORKERS = 4;
+  const INITIAL_BATCHES = 4; // First 400 polygons returned synchronously
+
+  const lotId = lotCodeToArcGISLotId(lotCode);
+  if (!lotId) {
+    console.warn(`[Progressive] Cannot map lotCode '${lotCode}' to ArcGIS Lot_ID — falling back to legacy loader`);
+    return [];
+  }
+
+  console.log(`[Progressive] Phase 1: fetching OBJECTIDs for Lot_ID='${lotId}'`);
+  const t0 = Date.now();
+
+  // Phase 1: Get all OBJECTIDs (fast — attribute-only, no geometry)
+  const body1 = new URLSearchParams({
+    where: `Lot_ID='${lotId}'`,
+    returnIdsOnly: 'true',
+    f: 'json',
+    token: ARCGIS_API_KEY,
+  });
+  const res1 = await fetch(`${ARCGIS_BASE_URL}/query`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: body1.toString(),
+  });
+  if (!res1.ok) throw new Error(`Phase 1 HTTP ${res1.status}`);
+  const data1 = await res1.json();
+  if (data1.error) throw new Error(data1.error.message);
+
+  const allIds: number[] = data1.objectIds ?? [];
+  console.log(`[Progressive] Phase 1 done: ${allIds.length} OBJECTIDs in ${Date.now() - t0}ms`);
+
+  if (allIds.length === 0) return [];
+
+  // Split into batches of BATCH_SIZE
+  const batches: number[][] = [];
+  for (let i = 0; i < allIds.length; i += BATCH_SIZE) {
+    batches.push(allIds.slice(i, i + BATCH_SIZE));
+  }
+
+  // Phase 2a: Fetch first INITIAL_BATCHES × PARALLEL_WORKERS batches in parallel (synchronous return)
+  const initialBatchCount = Math.min(INITIAL_BATCHES, batches.length);
+  const initialBatches = batches.slice(0, initialBatchCount);
+  const remainingBatches = batches.slice(initialBatchCount);
+
+  console.log(`[Progressive] Phase 2a: fetching first ${initialBatchCount} batches (${initialBatchCount * BATCH_SIZE} polygons) in parallel`);
+  const t1 = Date.now();
+
+  // Run initial batches in parallel groups of PARALLEL_WORKERS
+  const initialPolygons: BuildingPolygon[] = [];
+  for (let i = 0; i < initialBatches.length; i += PARALLEL_WORKERS) {
+    const group = initialBatches.slice(i, i + PARALLEL_WORKERS);
+    const results = await Promise.all(group.map(fetchPolygonsByObjectIds));
+    results.forEach(r => initialPolygons.push(...r));
+  }
+  console.log(`[Progressive] Phase 2a done: ${initialPolygons.length} polygons in ${Date.now() - t1}ms`);
+
+  // Phase 2b: Stream remaining batches in the background
+  if (remainingBatches.length > 0) {
+    console.log(`[Progressive] Phase 2b: streaming ${remainingBatches.length} remaining batches in background`);
+    (async () => {
+      for (let i = 0; i < remainingBatches.length; i += PARALLEL_WORKERS) {
+        const group = remainingBatches.slice(i, i + PARALLEL_WORKERS);
+        try {
+          const results = await Promise.all(group.map(fetchPolygonsByObjectIds));
+          const batch: BuildingPolygon[] = [];
+          results.forEach(r => batch.push(...r));
+          if (batch.length > 0) onBatch(batch);
+        } catch (e) {
+          console.warn('[Progressive] Background batch failed:', e);
+        }
+      }
+      console.log('[Progressive] Phase 2b complete — all batches delivered');
+    })();
+  }
+
+  return initialPolygons;
+}
+
 // ─── Read-only queries (unchanged from v1.58.2) ───────────────────────────────
 
 /**
