@@ -441,6 +441,11 @@ export function EnhancedLocationMapWithPolygons({
     setIsLoadingPolygons(true);
     setPolygonError(null);
 
+    // Use a tight 0.5km initial radius so the first load is fast even for dense lots
+    // (e.g. LOT-242 Anthony has 8,169 polygons — 5km radius took 24s; 0.5km takes ~3s)
+    // The viewport handler progressively loads more as the agent pans.
+    const INITIAL_RADIUS_KM = 0.5;
+
     try {
       if (USE_MOCK_DATA) {
         const mockPolygons = getMockPolygons();
@@ -450,14 +455,14 @@ export function EnhancedLocationMapWithPolygons({
         return;
       }
 
-      const cachedPolygons = getCachedPolygonsNearLocation(lat, lon, 5.0);
+      const cachedPolygons = getCachedPolygonsNearLocation(lat, lon, INITIAL_RADIUS_KM);
       if (cachedPolygons.length > 0) {
         polygonsRef.current = cachedPolygons;
         setPolygons(cachedPolygons);
         tryAutoSelect(lat, lon, cachedPolygons);
       }
 
-      const freshPolygons = await fetchPolygonsNearLocation(lat, lon, 5.0);
+      const freshPolygons = await fetchPolygonsNearLocation(lat, lon, INITIAL_RADIUS_KM);
       if (freshPolygons.length > 0) {
         polygonsRef.current = freshPolygons;
         setPolygons(freshPolygons);
@@ -469,7 +474,7 @@ export function EnhancedLocationMapWithPolygons({
       }
     } catch (error) {
       console.error('Error loading polygons:', error);
-      const cachedPolygons = getCachedPolygonsNearLocation(lat, lon, 5.0);
+      const cachedPolygons = getCachedPolygonsNearLocation(lat, lon, INITIAL_RADIUS_KM);
       if (cachedPolygons.length > 0) {
         polygonsRef.current = cachedPolygons;
         setPolygons(cachedPolygons);
