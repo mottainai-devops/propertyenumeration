@@ -3,7 +3,7 @@ import { MapContainer, TileLayer, Marker, Polygon, useMap, useMapEvents } from '
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import type { BuildingPolygon } from '../models/BuildingPolygon';
-import { fetchPolygonsNearLocation, fetchPolygonsInBounds, fetchCustomerPointsInBounds, fetchPolygonsForLotProgressive } from '../services/arcgisService';
+import { fetchPolygonsNearLocation, fetchPolygonsInBounds, fetchCustomerPointsInBounds, fetchCustomerPointsForLot, fetchPolygonsForLotProgressive, lotCodeToArcGISLotId } from '../services/arcgisService';
 import type { CustomerPoint } from '../services/arcgisService';
 import { getCachedPolygonsNearLocation, savePolygonsToCache, getCacheTimestamp } from '../services/simplePolygonCache';
 import { getMockPolygons } from '../services/mockPolygonData';
@@ -497,6 +497,25 @@ export function EnhancedLocationMapWithPolygons({
           savePolygonsToCache(merged, lat, lon);
           setCacheTimestamp(Date.now());
           tryAutoSelect(lat, lon, merged);
+
+          // Load customer points for this lot by building_id suffix pattern.
+          // This handles lots where customer points have null Lat/Long (e.g. LOT-242).
+          // The building_id format is '<num> <zone_code> <lot_num>' so we match on
+          // the lot number suffix (e.g. ' 242' for LOT-242, ' 006' for LOT-6).
+          const lotId = lotCodeToArcGISLotId(lotCode);
+          if (lotId) {
+            // Use ' <lotId>' as suffix — space before ensures we don't match partial numbers
+            fetchCustomerPointsForLot(` ${lotId}`).then(cpMap => {
+              if (cpMap.size > 0) {
+                setCustomerPointsMap(prev => {
+                  const merged = new Map(prev);
+                  cpMap.forEach((v, k) => merged.set(k, v));
+                  return merged;
+                });
+                console.log(`[CustomerLayer] Lot-based load: ${cpMap.size} customer points for lot ${lotId}`);
+              }
+            }).catch(e => console.warn('[CustomerLayer] Lot-based load failed:', e));
+          }
         } else if (cachedPolygons.length === 0) {
           // Progressive loader returned nothing — fall through to legacy loader below
           console.warn('[loadPolygons] Progressive loader returned 0 — falling back to legacy spatial query');

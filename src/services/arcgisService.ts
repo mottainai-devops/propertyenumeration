@@ -392,6 +392,10 @@ export interface CustomerPoint {
  * Only fetches the label-relevant fields (building_id, first_name, last_name,
  * business_name) to keep the payload small. Uses POST to avoid URL truncation.
  *
+ * IMPORTANT: The Customer Layer geometry is stored in Web Mercator (EPSG:3857)
+ * but the app works in WGS84. We must pass inSR=4326 so ArcGIS correctly
+ * interprets the bounding box coordinates as WGS84 degrees.
+ *
  * Returns an empty map on any error (non-throwing for resilience).
  */
 export async function fetchCustomerPointsInBounds(
@@ -410,9 +414,10 @@ export async function fetchCustomerPointsInBounds(
       }),
       geometryType: 'esriGeometryEnvelope',
       spatialRel: 'esriSpatialRelIntersects',
+      inSR: '4326',
       outFields: 'building_id,first_name,last_name,business_name,cust_phone,customer_email,customer_type,address,flat_no,Lat,Long',
       returnGeometry: 'false',
-      resultRecordCount: '2000',
+      resultRecordCount: '4000',
       f: 'json',
       token: ARCGIS_API_KEY,
     };
@@ -463,6 +468,82 @@ export async function fetchCustomerPointsInBounds(
   return result;
 }
 
+/**
+ * Fetch all customer points for a specific lot by matching the building_id
+ * suffix pattern (e.g. all building_ids ending in 'LASKSE05 242').
+ *
+ * This is the fallback for lots where customer points have null Lat/Long
+ * coordinates (e.g. LOT-242 Anthony, Kosofe) and cannot be found via
+ * spatial queries. Uses the building_id field directly.
+ *
+ * Returns a map keyed by building_id for O(1) lookup.
+ * Returns an empty map on any error (non-throwing for resilience).
+ */
+export async function fetchCustomerPointsForLot(
+  lotBuildingIdSuffix: string
+): Promise<Map<string, CustomerPoint>> {
+  const result = new Map<string, CustomerPoint>();
+  if (!lotBuildingIdSuffix) return result;
+
+  try {
+    const escaped = lotBuildingIdSuffix.replace(/'/g, "''");
+    const params: Record<string, string> = {
+      where: `building_id LIKE '%${escaped}'`,
+      outFields: 'building_id,first_name,last_name,business_name,cust_phone,customer_email,customer_type,address,flat_no,Lat,Long',
+      returnGeometry: 'false',
+      resultRecordCount: '10000',
+      f: 'json',
+      token: ARCGIS_API_KEY,
+    };
+
+    const body = new URLSearchParams(params);
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 30000);
+
+    const response = await fetch(`${ARCGIS_CUSTOMER_URL}/query`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: body.toString(),
+      signal: controller.signal,
+    });
+    clearTimeout(timeoutId);
+
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const data = await response.json();
+    if (data.error) throw new Error(data.error.message);
+
+    const features: any[] = data.features ?? [];
+    console.log(`[CustomerLayer] fetchCustomerPointsForLot('${lotBuildingIdSuffix}'): ${features.length} records`);
+
+    for (const f of features) {
+      const a = f.attributes;
+      const buildingId: string = a.building_id ?? '';
+      if (!buildingId) continue;
+      // Keep the most informative record per building (prefer records with a name)
+      const existing = result.get(buildingId);
+      const hasName = !!(a.business_name || a.first_name || a.last_name);
+      if (!existing || hasName) {
+        result.set(buildingId, {
+          buildingId,
+          unitCode: a.flat_no ?? undefined,
+          firstName: a.first_name ?? undefined,
+          lastName: a.last_name ?? undefined,
+          businessName: a.business_name ?? undefined,
+          phone: a.cust_phone ?? undefined,
+          email: a.customer_email ?? undefined,
+          customerType: a.customer_type ?? undefined,
+          address: a.address ?? undefined,
+          lat: a.Lat ?? undefined,
+          lon: a.Long ?? undefined,
+        });
+      }
+    }
+  } catch (error) {
+    console.warn(`[CustomerLayer] fetchCustomerPointsForLot failed (non-critical):`, error);
+  }
+  return result;
+}
+
 // ─── Two-phase progressive loader (v1.59.2) ─────────────────────────────────
 
 /**
@@ -475,7 +556,7 @@ export async function fetchCustomerPointsInBounds(
  *      zero-padded 3-digit string, e.g. "006", "027", "242").
  *   3. If the input already looks like a bare number, use it as-is.
  */
-function lotCodeToArcGISLotId(lotCode: string): string | null {
+export function lotCodeToArcGISLotId(lotCode: string): string | null {
   if (!lotCode) return null;
   // Strip prefix like "LOT-", "MOT-", "ADK-", "AFT-", etc.
   const match = lotCode.match(/(?:^[A-Z]+-)(\d+)$/);
@@ -496,7 +577,7 @@ async function fetchPolygonsByObjectIds(
   const params: Record<string, string> = {
     objectIds: objectIds.join(','),
     outFields:
-      'building_id,business_name,first_name,last_name,cust_phone,customer_email,address,Zone,socio_economic_groups',
+      'building_id,address,Zone,socio_economic_groups,Validation,Validated_By',
     returnGeometry: 'true',
     f: 'json',
     token: ARCGIS_API_KEY,
@@ -642,7 +723,7 @@ export async function fetchPolygonsInBounds(
       geometryType: 'esriGeometryEnvelope',
       spatialRel: 'esriSpatialRelIntersects',
       outFields:
-        'building_id,business_name,first_name,last_name,cust_phone,customer_email,address,Zone,socio_economic_groups',
+        'building_id,address,Zone,socio_economic_groups,Validation,Validated_By',
       returnGeometry: 'true',
       f: 'json',
       token: ARCGIS_API_KEY,
@@ -702,7 +783,7 @@ export async function fetchPolygonsNearLocation(
       distance: radiusMeters.toString(),
       units: 'esriSRUnit_Meter',
       outFields:
-        'building_id,business_name,first_name,last_name,cust_phone,customer_email,address,Zone,socio_economic_groups',
+        'building_id,address,Zone,socio_economic_groups,Validation,Validated_By',
       returnGeometry: 'true',
       f: 'json',
       token: ARCGIS_API_KEY,
@@ -769,7 +850,7 @@ export async function fetchPolygonByBuildingId(
     const params = new URLSearchParams({
       where: `building_id='${buildingId}'`,
       outFields:
-        'building_id,business_name,first_name,last_name,cust_phone,customer_email,address,Zone,socio_economic_groups',
+        'building_id,address,Zone,socio_economic_groups,Validation,Validated_By',
       returnGeometry: 'true',
       f: 'json',
       token: ARCGIS_API_KEY,
@@ -856,14 +937,19 @@ function convertArcGISFeatureToBuildingPolygon(feature: ArcGISFeature): Building
 
   return {
     buildingId: attributes.building_id || '',
-    businessName: attributes.business_name,
-    firstName: attributes.first_name,
-    lastName: attributes.last_name,
-    custPhone: attributes.cust_phone,
-    customerEmail: attributes.customer_email,
+    // Customer data lives exclusively in the Customer Point layer.
+    // These fields are intentionally NOT read from the polygon layer.
+    businessName: undefined,
+    firstName: undefined,
+    lastName: undefined,
+    custPhone: undefined,
+    customerEmail: undefined,
     address: attributes.address,
     zone: attributes.Zone,
     socioEconomicGroups: attributes.socio_economic_groups,
+    // Enumeration status fields (written back after registration)
+    validation: attributes.Validation,
+    validatedBy: attributes.Validated_By,
     geometry: geoJsonPolygon,
     centerLat,
     centerLon,
