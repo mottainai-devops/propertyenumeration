@@ -3,7 +3,8 @@ import { MapContainer, TileLayer, Marker, Polygon, useMap, useMapEvents } from '
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import type { BuildingPolygon } from '../models/BuildingPolygon';
-import { fetchPolygonsNearLocation, fetchPolygonsInBounds } from '../services/arcgisService';
+import { fetchPolygonsNearLocation, fetchPolygonsInBounds, fetchCustomerPointsInBounds } from '../services/arcgisService';
+import type { CustomerPoint } from '../services/arcgisService';
 import { getCachedPolygonsNearLocation, savePolygonsToCache, getCacheTimestamp } from '../services/simplePolygonCache';
 import { getMockPolygons } from '../services/mockPolygonData';
 import { buildingApi } from '../api/client';
@@ -99,19 +100,42 @@ function ViewportChangeHandler({
         west: b.getWest(),
       });
     },
+    // Also fire on zoomend so customer labels load when user zooms in past threshold
+    zoomend: (e) => {
+      const b = e.target.getBounds();
+      onMoveEnd({
+        north: b.getNorth(),
+        south: b.getSouth(),
+        east: b.getEast(),
+        west: b.getWest(),
+      });
+    },
   });
   return null;
 }
 
-/** Zoom-dependent label - shows business name or building ID */
+/** Resolve the best display name from a CustomerPoint record */
+function resolveCustomerPointName(cp: CustomerPoint): string {
+  if (isValidBusinessName(cp.businessName)) return cp.businessName!;
+  const fullName = [cp.firstName, cp.lastName]
+    .filter(n => n && n.trim() !== '' && n !== 'None' && n !== 'null')
+    .join(' ')
+    .trim();
+  if (fullName && fullName.toLowerCase() !== 'esteemed customer') return fullName;
+  return '';
+}
+
+/** Zoom-dependent label - shows customer name from Customer Layer, or building ID */
 function ZoomDependentLabel({
   polygon,
   minZoom = LABEL_ZOOM_THRESHOLD,
   status = 'default',
+  customerPoint,
 }: {
   polygon: BuildingPolygon;
   minZoom?: number;
   status?: 'enumerated' | 'surveyed-session' | 'default';
+  customerPoint?: CustomerPoint;
 }) {
   const map = useMap();
   const [showLabel, setShowLabel] = useState(false);
@@ -125,18 +149,28 @@ function ZoomDependentLabel({
 
   if (!showLabel) return null;
 
-  const labelText = resolveDisplayName(polygon);
+  // Priority: Customer Layer point name > polygon attributes > buildingId
+  let labelText = '';
+  let hasCustomerData = false;
+  if (customerPoint) {
+    const cpName = resolveCustomerPointName(customerPoint);
+    if (cpName) { labelText = cpName; hasCustomerData = true; }
+  }
+  if (!labelText) labelText = resolveDisplayName(polygon);
+  if (labelText === polygon.buildingId) hasCustomerData = false;
+
   const maxChars = 18;
   const displayText = labelText.length > maxChars
     ? labelText.slice(0, maxChars - 1) + '…'
     : labelText;
 
-  const prefix = status === 'enumerated' ? '✓ ' : status === 'surveyed-session' ? '✓ ' : '';
-  const color = status === 'enumerated' ? '#166534' : status === 'surveyed-session' ? '#1d4ed8' : '#1a1a1a';
+  // Enumerated/surveyed always show checkmark; customer data without status = plain
+  const prefix = status === 'enumerated' ? '✓ ' : status === 'surveyed-session' ? '✓ ' : (hasCustomerData ? '● ' : '');
+  const color = status === 'enumerated' ? '#166534' : status === 'surveyed-session' ? '#1d4ed8' : (hasCustomerData ? '#7c3aed' : '#1a1a1a');
 
   const labelIcon = L.divIcon({
     className: 'building-label',
-    html: `<div style="font-size: 8px; color: ${color}; text-shadow: 0 0 3px white, 0 0 3px white; font-weight: 700; white-space: nowrap; pointer-events: none; line-height: 1.2; text-align: center;">${prefix}${displayText}</div>`,
+    html: `<div style="font-size: 7.5px; color: ${color}; text-shadow: 0 0 3px white, 0 0 3px white; font-weight: 700; white-space: nowrap; pointer-events: none; line-height: 1.2; text-align: center;">${prefix}${displayText}</div>`,
     iconSize: [0, 0],
     iconAnchor: [0, 0],
   });
@@ -320,6 +354,11 @@ export function EnhancedLocationMapWithPolygons({
   // Cross-session enumerated building IDs (fetched from backend)
   const [enumeratedBuildingIds, setEnumeratedBuildingIds] = useState<Set<string>>(new Set());
 
+  // Customer points map: buildingId → CustomerPoint (from ArcGIS Customer Layer)
+  const [customerPointsMap, setCustomerPointsMap] = useState<Map<string, CustomerPoint>>(new Map());
+  const lastCustomerBoundsRef = useRef<{ north: number; south: number; east: number; west: number } | null>(null);
+  const customerDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   // Bottom sheet state
   const [sheetPolygon, setSheetPolygon] = useState<BuildingPolygon | null>(null);
   const [sheetRegistrations, setSheetRegistrations] = useState<ExistingRegistration[]>([]);
@@ -444,7 +483,40 @@ export function EnhancedLocationMapWithPolygons({
     }
   }
 
-  // ─── Viewport-based progressive loading ──────────────────────────────────────
+  // ─── Customer point loading helper ────────────────────────────────────────────────
+  const loadCustomerPoints = useCallback(
+    (bounds: { north: number; south: number; east: number; west: number }) => {
+      // Only fire when zoom >= LABEL_ZOOM_THRESHOLD to avoid fetching when labels are hidden
+      if (mapRef.current && mapRef.current.getZoom() < LABEL_ZOOM_THRESHOLD) return;
+
+      // Skip if bounds haven't changed significantly (>70% overlap)
+      if (
+        lastCustomerBoundsRef.current &&
+        boundsOverlapRatio(bounds, lastCustomerBoundsRef.current) > 0.7
+      ) return;
+
+      if (customerDebounceRef.current) clearTimeout(customerDebounceRef.current);
+      customerDebounceRef.current = setTimeout(async () => {
+        lastCustomerBoundsRef.current = bounds;
+        try {
+          const cpMap = await fetchCustomerPointsInBounds(bounds);
+          if (cpMap.size > 0) {
+            setCustomerPointsMap(prev => {
+              // Merge: new entries override old ones for the same buildingId
+              const merged = new Map(prev);
+              cpMap.forEach((v, k) => merged.set(k, v));
+              return merged;
+            });
+          }
+        } catch (e) {
+          console.warn('[CustomerLayer] Viewport load failed (non-critical):', e);
+        }
+      }, 600);
+    },
+    []
+  );
+
+  // ─── Viewport-based progressive loading ────────────────────────────────────────────
   const handleViewportChange = useCallback(
     (bounds: { north: number; south: number; east: number; west: number }) => {
       // Skip if bounds haven't changed significantly (>80% overlap with last query)
@@ -476,9 +548,11 @@ export function EnhancedLocationMapWithPolygons({
           console.warn('[Viewport] Query failed:', e);
           // Non-critical — don't show error to user for viewport queries
         }
+        // Also refresh customer point labels for the new viewport
+        loadCustomerPoints(bounds);
       }, 400);
     },
-    []
+    [loadCustomerPoints]
   );
 
   async function handleDownloadAreaData() {
@@ -636,8 +710,10 @@ export function EnhancedLocationMapWithPolygons({
   const handleRefresh = () => {
     autoSelectedRef.current = false;
     lastQueriedBoundsRef.current = null;
+    lastCustomerBoundsRef.current = null;
     polygonsRef.current = [];
     setPolygons([]);
+    setCustomerPointsMap(new Map());
     loadPolygons(position[0], position[1]);
   };
 
@@ -732,6 +808,10 @@ export function EnhancedLocationMapWithPolygons({
                       {status === 'surveyed-session' && (
                         <span className="ml-auto shrink-0 text-blue-700 font-bold text-xs bg-blue-100 px-1.5 py-0.5 rounded-md">✓ This session</span>
                       )}
+                    </div>
+                  </button>
+                );
+              })}
             </div>
           )}
         </div>
@@ -790,6 +870,9 @@ export function EnhancedLocationMapWithPolygons({
                 ([lng, lat]) => [lat, lng] as [number, number]
               );
 
+              // Look up live customer data from the Customer Layer
+              const customerPoint = customerPointsMap.get(polygon.buildingId);
+
               return (
                 <React.Fragment key={polygon.buildingId}>
                   <Polygon
@@ -799,7 +882,12 @@ export function EnhancedLocationMapWithPolygons({
                       click: (e) => handlePolygonClick(polygon, e),
                     }}
                   />
-                  <ZoomDependentLabel polygon={polygon} minZoom={LABEL_ZOOM_THRESHOLD} status={status} />
+                  <ZoomDependentLabel
+                    polygon={polygon}
+                    minZoom={LABEL_ZOOM_THRESHOLD}
+                    status={status}
+                    customerPoint={customerPoint}
+                  />
                 </React.Fragment>
               );
             })}

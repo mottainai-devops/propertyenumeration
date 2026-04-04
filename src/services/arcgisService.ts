@@ -365,6 +365,104 @@ export async function upsertCustomerPoint(
   }
 }
 
+// ─── Customer Layer read (v1.59.0) ──────────────────────────────────────────────
+
+/**
+ * A single customer point record from the ArcGIS Customer Layer.
+ * Used to enrich building polygon labels with live customer data.
+ */
+export interface CustomerPoint {
+  buildingId: string;
+  unitCode?: string;
+  firstName?: string;
+  lastName?: string;
+  businessName?: string;
+  phone?: string;
+  email?: string;
+  customerType?: string;
+  address?: string;
+  lat?: number;
+  lon?: number;
+}
+
+/**
+ * Fetch all customer points within a bounding box from the Customer Layer.
+ * Returns a map keyed by building_id for O(1) lookup when enriching polygons.
+ *
+ * Only fetches the label-relevant fields (building_id, first_name, last_name,
+ * business_name) to keep the payload small. Uses POST to avoid URL truncation.
+ *
+ * Returns an empty map on any error (non-throwing for resilience).
+ */
+export async function fetchCustomerPointsInBounds(
+  bounds: { north: number; south: number; east: number; west: number }
+): Promise<Map<string, CustomerPoint>> {
+  const result = new Map<string, CustomerPoint>();
+  try {
+    const params: Record<string, string> = {
+      where: '1=1',
+      geometry: JSON.stringify({
+        xmin: bounds.west,
+        ymin: bounds.south,
+        xmax: bounds.east,
+        ymax: bounds.north,
+        spatialReference: { wkid: 4326 },
+      }),
+      geometryType: 'esriGeometryEnvelope',
+      spatialRel: 'esriSpatialRelIntersects',
+      outFields: 'building_id,first_name,last_name,business_name,cust_phone,customer_email,customer_type,address,flat_no,Lat,Long',
+      returnGeometry: 'false',
+      resultRecordCount: '2000',
+      f: 'json',
+      token: ARCGIS_API_KEY,
+    };
+
+    const body = new URLSearchParams(params);
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT);
+
+    const response = await fetch(`${ARCGIS_CUSTOMER_URL}/query`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: body.toString(),
+      signal: controller.signal,
+    });
+    clearTimeout(timeoutId);
+
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const data = await response.json();
+    if (data.error) throw new Error(data.error.message);
+
+    const features: any[] = data.features ?? [];
+    console.log(`[CustomerLayer] Fetched ${features.length} customer points in viewport`);
+
+    for (const f of features) {
+      const a = f.attributes;
+      const buildingId: string = a.building_id ?? '';
+      if (!buildingId) continue;
+      // Prefer the most informative record if multiple units exist for same building
+      if (!result.has(buildingId)) {
+        result.set(buildingId, {
+          buildingId,
+          unitCode: a.flat_no ?? undefined,
+          firstName: a.first_name ?? undefined,
+          lastName: a.last_name ?? undefined,
+          businessName: a.business_name ?? undefined,
+          phone: a.cust_phone ?? undefined,
+          email: a.customer_email ?? undefined,
+          customerType: a.customer_type ?? undefined,
+          address: a.address ?? undefined,
+          lat: a.Lat ?? undefined,
+          lon: a.Long ?? undefined,
+        });
+      }
+    }
+  } catch (error) {
+    console.warn('[CustomerLayer] fetchCustomerPointsInBounds failed (non-critical):', error);
+  }
+  return result;
+}
+
 // ─── Read-only queries (unchanged from v1.58.2) ───────────────────────────────
 
 /**

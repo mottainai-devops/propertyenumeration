@@ -239,3 +239,16 @@
 
 ## 🔧 v1.57.13 - Photo Display Bug Fix
 - [ ] Fix photo thumbnails not showing for recently registered buildings in the buildings list
+
+## 🔧 v1.59.0 - Customer Point Labels on Building Polygons
+
+- [x] Add fetchCustomerPointsInBounds() to arcgisService.ts — queries Customer Layer by viewport bounding box
+- [x] Add CustomerPoint interface to arcgisService.ts
+- [x] Add customerPointsMap state to EnhancedLocationMapWithPolygons
+- [x] Load customer points on viewport change (debounced 600ms, zoom >= 16 only)
+- [x] Update ZoomDependentLabel to prefer Customer Layer data over polygon attributes
+- [x] Purple dot prefix (●) for Customer Layer labels; checkmark for enumerated/surveyed
+- [x] Label tap = view-only (pointer-events: none); polygon tap = existing bottom sheet flow
+- [x] Clear customerPointsMap on map refresh
+- [x] Also fire viewport handler on zoomend so labels load when zooming in
+- [x] Build APK v1.59.0 (7.8MB)
