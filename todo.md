@@ -255,11 +255,23 @@
 
 ## 🗺️ v1.61.0 - Satellite Basemap + Survey-Style Map (IN PROGRESS)
 
-- [ ] Switch basemap from OpenStreetMap to Esri World Imagery satellite tiles
-- [ ] Add basemap toggle button (satellite ↔ street map) in map overlay
-- [ ] Increase polygon fill opacity for better visibility on satellite (0.30 → 0.45)
-- [ ] Upgrade enumerated building labels to badge style: white text on dark green rounded rectangle
-- [ ] Badge labels only render for enumerated/surveyed buildings (not virgin buildings)
-- [ ] Virgin buildings show building ID as small plain text only at zoom >= 18
-- [ ] Customer point labels remain as purple dot prefix (unchanged)
-- [ ] Update version to 1.61.0 and build APK
+- [x] Switch basemap from OpenStreetMap to Esri World Imagery satellite tiles
+- [x] Add basemap toggle button (satellite ↔ street map) in map overlay
+- [x] Increase polygon fill opacity for better visibility on satellite (0.30 → 0.45)
+- [x] Upgrade enumerated building labels to badge style: white text on dark green rounded rectangle
+- [x] Badge labels only render for enumerated/surveyed buildings (not virgin buildings)
+- [x] Virgin buildings show building ID as small plain text only at zoom >= 18
+- [x] Customer point labels remain as purple dot prefix (unchanged)
+- [x] Update version to 1.61.0 and build APK
+
+## 🗺️ v1.62.0 - ArcGIS Customer Layer Integration in Bottom Sheet (IN PROGRESS)
+
+- [ ] Extend ExistingRegistrationsSheet to accept customerPoints (ArcGIS) alongside MongoDB registrations
+- [ ] Show ArcGIS customer points as "registered customers" in the bottom sheet with SELECT button
+- [ ] Show MongoDB registrations as "enumerated units" with UPDATE button
+- [ ] Replace "Register New Unit" footer button with "ADD NEW CUSTOMER" (green, full-width, Survey app style)
+- [ ] Update getPolygonStatus() so buildings with ArcGIS customer points render as 'enumerated' (green fill)
+- [ ] Pass customerPointsMap entry to handlePolygonClick so sheet has customer data immediately
+- [ ] Wire SELECT on ArcGIS customer to pre-fill BuildingForm (businessName, phone, email, address)
+- [ ] Update BuildingForm selectedBuilding interface to accept contactPhoneNumber and contactEmail for ArcGIS pre-fill
+- [ ] Update version to 1.62.0 and build APK

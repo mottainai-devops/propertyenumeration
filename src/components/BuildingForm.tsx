@@ -24,6 +24,10 @@ interface BuildingFormProps {
     propertyType?: 'Residential' | 'Commercial' | 'Industrial' | 'Mixed-Use';
     numberOfUnits?: number;
     unitCode?: string;
+    // ArcGIS Customer Layer pre-fill fields
+    contactPhoneNumber?: string;
+    contactEmail?: string;
+    _arcgisCustomerPoint?: any;
   } | null;
   onBack: () => void;
 }
@@ -62,6 +66,14 @@ export default function BuildingForm({ onSubmit, location, selectedBuilding, onB
           notes: `Building ID: ${selectedBuilding.buildingId}${selectedBuilding.zone ? ` | Zone: ${selectedBuilding.zone}` : ''}`,
         }));
         if (selectedBuilding.unitCode) setUnitCode(selectedBuilding.unitCode);
+      } else if (selectedBuilding._arcgisCustomerPoint) {
+        // ArcGIS Customer Layer: pre-fill with customer data so enumerator can review/edit
+        setFormData(prev => ({
+          ...prev,
+          address: selectedBuilding.address || '',
+          buildingName: selectedBuilding.businessName || '',
+          notes: `Building ID: ${selectedBuilding.buildingId}${selectedBuilding.zone ? ` | Zone: ${selectedBuilding.zone}` : ''}`,
+        }));
       } else {
         setFormData(prev => ({
           ...prev,
@@ -243,20 +255,45 @@ export default function BuildingForm({ onSubmit, location, selectedBuilding, onB
 
             {/* Building Selection Indicator */}
             {selectedBuilding && (
-              <div className={`border-2 rounded-lg p-4 ${selectedBuilding._isUpdate ? 'bg-amber-50 border-amber-500' : 'bg-green-50 border-green-500'}`}>
+              <div className={`border-2 rounded-lg p-4 ${
+                selectedBuilding._isUpdate ? 'bg-amber-50 border-amber-500'
+                : selectedBuilding._arcgisCustomerPoint ? 'bg-blue-50 border-blue-500'
+                : 'bg-green-50 border-green-500'
+              }`}>
                 <div className="flex items-center gap-2 mb-2">
-                  <span className="text-lg">{selectedBuilding._isUpdate ? '✏️' : '🏢'}</span>
-                  <p className={`text-sm font-bold ${selectedBuilding._isUpdate ? 'text-amber-900' : 'text-green-900'}`}>
-                    {selectedBuilding._isUpdate ? 'Updating Existing Registration' : 'Building Auto-Selected from Map'}
+                  <span className="text-lg">
+                    {selectedBuilding._isUpdate ? '✏️' : selectedBuilding._arcgisCustomerPoint ? '👤' : '🏢'}
+                  </span>
+                  <p className={`text-sm font-bold ${
+                    selectedBuilding._isUpdate ? 'text-amber-900'
+                    : selectedBuilding._arcgisCustomerPoint ? 'text-blue-900'
+                    : 'text-green-900'
+                  }`}>
+                    {selectedBuilding._isUpdate ? 'Updating Existing Registration'
+                    : selectedBuilding._arcgisCustomerPoint ? 'Customer Pre-filled from Registry'
+                    : 'Building Auto-Selected from Map'}
                   </p>
                 </div>
-                <div className={`text-xs space-y-1 ${selectedBuilding._isUpdate ? 'text-amber-800' : 'text-green-800'}`}>
+                <div className={`text-xs space-y-1 ${
+                  selectedBuilding._isUpdate ? 'text-amber-800'
+                  : selectedBuilding._arcgisCustomerPoint ? 'text-blue-800'
+                  : 'text-green-800'
+                }`}>
                   <p><strong>Building ID:</strong> {selectedBuilding.buildingId}</p>
                   {selectedBuilding.zone && <p><strong>Zone:</strong> {selectedBuilding.zone}</p>}
+                  {selectedBuilding._arcgisCustomerPoint && selectedBuilding.businessName && (
+                    <p><strong>Customer:</strong> {selectedBuilding.businessName}</p>
+                  )}
                 </div>
-                <p className={`text-xs mt-2 italic ${selectedBuilding._isUpdate ? 'text-amber-700' : 'text-green-700'}`}>
+                <p className={`text-xs mt-2 italic ${
+                  selectedBuilding._isUpdate ? 'text-amber-700'
+                  : selectedBuilding._arcgisCustomerPoint ? 'text-blue-700'
+                  : 'text-green-700'
+                }`}>
                   {selectedBuilding._isUpdate
                     ? '⚠️ This will update the existing record. Edit fields as needed.'
+                    : selectedBuilding._arcgisCustomerPoint
+                    ? '👤 Customer data pre-filled from registry. Review and confirm below.'
                     : 'ℹ️ Form fields have been pre-filled. You can edit them if needed.'}
                 </p>
               </div>

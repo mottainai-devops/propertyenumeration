@@ -392,6 +392,18 @@ function App() {
         unitCode: _existingRegistration?.unitCode,
         _isUpdate: true,
       });
+    } else if (buildingData?._arcgisCustomerPoint) {
+      // ArcGIS Customer Layer: pre-fill form with customer data for editing
+      const { _arcgisCustomerPoint, ...rest } = buildingData;
+      setExistingRegistrationId(null);
+      setSelectedBuildingData({
+        ...rest,
+        businessName: buildingData.businessName || '',
+        contactPhoneNumber: buildingData.contactPhoneNumber || '',
+        contactEmail: buildingData.contactEmail || '',
+        address: buildingData.address || '',
+        _arcgisCustomerPoint,
+      });
     } else {
       setExistingRegistrationId(null);
       setSelectedBuildingData(buildingData || null);

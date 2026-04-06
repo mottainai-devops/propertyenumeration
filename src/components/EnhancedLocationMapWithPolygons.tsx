@@ -253,22 +253,29 @@ interface ExistingRegistration {
 function ExistingRegistrationsSheet({
   polygon,
   registrations,
+  customerPoints,
   isLoading,
   onClose,
   onProceedNew,
   onSelectExisting,
+  onSelectCustomerPoint,
 }: {
   polygon: BuildingPolygon;
   registrations: ExistingRegistration[];
+  customerPoints: CustomerPoint[];
   isLoading: boolean;
   onClose: () => void;
   onProceedNew: () => void;
   onSelectExisting: (reg: ExistingRegistration) => void;
+  onSelectCustomerPoint: (cp: CustomerPoint) => void;
 }) {
+  const totalCustomers = customerPoints.length;
+  const totalRegistrations = registrations.length;
+
   return (
     <div className="fixed inset-0 z-[3000] flex flex-col justify-end" onClick={onClose}>
       <div
-        className="bg-white rounded-t-2xl shadow-2xl max-h-[75vh] flex flex-col"
+        className="bg-white rounded-t-2xl shadow-2xl max-h-[80vh] flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Handle bar */}
@@ -279,11 +286,18 @@ function ExistingRegistrationsSheet({
         {/* Header */}
         <div className="px-4 pb-3 border-b border-gray-100">
           <div className="flex items-start justify-between">
-            <div>
-              <h3 className="text-base font-bold text-gray-900">
-                {isValidBusinessName(polygon.businessName) ? polygon.businessName : polygon.buildingId}
-              </h3>
-              <p className="text-xs text-gray-500 mt-0.5">{polygon.buildingId}</p>
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-green-100 rounded-xl flex items-center justify-center shrink-0">
+                <svg className="w-5 h-5 text-green-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-2 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                </svg>
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-gray-900">
+                  {isValidBusinessName(polygon.businessName) ? polygon.businessName : polygon.buildingId}
+                </h3>
+                <p className="text-xs text-gray-400 mt-0.5">Zone {polygon.zone || '—'}</p>
+              </div>
             </div>
             <button onClick={onClose} className="p-1 text-gray-400 hover:text-gray-600">
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -301,78 +315,127 @@ function ExistingRegistrationsSheet({
                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
               </svg>
-              <span className="text-sm">Checking existing records…</span>
+              <span className="text-sm">Loading customers…</span>
             </div>
-          ) : registrations.length > 0 ? (
-            <>
-              <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-3">
-                ⚠️ {registrations.length} existing registration{registrations.length !== 1 ? 's' : ''} found for this building. Tap one to update it, or register a new unit below.
-              </p>
-              {registrations.map((reg) => (
-                <button
-                  key={reg._id}
-                  onClick={() => onSelectExisting(reg)}
-                  className="w-full text-left bg-green-50 border border-green-200 rounded-xl px-4 py-3 mb-2 hover:bg-green-100 transition"
-                >
-                  <div className="flex items-start gap-3">
-                    <div className="w-8 h-8 bg-green-600 rounded-full flex items-center justify-center shrink-0 mt-0.5">
-                      <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="text-sm font-semibold text-gray-900 truncate">
-                        {reg.buildingName || reg.address || 'Unnamed building'}
-                      </p>
-                      <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-0.5">
-                        {reg.unitCode && (
-                          <span className="text-xs text-blue-600 font-mono">Unit {reg.unitCode}</span>
-                        )}
-                        {reg.propertyType && (
-                          <span className="text-xs text-gray-500">{reg.propertyType}</span>
-                        )}
-                        {reg.numberOfUnits && (
-                          <span className="text-xs text-gray-500">{reg.numberOfUnits} unit{reg.numberOfUnits !== 1 ? 's' : ''}</span>
-                        )}
-                      </div>
-                      {reg.contactPersonName && (
-                        <p className="text-xs text-gray-400 mt-0.5 truncate">
-                          {reg.contactPersonName}{reg.contactPhoneNumber ? ` · ${reg.contactPhoneNumber}` : ''}
-                        </p>
-                      )}
-                      {reg.buildingId && (
-                        <p className="text-xs font-mono text-gray-300 mt-0.5">{reg.buildingId}</p>
-                      )}
-                    </div>
-                  </div>
-                </button>
-              ))}
-            </>
           ) : (
-            <p className="text-sm text-gray-500 text-center py-4">
-              No existing registrations found for this building.
-            </p>
+            <>
+              {/* ArcGIS Customer Layer section */}
+              {totalCustomers > 0 && (
+                <>
+                  <div className="flex items-center gap-2 mb-2">
+                    <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
+                    </svg>
+                    <p className="text-xs font-semibold text-gray-600">
+                      {totalCustomers} customer{totalCustomers !== 1 ? 's' : ''} registered
+                    </p>
+                  </div>
+                  {customerPoints.map((cp, idx) => {
+                    const displayName = cp.businessName ||
+                      [cp.firstName, cp.lastName].filter(Boolean).join(' ') ||
+                      'Unknown Customer';
+                    const phone = cp.phone || '';
+                    return (
+                      <div
+                        key={`cp-${idx}`}
+                        className="w-full bg-white border border-gray-200 rounded-xl px-4 py-3 mb-2 flex items-center gap-3 shadow-sm"
+                      >
+                        <div className="w-9 h-9 bg-green-100 rounded-full flex items-center justify-center shrink-0">
+                          <svg className="w-5 h-5 text-green-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                          </svg>
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-bold text-gray-900 truncate">{displayName}</p>
+                          {phone && <p className="text-xs text-gray-500 mt-0.5">{phone}</p>}
+                          {cp.customerType && (
+                            <p className="text-xs text-gray-400">{cp.customerType}</p>
+                          )}
+                        </div>
+                        <button
+                          onClick={() => onSelectCustomerPoint(cp)}
+                          className="text-green-700 text-sm font-bold shrink-0 px-2 py-1 hover:bg-green-50 rounded-lg transition"
+                        >
+                          SELECT
+                        </button>
+                      </div>
+                    );
+                  })}
+                </>
+              )}
+
+              {/* MongoDB enumerated registrations section */}
+              {totalRegistrations > 0 && (
+                <>
+                  <div className="flex items-center gap-2 mt-3 mb-2">
+                    <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <p className="text-xs font-semibold text-gray-600">
+                      {totalRegistrations} enumerated unit{totalRegistrations !== 1 ? 's' : ''}
+                    </p>
+                  </div>
+                  {registrations.map((reg) => (
+                    <button
+                      key={reg._id}
+                      onClick={() => onSelectExisting(reg)}
+                      className="w-full text-left bg-green-50 border border-green-200 rounded-xl px-4 py-3 mb-2 hover:bg-green-100 transition"
+                    >
+                      <div className="flex items-start gap-3">
+                        <div className="w-8 h-8 bg-green-600 rounded-full flex items-center justify-center shrink-0 mt-0.5">
+                          <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                          </svg>
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-semibold text-gray-900 truncate">
+                            {reg.buildingName || reg.address || 'Unnamed building'}
+                          </p>
+                          <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-0.5">
+                            {reg.unitCode && (
+                              <span className="text-xs text-blue-600 font-mono">Unit {reg.unitCode}</span>
+                            )}
+                            {reg.propertyType && (
+                              <span className="text-xs text-gray-500">{reg.propertyType}</span>
+                            )}
+                          </div>
+                          {reg.contactPersonName && (
+                            <p className="text-xs text-gray-400 mt-0.5 truncate">
+                              {reg.contactPersonName}{reg.contactPhoneNumber ? ` · ${reg.contactPhoneNumber}` : ''}
+                            </p>
+                          )}
+                        </div>
+                        <span className="text-xs text-blue-600 font-bold shrink-0 self-center">EDIT</span>
+                      </div>
+                    </button>
+                  ))}
+                </>
+              )}
+
+              {/* Empty state */}
+              {totalCustomers === 0 && totalRegistrations === 0 && (
+                <p className="text-sm text-gray-500 text-center py-6">
+                  No customers registered for this building yet.
+                </p>
+              )}
+            </>
           )}
         </div>
 
-        {/* Footer — safe-area aware so buttons sit above Android nav bar */}
+        {/* Footer — ADD NEW CUSTOMER (Survey app style) */}
         <div
-          className="px-4 pt-3 border-t border-gray-100 flex gap-3"
+          className="px-4 pt-3 border-t border-gray-100"
           style={{ paddingBottom: 'calc(16px + env(safe-area-inset-bottom, 0px))' }}
         >
           <button
-            onClick={onClose}
-            className="flex-1 py-3 border-2 border-gray-300 text-gray-600 rounded-xl text-sm font-semibold bg-white hover:bg-gray-50 active:bg-gray-100 transition"
-            style={{ minHeight: 50 }}
-          >
-            Cancel
-          </button>
-          <button
             onClick={onProceedNew}
-            className="flex-1 py-3 bg-green-600 text-white rounded-xl text-sm font-bold hover:bg-green-700 active:bg-green-800 transition shadow-sm"
-            style={{ minHeight: 50 }}
+            className="w-full py-4 bg-green-600 text-white rounded-2xl text-base font-bold hover:bg-green-700 active:bg-green-800 transition shadow-sm flex items-center justify-center gap-2"
+            style={{ minHeight: 56 }}
           >
-            + Register New Unit
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" />
+            </svg>
+            ADD NEW CUSTOMER
           </button>
         </div>
       </div>
@@ -417,6 +480,8 @@ export function EnhancedLocationMapWithPolygons({
   // Bottom sheet state
   const [sheetPolygon, setSheetPolygon] = useState<BuildingPolygon | null>(null);
   const [sheetRegistrations, setSheetRegistrations] = useState<ExistingRegistration[]>([]);
+  // ArcGIS customer points for the currently open sheet (all units for this building)
+  const [sheetCustomerPoints, setSheetCustomerPoints] = useState<CustomerPoint[]>([]);
   const [sheetLoading, setSheetLoading] = useState(false);
 
   // Viewport tracking for progressive loading
@@ -776,9 +841,7 @@ export function EnhancedLocationMapWithPolygons({
     const newPos = marker.getLatLng();
     setPosition([newPos.lat, newPos.lng]);
     onLocationChange(newPos.lat, newPos.lng);
-  };
-
-  // ─── Building tap: show bottom sheet with existing registrations ──────────────
+  }  // ─── Building tap: show bottom sheet with existing registrations + ArcGIS customers ───
   const handlePolygonClick = useCallback(async (polygon: BuildingPolygon, e: L.LeafletMouseEvent) => {
     L.DomEvent.stopPropagation(e as unknown as Event);
     console.log('[Polygon] Tapped:', polygon.buildingId);
@@ -786,24 +849,76 @@ export function EnhancedLocationMapWithPolygons({
     setPosition([polygon.centerLat, polygon.centerLon]);
     onLocationChange(polygon.centerLat, polygon.centerLon);
 
-    // Show bottom sheet and fetch existing registrations
+    // Show bottom sheet immediately — seed with any customer points already in the viewport cache
     setSheetPolygon(polygon);
     setSheetRegistrations([]);
+    setSheetCustomerPoints([]);
     setSheetLoading(true);
 
     try {
-      const result = await buildingApi.list({ arcgisBuildingId: polygon.buildingId, limit: 50 });
-      setSheetRegistrations(result.buildings as ExistingRegistration[]);
-    } catch {
-      setSheetRegistrations([]);
+      // Run both fetches in parallel: MongoDB registrations + ArcGIS customer points for this building
+      const [registrationsResult, cpMap] = await Promise.all([
+        buildingApi.list({ arcgisBuildingId: polygon.buildingId, limit: 50 }).catch(() => ({ buildings: [] })),
+        // Fetch all customer points for this specific building by querying a tight bbox around its centre
+        fetchCustomerPointsInBounds({
+          north: polygon.centerLat + 0.001,
+          south: polygon.centerLat - 0.001,
+          east: polygon.centerLon + 0.001,
+          west: polygon.centerLon - 0.001,
+        }).catch(() => new Map<string, CustomerPoint>()),
+      ]);
+
+      setSheetRegistrations(registrationsResult.buildings as ExistingRegistration[]);
+
+      // Collect ALL customer points for this building (there may be multiple units)
+      const buildingCustomers: CustomerPoint[] = [];
+      cpMap.forEach((cp, key) => {
+        // The map is keyed by buildingId but a building can have multiple units;
+        // fetchCustomerPointsInBounds only keeps one per buildingId key, so we
+        // also merge from the existing viewport cache which may have more.
+        if (key === polygon.buildingId) buildingCustomers.push(cp);
+      });
+      // Also check the existing viewport cache for any already-loaded points
+      const cached = customerPointsMap.get(polygon.buildingId);
+      if (cached && !buildingCustomers.find(c => c.unitCode === cached.unitCode)) {
+        buildingCustomers.unshift(cached);
+      }
+      setSheetCustomerPoints(buildingCustomers);
+
+      // Merge new customer points into the viewport cache
+      if (cpMap.size > 0) {
+        setCustomerPointsMap(prev => {
+          const merged = new Map(prev);
+          cpMap.forEach((v, k) => merged.set(k, v));
+          return merged;
+        });
+      }
     } finally {
       setSheetLoading(false);
     }
-  }, [onLocationChange]);
-
+  }, [onLocationChange, customerPointsMap]);
   const handleSheetClose = () => {
     setSheetPolygon(null);
     setSheetRegistrations([]);
+    setSheetCustomerPoints([]);
+  };
+
+  // Called when user taps SELECT on an ArcGIS customer point in the bottom sheet
+  const handleSheetSelectCustomerPoint = (cp: CustomerPoint) => {
+    if (!sheetPolygon) return;
+    setSheetPolygon(null);
+    setSheetCustomerPoints([]);
+    if (onBuildingSelected) {
+      onBuildingSelected({
+        ...sheetPolygon,
+        // Pre-fill form fields from ArcGIS Customer Layer data
+        businessName: cp.businessName || [cp.firstName, cp.lastName].filter(Boolean).join(' ') || '',
+        contactPhoneNumber: cp.phone || '',
+        contactEmail: cp.email || '',
+        address: cp.address || '',
+        _arcgisCustomerPoint: cp,
+      } as any);
+    }
   };
 
   const handleSheetProceedNew = () => {
@@ -889,8 +1004,12 @@ export function EnhancedLocationMapWithPolygons({
   }
 
   // Determine polygon status for color coding
+  // A building is treated as 'enumerated' (green) if:
+  //   1. It is in the backend enumerated set, OR
+  //   2. It has at least one customer point in the ArcGIS Customer Layer
   function getPolygonStatus(buildingId: string): 'enumerated' | 'surveyed-session' | 'default' {
     if (enumeratedBuildingIds.has(buildingId)) return 'enumerated';
+    if (customerPointsMap.has(buildingId)) return 'enumerated';
     if (surveyedBuildingIds.has(buildingId)) return 'surveyed-session';
     return 'default';
   }
@@ -1190,10 +1309,12 @@ export function EnhancedLocationMapWithPolygons({
           <ExistingRegistrationsSheet
             polygon={sheetPolygon}
             registrations={sheetRegistrations}
+            customerPoints={sheetCustomerPoints}
             isLoading={sheetLoading}
             onClose={handleSheetClose}
             onProceedNew={handleSheetProceedNew}
             onSelectExisting={handleSheetSelectExisting}
+            onSelectCustomerPoint={handleSheetSelectCustomerPoint}
           />
         )}
       </div>
