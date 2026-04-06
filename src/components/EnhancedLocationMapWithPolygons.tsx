@@ -9,8 +9,21 @@ import { getCachedPolygonsNearLocation, savePolygonsToCache, getCacheTimestamp }
 import { getMockPolygons } from '../services/mockPolygonData';
 import { buildingApi } from '../api/client';
 
+// ─── Basemap tile definitions ─────────────────────────────────────────────────
+const TILE_SATELLITE = {
+  url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+  attribution: 'Tiles &copy; Esri &mdash; Source: Esri, Maxar, Earthstar Geographics',
+};
+const TILE_STREET = {
+  url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+  attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+};
+
 // Enable mock data for testing polygon rendering
 const USE_MOCK_DATA = false;
+
+// Default basemap: satellite for field use
+const DEFAULT_SATELLITE = true;
 
 // Minimum zoom level to show building labels (reduces clutter when zoomed out)
 const LABEL_ZOOM_THRESHOLD = 16;
@@ -168,13 +181,48 @@ function ZoomDependentLabel({
     ? labelText.slice(0, maxChars - 1) + '…'
     : labelText;
 
-  // Enumerated/surveyed always show checkmark; customer data without status = plain
-  const prefix = status === 'enumerated' ? '✓ ' : status === 'surveyed-session' ? '✓ ' : (hasCustomerData ? '● ' : '');
-  const color = status === 'enumerated' ? '#166534' : status === 'surveyed-session' ? '#1d4ed8' : (hasCustomerData ? '#7c3aed' : '#1a1a1a');
+  // ── Badge style for enumerated/surveyed buildings (Survey app style) ──────
+  if (status === 'enumerated' || status === 'surveyed-session') {
+    const bgColor = status === 'enumerated' ? '#166534' : '#1d4ed8';
+    const badgeHtml = `<div style="
+      background: ${bgColor};
+      color: white;
+      font-size: 8px;
+      font-weight: 700;
+      white-space: nowrap;
+      pointer-events: none;
+      padding: 2px 5px;
+      border-radius: 6px;
+      line-height: 1.3;
+      text-align: center;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.4);
+      transform: translate(-50%, -50%);
+    ">✓ ${displayText}</div>`;
+    const badgeIcon = L.divIcon({
+      className: 'building-badge-label',
+      html: badgeHtml,
+      iconSize: [0, 0],
+      iconAnchor: [0, 0],
+    });
+    return (
+      <Marker
+        position={[polygon.centerLat, polygon.centerLon]}
+        icon={badgeIcon}
+        interactive={false}
+      />
+    );
+  }
+
+  // ── Plain label for virgin / customer-only buildings ──────────────────────
+  const prefix = hasCustomerData ? '● ' : '';
+  const color = hasCustomerData ? '#7c3aed' : '#ffffff';
+  const shadow = hasCustomerData
+    ? '0 0 3px white, 0 0 3px white'
+    : '0 0 4px #000, 0 0 4px #000, 0 0 2px #000';
 
   const labelIcon = L.divIcon({
     className: 'building-label',
-    html: `<div style="font-size: 7.5px; color: ${color}; text-shadow: 0 0 3px white, 0 0 3px white; font-weight: 700; white-space: nowrap; pointer-events: none; line-height: 1.2; text-align: center;">${prefix}${displayText}</div>`,
+    html: `<div style="font-size: 7.5px; color: ${color}; text-shadow: ${shadow}; font-weight: 700; white-space: nowrap; pointer-events: none; line-height: 1.2; text-align: center; transform: translate(-50%, -50%)">${prefix}${displayText}</div>`,
     iconSize: [0, 0],
     iconAnchor: [0, 0],
   });
@@ -344,6 +392,8 @@ export function EnhancedLocationMapWithPolygons({
 }: EnhancedLocationMapWithPolygonsProps) {
   const [position, setPosition] = useState<[number, number]>([latitude, longitude]);
   const [mapError, setMapError] = useState<string | null>(null);
+  // Basemap toggle: satellite (default) or street map
+  const [isSatellite, setIsSatellite] = useState(DEFAULT_SATELLITE);
   // All loaded polygons (accumulates as user pans)
   const [polygons, setPolygons] = useState<BuildingPolygon[]>([]);
   const polygonsRef = useRef<BuildingPolygon[]>([]);
@@ -847,9 +897,11 @@ export function EnhancedLocationMapWithPolygons({
 
   function getPolygonColors(status: 'enumerated' | 'surveyed-session' | 'default', isSelected: boolean) {
     if (isSelected) return { color: '#1a56db', fillColor: '#1a56db', fillOpacity: 0.55, weight: 4, dashArray: undefined };
-    if (status === 'enumerated') return { color: '#166534', fillColor: '#22c55e', fillOpacity: 0.30, weight: 2, dashArray: undefined };
-    if (status === 'surveyed-session') return { color: '#1d4ed8', fillColor: '#93c5fd', fillOpacity: 0.30, weight: 2, dashArray: '4 4' };
-    return { color: '#f97316', fillColor: '#fed7aa', fillOpacity: 0.30, weight: 1.5, dashArray: undefined };
+    // On satellite: use stronger fill opacity so polygons are visible over imagery
+    if (status === 'enumerated') return { color: '#16a34a', fillColor: '#22c55e', fillOpacity: 0.45, weight: 2.5, dashArray: undefined };
+    if (status === 'surveyed-session') return { color: '#2563eb', fillColor: '#93c5fd', fillOpacity: 0.40, weight: 2.5, dashArray: '5 4' };
+    // Virgin buildings: orange outline only, no fill (matches Survey app style)
+    return { color: '#f97316', fillColor: '#f97316', fillOpacity: 0.0, weight: 2, dashArray: undefined };
   }
 
   try {
@@ -943,8 +995,9 @@ export function EnhancedLocationMapWithPolygons({
             className="z-0"
           >
             <TileLayer
-              attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+              key={isSatellite ? 'satellite' : 'street'}
+              attribution={isSatellite ? TILE_SATELLITE.attribution : TILE_STREET.attribution}
+              url={isSatellite ? TILE_SATELLITE.url : TILE_STREET.url}
             />
 
             <MapCenterUpdater center={position} />
@@ -1044,6 +1097,29 @@ export function EnhancedLocationMapWithPolygons({
               {downloadProgress}
             </div>
           )}
+
+          {/* Basemap toggle button */}
+          <button
+            onClick={() => setIsSatellite(prev => !prev)}
+            className="absolute top-2 left-2 bg-white rounded-xl shadow-lg text-gray-700 hover:bg-gray-50 z-[1001] flex items-center gap-1.5 px-3 py-2 text-xs font-semibold border border-gray-200"
+            title={isSatellite ? 'Switch to street map' : 'Switch to satellite'}
+          >
+            {isSatellite ? (
+              <>
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
+                </svg>
+                Street
+              </>
+            ) : (
+              <>
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064" />
+                </svg>
+                Satellite
+              </>
+            )}
+          </button>
 
           {/* Refresh button */}
           <button

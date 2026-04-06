@@ -252,3 +252,14 @@
 - [x] Clear customerPointsMap on map refresh
 - [x] Also fire viewport handler on zoomend so labels load when zooming in
 - [x] Build APK v1.59.0 (7.8MB)
+
+## 🗺️ v1.61.0 - Satellite Basemap + Survey-Style Map (IN PROGRESS)
+
+- [ ] Switch basemap from OpenStreetMap to Esri World Imagery satellite tiles
+- [ ] Add basemap toggle button (satellite ↔ street map) in map overlay
+- [ ] Increase polygon fill opacity for better visibility on satellite (0.30 → 0.45)
+- [ ] Upgrade enumerated building labels to badge style: white text on dark green rounded rectangle
+- [ ] Badge labels only render for enumerated/surveyed buildings (not virgin buildings)
+- [ ] Virgin buildings show building ID as small plain text only at zoom >= 18
+- [ ] Customer point labels remain as purple dot prefix (unchanged)
+- [ ] Update version to 1.61.0 and build APK
