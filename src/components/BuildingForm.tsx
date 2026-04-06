@@ -52,9 +52,47 @@ export default function BuildingForm({ onSubmit, location, selectedBuilding, onB
   const [unitCodeLoading, setUnitCodeLoading] = useState(false);
   const [existingUnitCodes, setExistingUnitCodes] = useState<string[]>([]);
 
+  /**
+   * Resolve the lotCode from the building's ArcGIS Zone field.
+   * The Zone field is the raw Lot_ID number (e.g. "242").
+   * The MongoDB lotCode format is "LOT-242", "MOT-027", etc.
+   * We match by stripping the alphabetic prefix and comparing the numeric suffix.
+   */
+  const resolveLotCodeFromZone = (zone: string | undefined): string => {
+    if (!zone) return '';
+    try {
+      const userId = (() => {
+        try {
+          const u = JSON.parse(localStorage.getItem('user') || '{}');
+          return u._id || u.id || u.email || 'default';
+        } catch { return 'default'; }
+      })();
+      const key = `assignedLots_${userId}`;
+      let lots: Array<{ lotCode: string; lotName: string }> = JSON.parse(localStorage.getItem(key) || '[]');
+      if (lots.length === 0) {
+        lots = JSON.parse(localStorage.getItem('assignedLots') || '[]');
+      }
+      // Zone is the numeric Lot_ID (e.g. "242" or "027").
+      // Strip leading zeros for comparison.
+      const zoneNum = parseInt(zone, 10);
+      if (isNaN(zoneNum)) return '';
+      const match = lots.find(l => {
+        // Extract numeric suffix from lotCode (e.g. "LOT-242" → 242, "MOT-027" → 27)
+        const m = l.lotCode.match(/(?:^[A-Z]+-)?(\d+)$/);
+        return m ? parseInt(m[1], 10) === zoneNum : false;
+      });
+      return match?.lotCode || '';
+    } catch { return ''; }
+  };
+
   // Auto-fill form when building is selected from map (or pre-fill for update)
   useEffect(() => {
     if (selectedBuilding) {
+      // Resolve lotCode from the building's ArcGIS Zone field.
+      // This ensures the lot is always attributed to the building's geographic lot,
+      // not the worker's default lot — critical for cherry_picker operators.
+      const resolvedLotCode = resolveLotCodeFromZone(selectedBuilding.zone);
+
       if (selectedBuilding._isUpdate) {
         // Update mode: pre-fill all fields from existing registration
         setFormData(prev => ({
@@ -64,6 +102,7 @@ export default function BuildingForm({ onSubmit, location, selectedBuilding, onB
           propertyType: selectedBuilding.propertyType || prev.propertyType,
           numberOfUnits: selectedBuilding.numberOfUnits ?? prev.numberOfUnits,
           notes: `Building ID: ${selectedBuilding.buildingId}${selectedBuilding.zone ? ` | Zone: ${selectedBuilding.zone}` : ''}`,
+          // Preserve existing lotCode on updates — don't override with zone resolution
         }));
         if (selectedBuilding.unitCode) setUnitCode(selectedBuilding.unitCode);
       } else if (selectedBuilding._arcgisCustomerPoint) {
@@ -73,6 +112,8 @@ export default function BuildingForm({ onSubmit, location, selectedBuilding, onB
           address: selectedBuilding.address || '',
           buildingName: selectedBuilding.businessName || '',
           notes: `Building ID: ${selectedBuilding.buildingId}${selectedBuilding.zone ? ` | Zone: ${selectedBuilding.zone}` : ''}`,
+          // Auto-resolve lotCode from the building's Zone — cherry_picker fix
+          ...(resolvedLotCode ? { lotCode: resolvedLotCode } : {}),
         }));
       } else {
         setFormData(prev => ({
@@ -80,6 +121,8 @@ export default function BuildingForm({ onSubmit, location, selectedBuilding, onB
           address: selectedBuilding.address || '',
           buildingName: selectedBuilding.businessName || '',
           notes: `Building ID: ${selectedBuilding.buildingId}${selectedBuilding.zone ? ` | Zone: ${selectedBuilding.zone}` : ''}`,
+          // Auto-resolve lotCode from the building's Zone — cherry_picker fix
+          ...(resolvedLotCode ? { lotCode: resolvedLotCode } : {}),
         }));
       }
     }
@@ -284,6 +327,12 @@ export default function BuildingForm({ onSubmit, location, selectedBuilding, onB
                   {selectedBuilding._arcgisCustomerPoint && selectedBuilding.businessName && (
                     <p><strong>Customer:</strong> {selectedBuilding.businessName}</p>
                   )}
+                  {/* Show resolved lot code if auto-detected from Zone */}
+                  {!selectedBuilding._isUpdate && resolveLotCodeFromZone(selectedBuilding.zone) && (
+                    <p className="text-xs font-semibold mt-1">
+                      📍 Lot auto-detected: <span className="font-bold">{resolveLotCodeFromZone(selectedBuilding.zone)}</span>
+                    </p>
+                  )}
                 </div>
                 <p className={`text-xs mt-2 italic ${
                   selectedBuilding._isUpdate ? 'text-amber-700'
@@ -293,8 +342,8 @@ export default function BuildingForm({ onSubmit, location, selectedBuilding, onB
                   {selectedBuilding._isUpdate
                     ? '⚠️ This will update the existing record. Edit fields as needed.'
                     : selectedBuilding._arcgisCustomerPoint
-                    ? '👤 Customer data pre-filled from registry. Review and confirm below.'
-                    : 'ℹ️ Form fields have been pre-filled. You can edit them if needed.'}
+                    ? '👤 Customer data pre-filled from registry. Lot auto-detected from building zone.'
+                    : 'ℹ️ Form fields have been pre-filled. Lot auto-detected from building zone.'}
                 </p>
               </div>
             )}
