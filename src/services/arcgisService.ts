@@ -549,23 +549,27 @@ export async function fetchCustomerPointsForLot(
 // ─── Two-phase progressive loader (v1.59.2) ─────────────────────────────────
 
 /**
- * Convert a MongoDB lotCode (e.g. "LOT-242", "MOT-027") to the ArcGIS Lot_ID
- * string (e.g. "242", "027") used in the Footprint layer.
+ * Convert a MongoDB lotCode (e.g. "LOT-242", "MOT-027", "LOT-06") to the
+ * ArcGIS Lot_ID string used in the Footprint layer.
  *
  * Rules:
  *   1. Strip any alphabetic prefix up to and including the first hyphen.
- *   2. The remaining numeric string is the Lot_ID (ArcGIS stores it as a
- *      zero-padded 3-digit string, e.g. "006", "027", "242").
- *   3. If the input already looks like a bare number, use it as-is.
+ *   2. Zero-pad the numeric part to 3 digits to match the layer's format
+ *      (e.g. "LOT-6" → "006", "LOT-06" → "006", "LOT-242" → "242").
+ *   3. If the input already looks like a bare number, zero-pad it to 3 digits.
+ *
+ * The Nigeria_Building_Footprints layer stores Lot_ID as a 3-digit zero-padded
+ * string (e.g. "006", "027", "061", "242"). Without padding, queries for
+ * "6" or "06" return zero results even when 8,720 features exist for "006".
  */
 export function lotCodeToArcGISLotId(lotCode: string): string | null {
   if (!lotCode) return null;
   // Strip prefix like "LOT-", "MOT-", "ADK-", "AFT-", etc.
-  const match = lotCode.match(/(?:^[A-Z]+-)(\d+)$/);
-  if (match) return match[1]; // e.g. "242", "027"
-  // Already numeric
-  if (/^\d+$/.test(lotCode)) return lotCode;
-  return null;
+  const match = lotCode.match(/^[A-Za-z]+-?(\d+)$/);
+  const digits = match ? match[1] : (/^\d+$/.test(lotCode) ? lotCode : null);
+  if (!digits) return null;
+  // Zero-pad to at least 3 digits (e.g. "6" → "006", "06" → "006", "242" → "242")
+  return digits.padStart(3, '0');
 }
 
 /**
