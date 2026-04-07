@@ -690,7 +690,8 @@ export function EnhancedLocationMapWithPolygons({
         tryAutoSelect(lat, lon, cachedPolygons);
         setPolygonError('Offline — showing cached data');
       } else {
-        setPolygonError('No internet & no cached data — tap Download when online');
+        const errMsg = error instanceof Error ? error.message : String(error);
+        setPolygonError(`ArcGIS error: ${errMsg.slice(0, 120)}`);
       }
     } finally {
       setIsLoadingPolygons(false);
