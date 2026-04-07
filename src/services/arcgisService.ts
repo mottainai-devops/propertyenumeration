@@ -20,15 +20,17 @@ import type {
   ArcGISFeature,
 } from '../models/BuildingPolygon';
 import {
-  convertArcGISRingsToWGS84,
   calculatePolygonCenter,
 } from '../utils/coordinateConversion';
+// NOTE: convertArcGISRingsToWGS84 is intentionally NOT imported.
+// The new Nigeria_Building_Footprints layer stores rings in WGS84 (EPSG:4326) natively.
+// Applying the Web Mercator conversion would corrupt coordinates.
 
 // ─── Endpoint constants ───────────────────────────────────────────────────────
 
-/** Building polygon layer (parent) */
+/** Building polygon layer (parent) — Nigeria_Building_Footprints (WGS84 native, replaced 2026-04-07) */
 const ARCGIS_POLYGON_URL =
-  'https://services3.arcgis.com/VYBpf26AGQNwssLH/arcgis/rest/services/New_Footprints_gdb_b1422/FeatureServer/0';
+  'https://services3.arcgis.com/VYBpf26AGQNwssLH/arcgis/rest/services/Nigeria_Building_Footprints/FeatureServer/0';
 
 /** Customer point layer (child) */
 const ARCGIS_CUSTOMER_URL =
@@ -577,7 +579,7 @@ async function fetchPolygonsByObjectIds(
   const params: Record<string, string> = {
     objectIds: objectIds.join(','),
     outFields:
-      'building_id,address,Zone,socio_economic_groups,Validation,Validated_By',
+      'building_id,address,Zone,socio_economic_groups,Validation,Validated_By,lga_name,lga_code,state_code,ward_name,ward_code,latitude,longitude,house_name,flat_no,Description,Enlistment',
     returnGeometry: 'true',
     f: 'json',
     token: ARCGIS_API_KEY,
@@ -723,7 +725,7 @@ export async function fetchPolygonsInBounds(
       geometryType: 'esriGeometryEnvelope',
       spatialRel: 'esriSpatialRelIntersects',
       outFields:
-        'building_id,address,Zone,socio_economic_groups,Validation,Validated_By',
+        'building_id,address,Zone,socio_economic_groups,Validation,Validated_By,lga_name,lga_code,state_code,ward_name,ward_code,latitude,longitude,house_name,flat_no,Description,Enlistment',
       returnGeometry: 'true',
       f: 'json',
       token: ARCGIS_API_KEY,
@@ -783,7 +785,7 @@ export async function fetchPolygonsNearLocation(
       distance: radiusMeters.toString(),
       units: 'esriSRUnit_Meter',
       outFields:
-        'building_id,address,Zone,socio_economic_groups,Validation,Validated_By',
+        'building_id,address,Zone,socio_economic_groups,Validation,Validated_By,lga_name,lga_code,state_code,ward_name,ward_code,latitude,longitude,house_name,flat_no,Description,Enlistment',
       returnGeometry: 'true',
       f: 'json',
       token: ARCGIS_API_KEY,
@@ -850,7 +852,7 @@ export async function fetchPolygonByBuildingId(
     const params = new URLSearchParams({
       where: `building_id='${buildingId}'`,
       outFields:
-        'building_id,address,Zone,socio_economic_groups,Validation,Validated_By',
+        'building_id,address,Zone,socio_economic_groups,Validation,Validated_By,lga_name,lga_code,state_code,ward_name,ward_code,latitude,longitude,house_name,flat_no,Description,Enlistment',
       returnGeometry: 'true',
       f: 'json',
       token: ARCGIS_API_KEY,
@@ -923,10 +925,11 @@ export async function testArcGISConnection(): Promise<boolean> {
 function convertArcGISFeatureToBuildingPolygon(feature: ArcGISFeature): BuildingPolygon {
   const { attributes, geometry } = feature;
 
-  // Convert Web Mercator rings to WGS84
-  const wgs84Rings = convertArcGISRingsToWGS84(geometry.rings);
+  // Nigeria_Building_Footprints layer stores rings in WGS84 (EPSG:4326) natively.
+  // NO coordinate conversion needed — use rings directly as GeoJSON [lon, lat] pairs.
+  const wgs84Rings = geometry.rings;
 
-  // Calculate center point
+  // Calculate center point from WGS84 rings
   const { centerLat, centerLon } = calculatePolygonCenter(wgs84Rings);
 
   // Create GeoJSON polygon
@@ -950,6 +953,17 @@ function convertArcGISFeatureToBuildingPolygon(feature: ArcGISFeature): Building
     // Enumeration status fields (written back after registration)
     validation: attributes.Validation,
     validatedBy: attributes.Validated_By,
+    flatNo: attributes.flat_no,
+    description: attributes.Description,
+    enlistment: attributes.Enlistment,
+    // Administrative geo fields from footprint layer
+    lgaName: attributes.lga_name,
+    lgaCode: attributes.lga_code,
+    stateCode: attributes.state_code,
+    wardName: attributes.ward_name,
+    wardCode: attributes.ward_code,
+    footprintLat: attributes.latitude,
+    footprintLon: attributes.longitude,
     geometry: geoJsonPolygon,
     centerLat,
     centerLon,

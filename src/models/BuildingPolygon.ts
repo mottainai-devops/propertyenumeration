@@ -27,6 +27,26 @@ export interface BuildingPolygon {
   validation?: string;
   /** Name of enumerator who validated this building */
   validatedBy?: string;
+  /** Unit code (R1, R2, C1, C2) — written back on registration */
+  flatNo?: string;
+  /** Enumeration description — written back on registration */
+  description?: string;
+  /** Enlistment status — written back on registration */
+  enlistment?: string;
+  /** LGA name from footprint layer */
+  lgaName?: string;
+  /** LGA code from footprint layer */
+  lgaCode?: string;
+  /** State code from footprint layer */
+  stateCode?: string;
+  /** Ward name from footprint layer */
+  wardName?: string;
+  /** Ward code from footprint layer */
+  wardCode?: string;
+  /** Building centroid latitude from footprint layer */
+  footprintLat?: number;
+  /** Building centroid longitude from footprint layer */
+  footprintLon?: number;
   geometry: GeoJSON.Polygon;
   centerLat: number;
   centerLon: number;
@@ -55,6 +75,17 @@ export interface ArcGISFeature {
     socio_economic_groups?: string;
     Validation?: string;
     Validated_By?: string;
+    flat_no?: string;
+    Description?: string;
+    Enlistment?: string;
+    lga_name?: string;
+    lga_code?: string;
+    state_code?: string;
+    ward_name?: string;
+    ward_code?: string;
+    latitude?: number;
+    longitude?: number;
+    house_name?: string;
     // Legacy fields — present on older polygon records but should be migrated to Customer Point layer
     business_name?: string;
     first_name?: string;
@@ -63,7 +94,7 @@ export interface ArcGISFeature {
     customer_email?: string;
   };
   geometry: {
-    rings: number[][][]; // Web Mercator coordinates
+    rings: number[][][]; // WGS84 coordinates (EPSG:4326) — new Nigeria_Building_Footprints layer
   };
 }
 

@@ -275,3 +275,21 @@
 - [x] Wire SELECT on ArcGIS customer to pre-fill BuildingForm (businessName, phone, email, address)
 - [x] Update BuildingForm selectedBuilding interface to accept contactPhoneNumber and contactEmail for ArcGIS pre-fill
 - [x] Update version to 1.62.0 and build APK
+
+## 🔧 v1.63.0 - Cherrypicker Lot Attribution Fix
+
+- [x] BuildingForm resolves lotCode from ArcGIS polygon Zone field (numeric Lot_ID)
+- [x] Zone-to-lotCode matching by numeric suffix (e.g. Zone "242" → "LOT-242")
+- [x] LotDropdown auto-populated with resolved lotCode when building is tapped
+- [x] "Lot auto-detected" indicator shown in Building Selection panel
+- [x] cherry_picker on foreign lot: LotDropdown remains open for manual selection
+- [x] mobileAuth login and /me return companyId, companyName, defaultLotCode
+- [x] Update version to 1.63.0 and build APK
+## 🔧 v1.64.0 - Nigeria_Building_Footprints Layer Replacement
+- [x] Update ARCGIS_POLYGON_URL to Nigeria_Building_Footprints (WGS84 native, 2026-04-07)
+- [x] Remove Web Mercator → WGS84 coordinate conversion (convertArcGISRingsToWGS84) — new layer is WGS84 native
+- [x] Update all outFields to include lga_name,lga_code,state_code,ward_name,ward_code,latitude,longitude,house_name,flat_no,Description,Enlistment
+- [x] Add new fields to BuildingPolygon interface: flatNo,description,enlistment,lgaName,lgaCode,stateCode,wardName,wardCode,footprintLat,footprintLon
+- [x] Add new fields to ArcGISFeature attributes interface
+- [x] Map new attributes in convertArcGISFeatureToBuildingPolygon
+- [ ] Build APK v1.64.0
