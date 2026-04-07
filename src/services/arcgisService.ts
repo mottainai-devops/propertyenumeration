@@ -111,7 +111,7 @@ async function postArcGIS(
   const response = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: body.toString(),
+    body: body, // Pass URLSearchParams directly — Capacitor native bridge handles it correctly
     signal,
   });
 
@@ -140,7 +140,7 @@ async function postArcGISQuery(
   const response = await fetch(`${ARCGIS_BASE_URL}/query`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: body.toString(),
+    body: body, // Pass URLSearchParams directly — Capacitor native bridge handles it correctly
     signal,
   });
 
@@ -431,7 +431,7 @@ export async function fetchCustomerPointsInBounds(
     const response = await fetch(`${ARCGIS_CUSTOMER_URL}/query`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: body.toString(),
+      body: body, // Pass URLSearchParams directly — Capacitor native bridge handles it correctly
       signal: controller.signal,
     });
     clearTimeout(timeoutId);
@@ -505,7 +505,7 @@ export async function fetchCustomerPointsForLot(
     const response = await fetch(`${ARCGIS_CUSTOMER_URL}/query`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: body.toString(),
+      body: body, // Pass URLSearchParams directly — Capacitor native bridge handles it correctly
       signal: controller.signal,
     });
     clearTimeout(timeoutId);
@@ -592,7 +592,7 @@ async function fetchPolygonsByObjectIds(
   const response = await fetch(`${ARCGIS_BASE_URL}/query`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: body.toString(),
+    body: body, // Pass URLSearchParams directly — Capacitor native bridge handles it correctly
   });
   if (!response.ok) throw new Error(`HTTP ${response.status}`);
   const data = await response.json();
@@ -649,7 +649,7 @@ export async function fetchPolygonsForLotProgressive(
   const res1 = await fetch(`${ARCGIS_BASE_URL}/query`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: body1.toString(),
+    body: body1, // Pass URLSearchParams directly — Capacitor native bridge handles it correctly
   });
   if (!res1.ok) throw new Error(`Phase 1 HTTP ${res1.status}`);
   const data1 = await res1.json();
