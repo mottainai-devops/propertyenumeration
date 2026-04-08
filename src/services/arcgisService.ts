@@ -166,19 +166,21 @@ async function postArcGISQuery(
  * on the polygon. The polygon represents the building, not the customer.
  *
  * Fields written:
- *   Validation   → "Enumerated"
- *   Validated_By → enumerator full name
- *   V_Date       → registration timestamp (epoch ms)
+ *   Verification → "Enumerated"
+ *   Source       → enumerator full name
  *   flat_no      → unit code (R1 / R2 / C1 / C2)
  *   house_name   → building type (Residential / Commercial / etc.)
  *   Description  → "Validated"
+ *
+ * NOTE: The new Nigeria_Building_Footprints layer renamed Validation→Verification
+ * and Validated_By→Source. V_Date and Zone fields no longer exist.
  *
  * Returns true on success, false on failure (non-throwing for resilience).
  */
 export async function updatePolygonAfterRegistration(
   params: PolygonUpdateParams
 ): Promise<boolean> {
-  const { arcgisBuildingId, validatedBy, validationDate, unitCode, buildingType } = params;
+  const { arcgisBuildingId, validatedBy, unitCode, buildingType } = params;
 
   if (!arcgisBuildingId) {
     console.warn('[ArcGIS] updatePolygonAfterRegistration: no arcgisBuildingId — skipping');
@@ -201,17 +203,12 @@ export async function updatePolygonAfterRegistration(
     }
 
     const objectId = features[0].attributes.OBJECTID;
-
     // Step 2: build the update attributes
-    const validationEpoch = validationDate
-      ? new Date(validationDate).getTime()
-      : Date.now();
-
+    // NOTE: V_Date field was removed in the new Nigeria_Building_Footprints layer
     const updateAttributes: Record<string, any> = {
       OBJECTID: objectId,
-      Validation: 'Enumerated',
-      Validated_By: validatedBy || 'Property Enumeration App',
-      V_Date: validationEpoch,
+      Verification: 'Enumerated',
+      Source: validatedBy || 'Property Enumeration App',
       Description: 'Validated',
     };
 
@@ -583,7 +580,7 @@ async function fetchPolygonsByObjectIds(
   const params: Record<string, string> = {
     objectIds: objectIds.join(','),
     outFields:
-      'building_id,address,Zone,socio_economic_groups,Validation,Validated_By,lga_name,lga_code,state_code,ward_name,ward_code,latitude,longitude,house_name,flat_no,Description,Enlistment',
+      'building_id,address,Verification,Source,lga_name,lga_code,state_code,ward_name,ward_code,latitude,longitude,house_name,flat_no,Description,Enlistment',
     returnGeometry: 'true',
     f: 'json',
     token: ARCGIS_API_KEY,
@@ -729,7 +726,7 @@ export async function fetchPolygonsInBounds(
       geometryType: 'esriGeometryEnvelope',
       spatialRel: 'esriSpatialRelIntersects',
       outFields:
-        'building_id,address,Zone,socio_economic_groups,Validation,Validated_By,lga_name,lga_code,state_code,ward_name,ward_code,latitude,longitude,house_name,flat_no,Description,Enlistment',
+        'building_id,address,Verification,Source,lga_name,lga_code,state_code,ward_name,ward_code,latitude,longitude,house_name,flat_no,Description,Enlistment',
       returnGeometry: 'true',
       f: 'json',
       token: ARCGIS_API_KEY,
@@ -789,7 +786,7 @@ export async function fetchPolygonsNearLocation(
       distance: radiusMeters.toString(),
       units: 'esriSRUnit_Meter',
       outFields:
-        'building_id,address,Zone,socio_economic_groups,Validation,Validated_By,lga_name,lga_code,state_code,ward_name,ward_code,latitude,longitude,house_name,flat_no,Description,Enlistment',
+        'building_id,address,Verification,Source,lga_name,lga_code,state_code,ward_name,ward_code,latitude,longitude,house_name,flat_no,Description,Enlistment',
       returnGeometry: 'true',
       f: 'json',
       token: ARCGIS_API_KEY,
@@ -856,7 +853,7 @@ export async function fetchPolygonByBuildingId(
     const params = new URLSearchParams({
       where: `building_id='${buildingId}'`,
       outFields:
-        'building_id,address,Zone,socio_economic_groups,Validation,Validated_By,lga_name,lga_code,state_code,ward_name,ward_code,latitude,longitude,house_name,flat_no,Description,Enlistment',
+        'building_id,address,Verification,Source,lga_name,lga_code,state_code,ward_name,ward_code,latitude,longitude,house_name,flat_no,Description,Enlistment',
       returnGeometry: 'true',
       f: 'json',
       token: ARCGIS_API_KEY,
@@ -952,11 +949,12 @@ function convertArcGISFeatureToBuildingPolygon(feature: ArcGISFeature): Building
     custPhone: undefined,
     customerEmail: undefined,
     address: attributes.address,
-    zone: attributes.Zone,
-    socioEconomicGroups: attributes.socio_economic_groups,
+    zone: undefined,
+    socioEconomicGroups: undefined,
     // Enumeration status fields (written back after registration)
-    validation: attributes.Validation,
-    validatedBy: attributes.Validated_By,
+    // New layer uses Verification (was Validation) and Source (was Validated_By)
+    validation: attributes.Verification,
+    validatedBy: attributes.Source,
     flatNo: attributes.flat_no,
     description: attributes.Description,
     enlistment: attributes.Enlistment,

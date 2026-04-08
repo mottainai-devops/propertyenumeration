@@ -71,10 +71,9 @@ export interface ArcGISFeature {
   attributes: {
     building_id: string;
     address?: string;
-    Zone?: string;
-    socio_economic_groups?: string;
-    Validation?: string;
-    Validated_By?: string;
+    // New Nigeria_Building_Footprints layer field names (Zone and socio_economic_groups removed)
+    Verification?: string;   // replaces old Validation field
+    Source?: string;         // replaces old Validated_By field
     flat_no?: string;
     Description?: string;
     Enlistment?: string;
