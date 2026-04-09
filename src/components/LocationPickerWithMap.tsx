@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { getLotCenter } from '../services/arcgisService';
 import { MapErrorBoundary } from './MapErrorBoundary';
 import { EnhancedLocationMapWithPolygons } from './EnhancedLocationMapWithPolygons';
 import SimpleLocationPicker from './SimpleLocationPicker';
@@ -29,17 +30,38 @@ export default function LocationPickerWithMap({
   surveyedBuildingIds = new Set(),
   lotCode,
 }: LocationPickerWithMapProps) {
-  const [location, setLocation] = useState<LocationData>({ latitude: 6.5244, longitude: 3.3792 });
+  // If a lotCode is provided, use its known geographic center as the initial map position.
+  // This ensures the map opens on the correct area (e.g. Ikeja GRA for LOT-6) regardless
+  // of the device GPS position, which may be inaccurate or match the Lagos fallback.
+  const lotCenter = lotCode ? getLotCenter(lotCode) : null;
+  const [location, setLocation] = useState<LocationData>(
+    lotCenter
+      ? { latitude: lotCenter[0], longitude: lotCenter[1] }
+      : { latitude: 6.5244, longitude: 3.3792 }
+  );
   const [useMap, setUseMap] = useState(true);
 
-  // Get initial GPS location
+  // Get device GPS location — only override the initial lot-center if GPS is available
+  // and the user is actually within ~10km of the lot center (prevents wrong-area centering).
   useEffect(() => {
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         (pos) => {
+          const gpsLat = pos.coords.latitude;
+          const gpsLon = pos.coords.longitude;
+          // If we have a lot center, only use GPS if it is within ~10km of the lot
+          if (lotCenter) {
+            const dlat = gpsLat - lotCenter[0];
+            const dlon = gpsLon - lotCenter[1];
+            const distKm = Math.sqrt(dlat * dlat + dlon * dlon) * 111; // rough km
+            if (distKm > 10) {
+              console.log(`[LocationPicker] GPS (${gpsLat.toFixed(4)}, ${gpsLon.toFixed(4)}) is ${distKm.toFixed(1)}km from lot center — keeping lot center`);
+              return; // GPS is too far from the lot; keep the lot center
+            }
+          }
           setLocation({
-            latitude: pos.coords.latitude,
-            longitude: pos.coords.longitude,
+            latitude: gpsLat,
+            longitude: gpsLon,
             accuracy: pos.coords.accuracy,
           });
         },
@@ -47,7 +69,7 @@ export default function LocationPickerWithMap({
         { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
       );
     }
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleMapLocationChange = (lat: number, lng: number) => {
     setLocation({ latitude: lat, longitude: lng });
