@@ -23,12 +23,18 @@ interface LocationPickerWithMapProps {
   /** MongoDB lot code for the active session (e.g. "LOT-242") — enables the
    *  fast two-phase progressive polygon loader. */
   lotCode?: string;
+  /** Navigate back to the session screen */
+  onBackToSession?: () => void;
+  /** Logout handler */
+  onLogout?: () => void;
 }
 
 export default function LocationPickerWithMap({
   onLocationSelect,
   surveyedBuildingIds = new Set(),
   lotCode,
+  onBackToSession,
+  onLogout,
 }: LocationPickerWithMapProps) {
   // If a lotCode is provided, use its known geographic center as the initial map position.
   // This ensures the map opens on the correct area (e.g. Ikeja GRA for LOT-6) regardless
@@ -133,6 +139,8 @@ export default function LocationPickerWithMap({
             onBuildingSelected={handleBuildingSelected}
             surveyedBuildingIds={surveyedBuildingIds}
             lotCode={lotCode}
+            onBackToSession={onBackToSession}
+            onLogout={onLogout}
           />
         </MapErrorBoundary>
       ) : (

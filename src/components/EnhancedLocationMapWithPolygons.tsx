@@ -26,7 +26,7 @@ const USE_MOCK_DATA = false;
 const DEFAULT_SATELLITE = true;
 
 // Minimum zoom level to show building labels (reduces clutter when zoomed out)
-const LABEL_ZOOM_THRESHOLD = 16;
+const LABEL_ZOOM_THRESHOLD = 19;
 
 // Fix Leaflet default marker icon issue
 delete (L.Icon.Default.prototype as any)._getIconUrl;
@@ -40,7 +40,7 @@ function isValidBusinessName(name?: string): boolean {
   return !!name && name !== 'None' && name !== 'none' && name !== 'null' && name.trim() !== '' && name.toLowerCase() !== 'esteemed customer';
 }
 
-/** Resolve the best display name for a polygon: business_name → first+last → buildingId */
+/** Resolve the best display name for a polygon: business_name → first+last → short buildingId */
 function resolveDisplayName(polygon: BuildingPolygon): string {
   if (isValidBusinessName(polygon.businessName)) return polygon.businessName!;
   const fullName = [polygon.firstName, polygon.lastName]
@@ -48,7 +48,10 @@ function resolveDisplayName(polygon: BuildingPolygon): string {
     .join(' ')
     .trim();
   if (fullName && fullName.toLowerCase() !== 'esteemed customer') return fullName;
-  return polygon.buildingId;
+  // Strip lot suffix from building ID: "55554 LASIKA06 006" → "55554"
+  // Format is typically "<num> <zone> <lot>" — we only show the leading number
+  const shortId = polygon.buildingId.split(' ')[0];
+  return shortId || polygon.buildingId;
 }
 
 // ─── Overlap ratio helper ─────────────────────────────────────────────────────
@@ -74,6 +77,10 @@ interface EnhancedLocationMapWithPolygonsProps {
    *  progressive loader to fetch all polygons for the lot by Lot_ID instead
    *  of a slow spatial radius query. Falls back to spatial query if omitted. */
   lotCode?: string;
+  /** Navigate back to session screen (shown in map toolbar) */
+  onBackToSession?: () => void;
+  /** Logout handler (shown in map toolbar) */
+  onLogout?: () => void;
 }
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
@@ -104,8 +111,10 @@ function MapFlyTo({ target }: { target: [number, number] | null }) {
 /** Fires onMoveEnd when the user finishes panning/zooming */
 function ViewportChangeHandler({
   onMoveEnd,
+  onZoomChange,
 }: {
   onMoveEnd: (bounds: { north: number; south: number; east: number; west: number }) => void;
+  onZoomChange?: (zoom: number) => void;
 }) {
   useMapEvents({
     moveend: (e) => {
@@ -126,6 +135,7 @@ function ViewportChangeHandler({
         east: b.getEast(),
         west: b.getWest(),
       });
+      if (onZoomChange) onZoomChange(e.target.getZoom());
     },
   });
   return null;
@@ -215,14 +225,14 @@ function ZoomDependentLabel({
 
   // ── Plain label for virgin / customer-only buildings ──────────────────────
   const prefix = hasCustomerData ? '● ' : '';
-  const color = hasCustomerData ? '#7c3aed' : '#ffffff';
+  const color = hasCustomerData ? '#c4b5fd' : 'rgba(255,255,255,0.92)';
   const shadow = hasCustomerData
-    ? '0 0 3px white, 0 0 3px white'
-    : '0 0 4px #000, 0 0 4px #000, 0 0 2px #000';
+    ? '0 0 3px rgba(0,0,0,0.8), 0 0 3px rgba(0,0,0,0.8)'
+    : '0 0 3px rgba(0,0,0,0.9), 0 0 3px rgba(0,0,0,0.9)';
 
   const labelIcon = L.divIcon({
     className: 'building-label',
-    html: `<div style="font-size: 7.5px; color: ${color}; text-shadow: ${shadow}; font-weight: 700; white-space: nowrap; pointer-events: none; line-height: 1.2; text-align: center; transform: translate(-50%, -50%)">${prefix}${displayText}</div>`,
+    html: `<div style="font-size: 7px; color: ${color}; text-shadow: ${shadow}; font-weight: 600; white-space: nowrap; pointer-events: none; line-height: 1.2; text-align: center; transform: translate(-50%, -50%)">${prefix}${displayText}</div>`,
     iconSize: [0, 0],
     iconAnchor: [0, 0],
   });
@@ -452,6 +462,8 @@ export function EnhancedLocationMapWithPolygons({
   onBuildingSelected,
   surveyedBuildingIds = new Set(),
   lotCode,
+  onBackToSession,
+  onLogout,
 }: EnhancedLocationMapWithPolygonsProps) {
   const [position, setPosition] = useState<[number, number]>([latitude, longitude]);
   const [mapError, setMapError] = useState<string | null>(null);
@@ -487,6 +499,9 @@ export function EnhancedLocationMapWithPolygons({
   // Viewport tracking for progressive loading
   const lastQueriedBoundsRef = useRef<{ north: number; south: number; east: number; west: number } | null>(null);
   const viewportDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Track current zoom level for the zoom hint overlay
+  const [currentZoom, setCurrentZoom] = useState(18);
 
   // Monitor GPS accuracy continuously
   useEffect(() => {
@@ -1016,7 +1031,7 @@ export function EnhancedLocationMapWithPolygons({
   }
 
   function getPolygonColors(status: 'enumerated' | 'surveyed-session' | 'default', isSelected: boolean) {
-    if (isSelected) return { color: '#1a56db', fillColor: '#1a56db', fillOpacity: 0.55, weight: 4, dashArray: undefined };
+    if (isSelected) return { color: '#ffffff', fillColor: '#3b82f6', fillOpacity: 0.65, weight: 4, dashArray: undefined };
     // On satellite: use stronger fill opacity so polygons are visible over imagery
     if (status === 'enumerated') return { color: '#16a34a', fillColor: '#22c55e', fillOpacity: 0.45, weight: 2.5, dashArray: undefined };
     if (status === 'surveyed-session') return { color: '#2563eb', fillColor: '#93c5fd', fillOpacity: 0.40, weight: 2.5, dashArray: '5 4' };
@@ -1026,35 +1041,78 @@ export function EnhancedLocationMapWithPolygons({
 
   try {
     return (
-      <div className="w-full h-full flex flex-col gap-1 px-2 pt-1">
-        {/* Search bar */}
-        <div className="relative">
-          <div className="flex items-center bg-white border border-gray-300 rounded-xl shadow-sm px-3 py-2 gap-2">
-            <svg className="w-4 h-4 text-gray-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-            </svg>
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search building ID or name…"
-              className="flex-1 text-sm outline-none bg-transparent text-gray-800 placeholder-gray-400"
-            />
-            {searchQuery && (
+      <div className="w-full h-full flex flex-col">
+        {/* ─── Compact top toolbar: search + session nav + logout ─── */}
+        <div className="relative shrink-0 bg-white border-b border-gray-100 shadow-sm">
+          <div className="flex items-center gap-2 px-2 py-1.5">
+            {/* Session back button */}
+            {onBackToSession && (
               <button
-                onClick={() => { setSearchQuery(''); setShowSearchResults(false); }}
-                className="text-gray-400 hover:text-gray-600"
+                onClick={onBackToSession}
+                className="shrink-0 p-1.5 bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-200 transition"
+                title="Back to session"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
                 </svg>
+              </button>
+            )}
+
+            {/* Search bar — takes remaining width */}
+            <div className="flex-1 flex items-center bg-gray-100 rounded-xl px-3 py-1.5 gap-2">
+              <svg className="w-3.5 h-3.5 text-gray-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search building…"
+                className="flex-1 text-sm outline-none bg-transparent text-gray-800 placeholder-gray-400"
+              />
+              {searchQuery && (
+                <button
+                  onClick={() => { setSearchQuery(''); setShowSearchResults(false); }}
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              )}
+            </div>
+
+            {/* GPS accuracy dot indicator */}
+            <div
+              className="shrink-0 w-7 h-7 rounded-full flex items-center justify-center"
+              title={gpsAccuracy !== null ? `GPS ±${Math.round(gpsAccuracy)}m` : 'GPS unknown'}
+            >
+              <div
+                className="w-3 h-3 rounded-full border-2 border-white shadow-sm"
+                style={{
+                  backgroundColor:
+                    gpsAccuracy === null ? '#9ca3af'
+                    : gpsAccuracy <= 10 ? '#22c55e'
+                    : gpsAccuracy <= 30 ? '#f59e0b'
+                    : '#ef4444',
+                }}
+              />
+            </div>
+
+            {/* Logout button */}
+            {onLogout && (
+              <button
+                onClick={onLogout}
+                className="shrink-0 px-2.5 py-1.5 bg-red-500 text-white rounded-lg hover:bg-red-600 transition text-xs font-semibold"
+              >
+                Logout
               </button>
             )}
           </div>
 
           {/* Search results dropdown */}
           {showSearchResults && (
-            <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-lg z-[2000] overflow-hidden">
+            <div className="absolute top-full left-0 right-0 mt-0 bg-white border border-gray-200 rounded-b-xl shadow-lg z-[2000] overflow-hidden">
               {searchResults.map((p) => {
                 const status = getPolygonStatus(p.buildingId);
                 return (
@@ -1064,7 +1122,7 @@ export function EnhancedLocationMapWithPolygons({
                     className="w-full text-left px-4 py-3 hover:bg-green-50 border-b border-gray-100 last:border-0 transition"
                   >
                     <div className="flex items-start gap-2">
-                      <span className="text-lg shrink-0">🏢</span>
+                      <span className="text-base shrink-0">🏢</span>
                       <div className="min-w-0">
                         <p className="text-sm font-semibold text-gray-900 truncate">
                           {resolveDisplayName(p)}
@@ -1074,10 +1132,10 @@ export function EnhancedLocationMapWithPolygons({
                         </p>
                       </div>
                       {status === 'enumerated' && (
-                        <span className="ml-auto shrink-0 text-green-700 font-bold text-xs bg-green-100 px-1.5 py-0.5 rounded-md">✓ Enumerated</span>
+                        <span className="ml-auto shrink-0 text-green-700 font-bold text-xs bg-green-100 px-1.5 py-0.5 rounded-md">✓ Done</span>
                       )}
                       {status === 'surveyed-session' && (
-                        <span className="ml-auto shrink-0 text-blue-700 font-bold text-xs bg-blue-100 px-1.5 py-0.5 rounded-md">✓ This session</span>
+                        <span className="ml-auto shrink-0 text-blue-700 font-bold text-xs bg-blue-100 px-1.5 py-0.5 rounded-md">✓ Session</span>
                       )}
                     </div>
                   </button>
@@ -1087,25 +1145,9 @@ export function EnhancedLocationMapWithPolygons({
           )}
         </div>
 
-        {/* Legend */}
-        <div className="flex items-center gap-3 px-1 flex-wrap">
-          <div className="flex items-center gap-1">
-            <div className="w-3 h-3 rounded-sm bg-green-500 border border-green-700" />
-            <span className="text-xs text-gray-600">Enumerated</span>
-          </div>
-          <div className="flex items-center gap-1">
-            <div className="w-3 h-3 rounded-sm bg-blue-200 border border-blue-700 border-dashed" />
-            <span className="text-xs text-gray-600">This session</span>
-          </div>
-          <div className="flex items-center gap-1">
-            <div className="w-3 h-3 rounded-sm bg-orange-200 border border-orange-400" />
-            <span className="text-xs text-gray-600">Not yet done</span>
-          </div>
-        </div>
-
-        {/* Map — fills available screen height */}
+        {/* Map — fills all remaining height */}
         <div
-          className="w-full flex-1 rounded-lg overflow-hidden border border-gray-200 relative"
+          className="w-full flex-1 overflow-hidden relative"
           style={{ minHeight: 320 }}
         >
           <MapContainer
@@ -1123,7 +1165,7 @@ export function EnhancedLocationMapWithPolygons({
             <MapCenterUpdater center={position} />
             <MapRefCapture onMapReady={(map) => { mapRef.current = map; }} />
             <MapFlyTo target={flyTarget} />
-            <ViewportChangeHandler onMoveEnd={handleViewportChange} />
+            <ViewportChangeHandler onMoveEnd={handleViewportChange} onZoomChange={setCurrentZoom} />
 
             <Marker
               position={position}
@@ -1218,22 +1260,22 @@ export function EnhancedLocationMapWithPolygons({
             </div>
           )}
 
-          {/* Basemap toggle button */}
+          {/* ── Basemap toggle (top-left) ── */}
           <button
             onClick={() => setIsSatellite(prev => !prev)}
-            className="absolute top-2 left-2 bg-white rounded-xl shadow-lg text-gray-700 hover:bg-gray-50 z-[1001] flex items-center gap-1.5 px-3 py-2 text-xs font-semibold border border-gray-200"
+            className="absolute top-2 left-2 bg-white rounded-xl shadow-md text-gray-700 hover:bg-gray-50 z-[1001] flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold border border-gray-200"
             title={isSatellite ? 'Switch to street map' : 'Switch to satellite'}
           >
             {isSatellite ? (
               <>
-                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
                 </svg>
                 Street
               </>
             ) : (
               <>
-                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064" />
                 </svg>
                 Satellite
@@ -1241,51 +1283,64 @@ export function EnhancedLocationMapWithPolygons({
             )}
           </button>
 
-          {/* Refresh button */}
-          <button
-            onClick={handleRefresh}
-            disabled={isLoadingPolygons}
-            className="absolute bottom-14 left-3 bg-white rounded-xl shadow-lg text-gray-700 hover:bg-gray-50 disabled:opacity-50 z-[1001] flex items-center justify-center"
-            style={{ width: '52px', height: '52px' }}
-            title="Refresh building data"
-          >
-            <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-            </svg>
-          </button>
+          {/* ── Floating legend pill (bottom-left, above FABs) ── */}
+          <div className="absolute bottom-14 left-2 bg-white/90 backdrop-blur-sm rounded-xl shadow-md px-2.5 py-1.5 z-[1001] flex flex-col gap-1 border border-gray-100">
+            <div className="flex items-center gap-1.5">
+              <div className="w-2.5 h-2.5 rounded-sm bg-green-500 border border-green-700 shrink-0" />
+              <span className="text-xs text-gray-600 leading-none">Enumerated</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <div className="w-2.5 h-2.5 rounded-sm bg-blue-200 border border-blue-600 border-dashed shrink-0" />
+              <span className="text-xs text-gray-600 leading-none">This session</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <div className="w-2.5 h-2.5 rounded-sm border-2 border-orange-400 shrink-0" />
+              <span className="text-xs text-gray-600 leading-none">Not yet done</span>
+            </div>
+          </div>
 
-          {/* Location button */}
-          <button
-            onClick={handleLocateMe}
-            className="absolute bottom-14 right-3 bg-white rounded-xl shadow-lg text-gray-700 hover:bg-gray-50 z-[1001] flex items-center justify-center"
-            style={{ width: '52px', height: '52px' }}
-            title="Center on my location"
-          >
-            <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-            </svg>
-          </button>
-
-          {/* GPS Accuracy Badge */}
-          {gpsAccuracy !== null && gpsAccuracy > 15 && (
-            <div className="absolute top-2 right-2 bg-amber-500 text-white px-2.5 py-1.5 rounded-xl shadow-md text-xs font-bold z-[1002] flex items-center gap-1.5">
-              <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+          {/* ── Right-side FAB column: Refresh + Locate Me (44×44px) ── */}
+          <div className="absolute bottom-14 right-2 z-[1001] flex flex-col gap-2">
+            <button
+              onClick={handleLocateMe}
+              className="bg-white rounded-xl shadow-md text-gray-700 hover:bg-gray-50 flex items-center justify-center border border-gray-200"
+              style={{ width: '44px', height: '44px' }}
+              title="Center on my location"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
               </svg>
-              GPS ±{Math.round(gpsAccuracy)}m — wait for fix
+            </button>
+            <button
+              onClick={handleRefresh}
+              disabled={isLoadingPolygons}
+              className="bg-white rounded-xl shadow-md text-gray-700 hover:bg-gray-50 disabled:opacity-50 flex items-center justify-center border border-gray-200"
+              style={{ width: '44px', height: '44px' }}
+              title="Refresh building data"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+            </button>
+          </div>
+
+          {/* ── Zoom hint (shown when zoom < 18, no labels visible) ── */}
+          {currentZoom < LABEL_ZOOM_THRESHOLD && polygons.length > 0 && !isLoadingPolygons && (
+            <div className="absolute top-2 left-1/2 -translate-x-1/2 bg-black/60 text-white px-3 py-1 rounded-full text-xs z-[1001] pointer-events-none">
+              Zoom in to see building labels
             </div>
           )}
 
-          {/* Building count + cache age */}
+          {/* ── Building count pill (bottom-center, raised above FABs) ── */}
           {polygons.length > 0 && !isLoadingPolygons && (
-            <div className="absolute bottom-2 left-1/2 -translate-x-1/2 bg-white px-3 py-1.5 rounded-full shadow-md text-xs text-gray-600 z-[1001] flex items-center gap-1.5">
-              <span>{polygons.length} buildings</span>
+            <div className="absolute bottom-2 left-1/2 -translate-x-1/2 bg-white/90 backdrop-blur-sm px-3 py-1 rounded-full shadow-md text-xs text-gray-600 z-[1001] flex items-center gap-1.5 border border-gray-100">
+              <span className="font-medium">{polygons.length.toLocaleString()} buildings</span>
               {enumeratedBuildingIds.size > 0 && (
-                <span className="text-green-700 font-semibold">· {enumeratedBuildingIds.size} enumerated</span>
+                <span className="text-green-700 font-semibold">· {enumeratedBuildingIds.size} done</span>
               )}
               {surveyedBuildingIds.size > 0 && (
-                <span className="text-blue-600 font-semibold">· {surveyedBuildingIds.size} this session</span>
+                <span className="text-blue-600 font-semibold">· {surveyedBuildingIds.size} session</span>
               )}
               {cacheTimestamp && (
                 <span className="text-gray-400">
