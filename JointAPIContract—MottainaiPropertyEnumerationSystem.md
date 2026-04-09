@@ -1,11 +1,11 @@
 # Joint API Contract — Mottainai Property Enumeration System
 
-> **Document Version:** v1.2.0
-> **Backend Version:** v4.5.5 (deployed March 6, 2026)
-> **Mobile App Version:** v1.57.16
+> **Document Version:** v1.3.0
+> **Backend Version:** v4.6.0 (deployed April 9, 2026)
+> **Mobile App Version:** v1.64.4
 > **Status:** ✅ Signed Off — Both Teams
 > **Authors:** Backend Team + Frontend Team
-> **Date:** March 6, 2026
+> **Date:** April 9, 2026
 
 ---
 
@@ -16,6 +16,7 @@
 | v1.0.0 | March 4, 2026 | Backend Team | Initial contract, 4 discrepancies documented |
 | v1.1.0 | March 6, 2026 | Both Teams | 5 additional issues resolved (Issues 1–5 from frontend sign-off review); logout endpoint added; customer search endpoint added; `assignedLots` fix deployed; both teams signed off |
 | v1.2.0 | March 6, 2026 | Backend Team | 6 gaps corrected from independent audit: removed non-existent fields (`ownerCompanyId`, `companyName`, `monthlyBilling`) from login response; corrected session start URL; corrected sessions list response shape (pagination wrapper); added Change Password endpoint (now implemented); added `arcgisBuildingId` filter to buildings list; documented analytics endpoints |
+| v1.3.0 | April 9, 2026 | DevOps Team | **ArcGIS layer migration:** `New_Footprints_gdb_b1422` → `Nigeria_Building_Footprints`. Updated coordinate field names (`Lat,Long` → `latitude,longitude`). `country` field removed from ArcGIS response — hardcoded to `'Nigeria'` in all consumers. Mobile app updated to v1.64.4 (Build #185). Repository consolidation: `mottainaisurvey/old-survey-web-app` archived; `mottainai-devops/mottainai-platform-backend` confirmed as sole active backend. |
 
 ---
 
