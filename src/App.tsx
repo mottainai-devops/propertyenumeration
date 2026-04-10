@@ -214,7 +214,18 @@ function App() {
           console.warn('Could not fetch active session to populate assignedLots:', err);
         }
       }
-      
+
+      // v1.64.5: Final fallback — use defaultLotCode from login response if still empty.
+      // Covers users whose assignedLots array is null/empty in the DB but who have
+      // a defaultLotCode set (e.g. adeyadewuyi@gmail.com → defaultLotCode: "LOT-6").
+      if (assignedLots.length === 0) {
+        const defaultLotCode = (response.user as any).defaultLotCode;
+        if (defaultLotCode) {
+          assignedLots = [{ lotCode: defaultLotCode, lotName: defaultLotCode }];
+          console.log('[Login] assignedLots was empty — fell back to defaultLotCode:', defaultLotCode);
+        }
+      }
+
       localStorage.setItem(`assignedLots_${userId}`, JSON.stringify(assignedLots));
       // Also set unscoped key for backwards compatibility with old data
       localStorage.setItem('assignedLots', JSON.stringify(assignedLots));
