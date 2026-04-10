@@ -306,7 +306,7 @@ function ExistingRegistrationsSheet({
                 <h3 className="text-base font-bold text-gray-900">
                   {isValidBusinessName(polygon.businessName) ? polygon.businessName : polygon.buildingId}
                 </h3>
-                <p className="text-xs text-gray-400 mt-0.5">Zone {polygon.zone || '—'}</p>
+                <p className="text-xs text-gray-400 mt-0.5">Zone {polygon.zone || polygon.buildingId.split(' ')[1] || '—'}</p>
               </div>
             </div>
             <button onClick={onClose} className="p-1 text-gray-400 hover:text-gray-600">
@@ -484,8 +484,8 @@ export function EnhancedLocationMapWithPolygons({
   // Cross-session enumerated building IDs (fetched from backend)
   const [enumeratedBuildingIds, setEnumeratedBuildingIds] = useState<Set<string>>(new Set());
 
-  // Customer points map: buildingId → CustomerPoint (from ArcGIS Customer Layer)
-  const [customerPointsMap, setCustomerPointsMap] = useState<Map<string, CustomerPoint>>(new Map());
+  // Customer points map: buildingId → CustomerPoint[] (one-to-many: all units per building)
+  const [customerPointsMap, setCustomerPointsMap] = useState<Map<string, CustomerPoint[]>>(new Map());
   const lastCustomerBoundsRef = useRef<{ north: number; south: number; east: number; west: number } | null>(null);
   const customerDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -645,11 +645,20 @@ export function EnhancedLocationMapWithPolygons({
                   try {
                     if (cpMap.size > 0) {
                       setCustomerPointsMap(prev => {
+                        // Merge: combine arrays for the same buildingId, avoiding duplicate unitCodes
                         const merged = new Map(prev);
-                        cpMap.forEach((v, k) => merged.set(k, v));
+                        cpMap.forEach((newUnits, buildingId) => {
+                          const existing = merged.get(buildingId) ?? [];
+                          const combined = [...existing];
+                          for (const cp of newUnits) {
+                            const isDup = cp.unitCode !== undefined && combined.some(e => e.unitCode === cp.unitCode);
+                            if (!isDup) combined.push(cp);
+                          }
+                          merged.set(buildingId, combined);
+                        });
                         return merged;
                       });
-                      console.log(`[CustomerLayer] Lot-based load: ${cpMap.size} customer points for lot ${lotId}`);
+                      console.log(`[CustomerLayer] Lot-based load: ${cpMap.size} buildings with customer points for lot ${lotId}`);
                     }
                   } catch (stateErr) {
                     console.warn('[CustomerLayer] State update failed (non-fatal):', stateErr);
@@ -732,9 +741,17 @@ export function EnhancedLocationMapWithPolygons({
           const cpMap = await fetchCustomerPointsInBounds(bounds);
           if (cpMap.size > 0) {
             setCustomerPointsMap(prev => {
-              // Merge: new entries override old ones for the same buildingId
+              // Merge: combine arrays for the same buildingId, avoiding duplicate unitCodes
               const merged = new Map(prev);
-              cpMap.forEach((v, k) => merged.set(k, v));
+              cpMap.forEach((newUnits, buildingId) => {
+                const existing = merged.get(buildingId) ?? [];
+                const combined = [...existing];
+                for (const cp of newUnits) {
+                  const isDup = cp.unitCode !== undefined && combined.some(e => e.unitCode === cp.unitCode);
+                  if (!isDup) combined.push(cp);
+                }
+                merged.set(buildingId, combined);
+              });
               return merged;
             });
           }
@@ -881,32 +898,36 @@ export function EnhancedLocationMapWithPolygons({
           south: polygon.centerLat - 0.001,
           east: polygon.centerLon + 0.001,
           west: polygon.centerLon - 0.001,
-        }).catch(() => new Map<string, CustomerPoint>()),
+        }).catch(() => new Map<string, CustomerPoint[]>()),
       ]);
 
       setSheetRegistrations(registrationsResult.buildings as ExistingRegistration[]);
 
-      // Collect ALL customer points for this building (there may be multiple units)
-      const buildingCustomers: CustomerPoint[] = [];
-      cpMap.forEach((cp, key) => {
-        // The map is keyed by buildingId but a building can have multiple units;
-        // fetchCustomerPointsInBounds only keeps one per buildingId key, so we
-        // also merge from the existing viewport cache which may have more.
-        if (key === polygon.buildingId) buildingCustomers.push(cp);
-      });
-      // Also check the existing viewport cache for any already-loaded points
-      const cached = customerPointsMap.get(polygon.buildingId);
-      if (cached && !buildingCustomers.find(c => c.unitCode === cached.unitCode)) {
-        buildingCustomers.unshift(cached);
+      // Collect ALL customer points for this building (one-to-many: array per building)
+      const freshUnits: CustomerPoint[] = cpMap.get(polygon.buildingId) ?? [];
+      // Merge with existing viewport cache to avoid losing previously loaded units
+      const cachedUnits: CustomerPoint[] = customerPointsMap.get(polygon.buildingId) ?? [];
+      const merged: CustomerPoint[] = [...freshUnits];
+      for (const cp of cachedUnits) {
+        const isDup = cp.unitCode !== undefined && merged.some(e => e.unitCode === cp.unitCode);
+        if (!isDup) merged.push(cp);
       }
-      setSheetCustomerPoints(buildingCustomers);
+      setSheetCustomerPoints(merged);
 
       // Merge new customer points into the viewport cache
       if (cpMap.size > 0) {
         setCustomerPointsMap(prev => {
-          const merged = new Map(prev);
-          cpMap.forEach((v, k) => merged.set(k, v));
-          return merged;
+          const next = new Map(prev);
+          cpMap.forEach((newUnits, buildingId) => {
+            const existing = next.get(buildingId) ?? [];
+            const combined = [...existing];
+            for (const cp of newUnits) {
+              const isDup = cp.unitCode !== undefined && combined.some(e => e.unitCode === cp.unitCode);
+              if (!isDup) combined.push(cp);
+            }
+            next.set(buildingId, combined);
+          });
+          return next;
         });
       }
     } finally {
@@ -1185,7 +1206,9 @@ export function EnhancedLocationMapWithPolygons({
               );
 
               // Look up live customer data from the Customer Layer
-              const customerPoint = customerPointsMap.get(polygon.buildingId);
+              // Use the first (most informative) unit for label display
+              const customerPointArr = customerPointsMap.get(polygon.buildingId);
+              const customerPoint = customerPointArr?.[0];
 
               return (
                 <React.Fragment key={polygon.buildingId}>

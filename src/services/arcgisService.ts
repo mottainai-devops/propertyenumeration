@@ -774,8 +774,9 @@ export interface CustomerPoint {
  */
 export async function fetchCustomerPointsInBounds(
   bounds: { north: number; south: number; east: number; west: number }
-): Promise<Map<string, CustomerPoint>> {
-  const result = new Map<string, CustomerPoint>();
+): Promise<Map<string, CustomerPoint[]>> {
+  // One-to-many: map keyed by buildingId → array of all customer units
+  const result = new Map<string, CustomerPoint[]>();
   try {
     const params: Record<string, string> = {
       where: '1=1',
@@ -819,21 +820,27 @@ export async function fetchCustomerPointsInBounds(
       const a = f.attributes;
       const buildingId: string = a.building_id ?? '';
       if (!buildingId) continue;
-      // Prefer the most informative record if multiple units exist for same building
-      if (!result.has(buildingId)) {
-        result.set(buildingId, {
-          buildingId,
-          unitCode: a.flat_no ?? undefined,
-          firstName: a.first_name ?? undefined,
-          lastName: a.last_name ?? undefined,
-          businessName: a.business_name ?? undefined,
-          phone: a.cust_phone ?? undefined,
-          email: a.customer_email ?? undefined,
-          customerType: a.customer_type ?? undefined,
-          address: a.address ?? undefined,
-          lat: a.Lat ?? undefined,
-          lon: a.Long ?? undefined,
-        });
+      const cp: CustomerPoint = {
+        buildingId,
+        unitCode: a.flat_no ?? undefined,
+        firstName: a.first_name ?? undefined,
+        lastName: a.last_name ?? undefined,
+        businessName: a.business_name ?? undefined,
+        phone: a.cust_phone ?? undefined,
+        email: a.customer_email ?? undefined,
+        customerType: a.customer_type ?? undefined,
+        address: a.address ?? undefined,
+        lat: a.Lat ?? undefined,
+        lon: a.Long ?? undefined,
+      };
+      // One-to-many: collect ALL customer units per building
+      const existing = result.get(buildingId) ?? [];
+      // Avoid exact duplicate unit codes
+      const isDuplicate = cp.unitCode !== undefined && existing.some(e => e.unitCode === cp.unitCode);
+      if (!isDuplicate) {
+        // Named records go first so the most informative entry is at index 0
+        const hasName = !!(cp.businessName || cp.firstName || cp.lastName);
+        result.set(buildingId, hasName ? [cp, ...existing] : [...existing, cp]);
       }
     }
   } catch (error) {
@@ -855,8 +862,9 @@ export async function fetchCustomerPointsInBounds(
  */
 export async function fetchCustomerPointsForLot(
   lotBuildingIdSuffix: string
-): Promise<Map<string, CustomerPoint>> {
-  const result = new Map<string, CustomerPoint>();
+): Promise<Map<string, CustomerPoint[]>> {
+  // One-to-many: map keyed by buildingId → array of all customer units
+  const result = new Map<string, CustomerPoint[]>();
   if (!lotBuildingIdSuffix) return result;
 
   try {
@@ -893,23 +901,27 @@ export async function fetchCustomerPointsForLot(
       const a = f.attributes;
       const buildingId: string = a.building_id ?? '';
       if (!buildingId) continue;
-      // Keep the most informative record per building (prefer records with a name)
-      const existing = result.get(buildingId);
-      const hasName = !!(a.business_name || a.first_name || a.last_name);
-      if (!existing || hasName) {
-        result.set(buildingId, {
-          buildingId,
-          unitCode: a.flat_no ?? undefined,
-          firstName: a.first_name ?? undefined,
-          lastName: a.last_name ?? undefined,
-          businessName: a.business_name ?? undefined,
-          phone: a.cust_phone ?? undefined,
-          email: a.customer_email ?? undefined,
-          customerType: a.customer_type ?? undefined,
-          address: a.address ?? undefined,
-          lat: a.Lat ?? undefined,
-          lon: a.Long ?? undefined,
-        });
+      const cp: CustomerPoint = {
+        buildingId,
+        unitCode: a.flat_no ?? undefined,
+        firstName: a.first_name ?? undefined,
+        lastName: a.last_name ?? undefined,
+        businessName: a.business_name ?? undefined,
+        phone: a.cust_phone ?? undefined,
+        email: a.customer_email ?? undefined,
+        customerType: a.customer_type ?? undefined,
+        address: a.address ?? undefined,
+        lat: a.Lat ?? undefined,
+        lon: a.Long ?? undefined,
+      };
+      // One-to-many: collect ALL customer units per building
+      const existing = result.get(buildingId) ?? [];
+      // Avoid exact duplicate unit codes
+      const isDuplicate = cp.unitCode !== undefined && existing.some(e => e.unitCode === cp.unitCode);
+      if (!isDuplicate) {
+        // Named records go first so the most informative entry is at index 0
+        const hasName = !!(cp.businessName || cp.firstName || cp.lastName);
+        result.set(buildingId, hasName ? [cp, ...existing] : [...existing, cp]);
       }
     }
   } catch (error) {
