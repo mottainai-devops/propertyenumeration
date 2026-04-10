@@ -201,23 +201,8 @@ function App() {
       const userId = response.user._id || response.user.id || response.user.email || 'default';
       let assignedLots = response.user.assignedLots || [];
       
-      // v1.56.1: If backend doesn't return assignedLots in login response,
-      // fetch active session and extract lotCode from it
-      if (assignedLots.length === 0) {
-        try {
-          const sessions = await sessionApi.list();
-          const activeSession = sessions.find(s => s.isActive);
-          if (activeSession && activeSession.lotCode) {
-            assignedLots = [{ lotCode: activeSession.lotCode, lotName: activeSession.lotCode }];
-          }
-        } catch (err) {
-          console.warn('Could not fetch active session to populate assignedLots:', err);
-        }
-      }
-
-      // v1.64.5: Final fallback — use defaultLotCode from login response if still empty.
-      // Covers users whose assignedLots array is null/empty in the DB but who have
-      // a defaultLotCode set (e.g. adeyadewuyi@gmail.com → defaultLotCode: "LOT-6").
+       // v1.64.5: If assignedLots is null/empty in the login response, fall back
+      // to defaultLotCode (e.g. adeyadewuyi@gmail.com → defaultLotCode: "LOT-6").
       if (assignedLots.length === 0) {
         const defaultLotCode = (response.user as any).defaultLotCode;
         if (defaultLotCode) {
