@@ -191,7 +191,7 @@ function ZoomDependentLabel({
     ? labelText.slice(0, maxChars - 1) + '…'
     : labelText;
 
-  // ── Badge style for enumerated/surveyed buildings (Survey app style) ──────
+  // ── Enumerated / surveyed-session: coloured badge with tick ─────────────
   if (status === 'enumerated' || status === 'surveyed-session') {
     const bgColor = status === 'enumerated' ? '#166534' : '#1d4ed8';
     const badgeHtml = `<div style="
@@ -201,12 +201,13 @@ function ZoomDependentLabel({
       font-weight: 700;
       white-space: nowrap;
       pointer-events: none;
-      padding: 2px 5px;
+      padding: 2px 6px;
       border-radius: 6px;
-      line-height: 1.3;
+      line-height: 1.4;
       text-align: center;
-      box-shadow: 0 1px 3px rgba(0,0,0,0.4);
+      box-shadow: 0 1px 4px rgba(0,0,0,0.45);
       transform: translate(-50%, -50%);
+      letter-spacing: 0.01em;
     ">✓ ${displayText}</div>`;
     const badgeIcon = L.divIcon({
       className: 'building-badge-label',
@@ -223,16 +224,45 @@ function ZoomDependentLabel({
     );
   }
 
-  // ── Plain label for virgin / customer-only buildings ──────────────────────
-  const prefix = hasCustomerData ? '● ' : '';
-  const color = hasCustomerData ? '#c4b5fd' : 'rgba(255,255,255,0.92)';
-  const shadow = hasCustomerData
-    ? '0 0 3px rgba(0,0,0,0.8), 0 0 3px rgba(0,0,0,0.8)'
-    : '0 0 3px rgba(0,0,0,0.9), 0 0 3px rgba(0,0,0,0.9)';
+  // ── Customer / business name: white pill badge — visually prominent ───────
+  if (hasCustomerData) {
+    const pillHtml = `<div style="
+      background: rgba(255,255,255,0.93);
+      color: #111827;
+      font-size: 8px;
+      font-weight: 700;
+      white-space: nowrap;
+      pointer-events: none;
+      padding: 2px 6px;
+      border-radius: 8px;
+      line-height: 1.4;
+      text-align: center;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.35), 0 0 0 1px rgba(0,0,0,0.08);
+      transform: translate(-50%, -50%);
+      letter-spacing: 0.01em;
+      max-width: 120px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    ">${displayText}</div>`;
+    const pillIcon = L.divIcon({
+      className: 'building-customer-label',
+      html: pillHtml,
+      iconSize: [0, 0],
+      iconAnchor: [0, 0],
+    });
+    return (
+      <Marker
+        position={[polygon.centerLat, polygon.centerLon]}
+        icon={pillIcon}
+        interactive={false}
+      />
+    );
+  }
 
+  // ── No customer data: minimal ghost label (building ID, subdued) ──────────
   const labelIcon = L.divIcon({
     className: 'building-label',
-    html: `<div style="font-size: 7px; color: ${color}; text-shadow: ${shadow}; font-weight: 600; white-space: nowrap; pointer-events: none; line-height: 1.2; text-align: center; transform: translate(-50%, -50%)">${prefix}${displayText}</div>`,
+    html: `<div style="font-size: 7px; color: rgba(255,255,255,0.75); text-shadow: 0 0 3px rgba(0,0,0,0.9), 0 0 3px rgba(0,0,0,0.9); font-weight: 500; white-space: nowrap; pointer-events: none; line-height: 1.2; text-align: center; transform: translate(-50%, -50%)">${displayText}</div>`,
     iconSize: [0, 0],
     iconAnchor: [0, 0],
   });
