@@ -1071,12 +1071,15 @@ export function EnhancedLocationMapWithPolygons({
   }
 
   // Determine polygon status for color coding
-  // A building is treated as 'enumerated' (green) if:
-  //   1. It is in the backend enumerated set, OR
-  //   2. It has at least one customer point in the ArcGIS Customer Layer
+  // 'enumerated' (green)  → MongoDB record exists for this building (arcgisBuildingId match)
+  // 'surveyed-session'    → submitted during this session (blue dashed)
+  // 'default'             → never enumerated — orange outline, no fill
+  //
+  // NOTE: ArcGIS customer points (customerPointsMap) do NOT affect polygon colour.
+  // A building with enriched customer data but no enumeration stays orange.
+  // Customer data only affects the label text shown on the polygon.
   function getPolygonStatus(buildingId: string): 'enumerated' | 'surveyed-session' | 'default' {
     if (enumeratedBuildingIds.has(buildingId)) return 'enumerated';
-    if (customerPointsMap.has(buildingId)) return 'enumerated';
     if (surveyedBuildingIds.has(buildingId)) return 'surveyed-session';
     return 'default';
   }
