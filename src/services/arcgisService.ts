@@ -1010,7 +1010,7 @@ export async function fetchPolygonsForLotProgressive(
   lotCode: string,
   onBatch: (polygons: BuildingPolygon[]) => void
 ): Promise<BuildingPolygon[]> {
-  const BATCH_SIZE = 100;
+  const BATCH_SIZE = 50;
   const PARALLEL_WORKERS = 4;
   const INITIAL_BATCHES = 1; // First 100 polygons returned synchronously (rest stream in background)
 

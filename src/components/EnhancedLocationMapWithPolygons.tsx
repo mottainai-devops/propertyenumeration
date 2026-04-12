@@ -158,11 +158,13 @@ function ZoomDependentLabel({
   minZoom = LABEL_ZOOM_THRESHOLD,
   status = 'default',
   customerPoint,
+  onTap,
 }: {
   polygon: BuildingPolygon;
   minZoom?: number;
   status?: 'enumerated' | 'surveyed-session' | 'default';
   customerPoint?: CustomerPoint;
+  onTap?: (polygon: BuildingPolygon, e: L.LeafletMouseEvent) => void;
 }) {
   const map = useMap();
   const [showLabel, setShowLabel] = useState(false);
@@ -219,7 +221,7 @@ function ZoomDependentLabel({
       <Marker
         position={[polygon.centerLat, polygon.centerLon]}
         icon={badgeIcon}
-        interactive={false}
+        eventHandlers={onTap ? { click: (e) => onTap(polygon, e) } : {}}
       />
     );
   }
@@ -254,7 +256,7 @@ function ZoomDependentLabel({
       <Marker
         position={[polygon.centerLat, polygon.centerLon]}
         icon={pillIcon}
-        interactive={false}
+        eventHandlers={onTap ? { click: (e) => onTap(polygon, e) } : {}}
       />
     );
   }
@@ -271,7 +273,7 @@ function ZoomDependentLabel({
     <Marker
       position={[polygon.centerLat, polygon.centerLon]}
       icon={labelIcon}
-      interactive={false}
+      eventHandlers={onTap ? { click: (e) => onTap(polygon, e) } : {}}
     />
   );
 }
@@ -1277,6 +1279,7 @@ export function EnhancedLocationMapWithPolygons({
                     minZoom={LABEL_ZOOM_THRESHOLD}
                     status={status}
                     customerPoint={customerPoint}
+                    onTap={handlePolygonClick}
                   />
                 </React.Fragment>
               );
