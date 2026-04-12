@@ -212,8 +212,8 @@ function ZoomDependentLabel({
     const badgeIcon = L.divIcon({
       className: 'building-badge-label',
       html: badgeHtml,
-      iconSize: [0, 0],
-      iconAnchor: [0, 0],
+      iconSize: [140, 20],
+      iconAnchor: [70, 10],
     });
     return (
       <Marker
@@ -247,8 +247,8 @@ function ZoomDependentLabel({
     const pillIcon = L.divIcon({
       className: 'building-customer-label',
       html: pillHtml,
-      iconSize: [0, 0],
-      iconAnchor: [0, 0],
+      iconSize: [140, 20],
+      iconAnchor: [70, 10],
     });
     return (
       <Marker
@@ -263,8 +263,8 @@ function ZoomDependentLabel({
   const labelIcon = L.divIcon({
     className: 'building-label',
     html: `<div style="font-size: 7px; color: rgba(255,255,255,0.75); text-shadow: 0 0 3px rgba(0,0,0,0.9), 0 0 3px rgba(0,0,0,0.9); font-weight: 500; white-space: nowrap; pointer-events: none; line-height: 1.2; text-align: center; transform: translate(-50%, -50%)">${displayText}</div>`,
-    iconSize: [0, 0],
-    iconAnchor: [0, 0],
+    iconSize: [80, 16],
+    iconAnchor: [40, 8],
   });
 
   return (
@@ -1376,10 +1376,10 @@ export function EnhancedLocationMapWithPolygons({
           </div>
 
           {/* ── Right-side FAB column: Zoom In + Zoom Out + Locate Me + Refresh ── */}
-          <div className="absolute right-2 z-[1001] flex flex-col gap-2" style={{ bottom: '60px' }}>
+          <div className="absolute right-2 z-[1001] flex flex-col gap-2" style={{ bottom: '60px', pointerEvents: 'auto' }}>
             {/* Zoom In */}
             <button
-              onClick={() => { if (mapRef.current) mapRef.current.zoomIn(); }}
+              onClick={(e) => { e.stopPropagation(); if (mapRef.current) mapRef.current.zoomIn(); }}
               className="bg-white rounded-xl shadow-md text-gray-700 hover:bg-gray-50 active:bg-gray-100 flex items-center justify-center border border-gray-200 select-none"
               style={{ width: '48px', height: '48px', fontSize: '22px', fontWeight: 700, lineHeight: 1 }}
               title="Zoom in"
@@ -1388,7 +1388,7 @@ export function EnhancedLocationMapWithPolygons({
             </button>
             {/* Zoom Out */}
             <button
-              onClick={() => { if (mapRef.current) mapRef.current.zoomOut(); }}
+              onClick={(e) => { e.stopPropagation(); if (mapRef.current) mapRef.current.zoomOut(); }}
               className="bg-white rounded-xl shadow-md text-gray-700 hover:bg-gray-50 active:bg-gray-100 flex items-center justify-center border border-gray-200 select-none"
               style={{ width: '48px', height: '48px', fontSize: '22px', fontWeight: 700, lineHeight: 1 }}
               title="Zoom out"

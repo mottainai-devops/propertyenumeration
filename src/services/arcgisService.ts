@@ -1012,7 +1012,7 @@ export async function fetchPolygonsForLotProgressive(
 ): Promise<BuildingPolygon[]> {
   const BATCH_SIZE = 100;
   const PARALLEL_WORKERS = 4;
-  const INITIAL_BATCHES = 4; // First 400 polygons returned synchronously
+  const INITIAL_BATCHES = 1; // First 100 polygons returned synchronously (rest stream in background)
 
   const lotId = lotCodeToArcGISLotId(lotCode);
   if (!lotId) {
