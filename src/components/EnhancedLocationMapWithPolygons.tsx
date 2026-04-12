@@ -26,7 +26,7 @@ const USE_MOCK_DATA = false;
 const DEFAULT_SATELLITE = true;
 
 // Minimum zoom level to show building labels (reduces clutter when zoomed out)
-const LABEL_ZOOM_THRESHOLD = 19;
+const LABEL_ZOOM_THRESHOLD = 18;
 
 // Fix Leaflet default marker icon issue
 delete (L.Icon.Default.prototype as any)._getIconUrl;
@@ -569,11 +569,30 @@ export function EnhancedLocationMapWithPolygons({
   useEffect(() => {
     async function fetchEnumeratedIds() {
       try {
-        // Fetch a broad list of buildings to get their arcgisBuildingIds
-        const result = await buildingApi.list({ limit: 2000 });
+        // Paginate through ALL buildings to build the full set of enumerated arcgisBuildingIds
         const ids = new Set<string>();
-        for (const b of result.buildings) {
-          if (b.arcgisBuildingId) ids.add(b.arcgisBuildingId);
+        const PAGE_SIZE = 500;
+        let page = 1;
+        let hasMore = true;
+        while (hasMore) {
+          const result = await buildingApi.list({ limit: PAGE_SIZE, page });
+          for (const b of result.buildings) {
+            if (b.arcgisBuildingId) ids.add(b.arcgisBuildingId);
+          }
+          // Stop if we got fewer than PAGE_SIZE records (last page)
+          if (result.buildings.length < PAGE_SIZE) {
+            hasMore = false;
+          } else {
+            // Also stop if pagination metadata says we're done
+            const total = result.pagination?.total;
+            if (total != null && ids.size >= total) {
+              hasMore = false;
+            } else {
+              page++;
+            }
+          }
+          // Safety: never fetch more than 20 pages (10,000 records)
+          if (page > 20) hasMore = false;
         }
         setEnumeratedBuildingIds(ids);
       } catch {
@@ -1207,6 +1226,7 @@ export function EnhancedLocationMapWithPolygons({
           <MapContainer
             center={position}
             zoom={18}
+            zoomControl={false}
             style={{ height: '100%', width: '100%' }}
             className="z-0"
           >
@@ -1355,12 +1375,31 @@ export function EnhancedLocationMapWithPolygons({
             </div>
           </div>
 
-          {/* ── Right-side FAB column: Refresh + Locate Me (44×44px) ── */}
-          <div className="absolute bottom-14 right-2 z-[1001] flex flex-col gap-2">
+          {/* ── Right-side FAB column: Zoom In + Zoom Out + Locate Me + Refresh ── */}
+          <div className="absolute right-2 z-[1001] flex flex-col gap-2" style={{ bottom: '60px' }}>
+            {/* Zoom In */}
+            <button
+              onClick={() => { if (mapRef.current) mapRef.current.zoomIn(); }}
+              className="bg-white rounded-xl shadow-md text-gray-700 hover:bg-gray-50 active:bg-gray-100 flex items-center justify-center border border-gray-200 select-none"
+              style={{ width: '48px', height: '48px', fontSize: '22px', fontWeight: 700, lineHeight: 1 }}
+              title="Zoom in"
+            >
+              +
+            </button>
+            {/* Zoom Out */}
+            <button
+              onClick={() => { if (mapRef.current) mapRef.current.zoomOut(); }}
+              className="bg-white rounded-xl shadow-md text-gray-700 hover:bg-gray-50 active:bg-gray-100 flex items-center justify-center border border-gray-200 select-none"
+              style={{ width: '48px', height: '48px', fontSize: '22px', fontWeight: 700, lineHeight: 1 }}
+              title="Zoom out"
+            >
+              −
+            </button>
+            {/* Locate Me */}
             <button
               onClick={handleLocateMe}
-              className="bg-white rounded-xl shadow-md text-gray-700 hover:bg-gray-50 flex items-center justify-center border border-gray-200"
-              style={{ width: '44px', height: '44px' }}
+              className="bg-white rounded-xl shadow-md text-gray-700 hover:bg-gray-50 active:bg-gray-100 flex items-center justify-center border border-gray-200"
+              style={{ width: '48px', height: '48px' }}
               title="Center on my location"
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1368,11 +1407,12 @@ export function EnhancedLocationMapWithPolygons({
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
               </svg>
             </button>
+            {/* Refresh */}
             <button
               onClick={handleRefresh}
               disabled={isLoadingPolygons}
-              className="bg-white rounded-xl shadow-md text-gray-700 hover:bg-gray-50 disabled:opacity-50 flex items-center justify-center border border-gray-200"
-              style={{ width: '44px', height: '44px' }}
+              className="bg-white rounded-xl shadow-md text-gray-700 hover:bg-gray-50 active:bg-gray-100 disabled:opacity-50 flex items-center justify-center border border-gray-200"
+              style={{ width: '48px', height: '48px' }}
               title="Refresh building data"
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
