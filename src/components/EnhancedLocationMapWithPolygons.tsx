@@ -1227,7 +1227,7 @@ export function EnhancedLocationMapWithPolygons({
         >
           <MapContainer
             center={position}
-            zoom={18}
+            zoom={19}
             maxZoom={21}
             zoomControl={false}
             style={{ height: '100%', width: '100%' }}
