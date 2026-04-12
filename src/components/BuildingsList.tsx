@@ -58,7 +58,7 @@ function normaliseServerBuilding(b: Building): LocalBuilding {
   };
 }
 
-export default function BuildingsList({ buildings, pendingBuildings, onClose, filterSessionId, filterSessionLabel, refreshKey, initialSearch }: BuildingsListProps) {
+export default function BuildingsList({ buildings, pendingBuildings, onClose, filterSessionId, filterSessionLabel, refreshKey, initialSearch, onSyncAll }: BuildingsListProps) {
   const [filter, setFilter] = useState<FilterType>('All');
   const [search, setSearch] = useState(initialSearch ?? '');
   const [serverBuildings, setServerBuildings] = useState<LocalBuilding[]>([]);
