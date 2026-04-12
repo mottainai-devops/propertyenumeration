@@ -143,8 +143,11 @@ export default function CustomerSearch({ onSelect, placeholder = 'Search custome
 
       {/* No Results */}
       {showDropdown && !loading && results.length === 0 && query.trim().length >= 2 && (
-        <div className="absolute z-50 w-full mt-2 bg-white border border-gray-200 rounded-lg shadow-lg px-4 py-6 text-center text-gray-500">
-          No customers found for "{query}"
+        <div className="absolute z-50 w-full mt-2 bg-white border border-gray-200 rounded-lg shadow-lg px-4 py-4 text-center">
+          <p className="text-sm text-gray-700 font-medium mb-1">No customers found for &ldquo;{query}&rdquo;</p>
+          <p className="text-xs text-gray-500 leading-relaxed">
+            This searches the registered customer database. If the customer exists only in the field map data, they won&rsquo;t appear here — you can continue without linking and register them as a new customer.
+          </p>
         </div>
       )}
     </div>

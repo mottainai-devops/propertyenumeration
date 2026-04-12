@@ -31,6 +31,7 @@ interface BuildingsListProps {
   filterSessionLabel?: string; // e.g. lot code for display in header
   refreshKey?: number;        // Increment to trigger a server refresh (e.g. after creating a building)
   initialSearch?: string;     // Pre-fill search bar (e.g. from home screen quick search)
+  onSyncAll?: () => Promise<void>; // Trigger full sync of all pending buildings
 }
 
 type FilterType = 'All' | 'Today' | 'This Week' | 'Last 7 Days' | 'Residential' | 'Commercial' | 'Industrial' | 'Mixed-Use' | 'Pending';
@@ -58,7 +59,8 @@ function normaliseServerBuilding(b: Building): LocalBuilding {
   };
 }
 
-export default function BuildingsList({ buildings, pendingBuildings, onClose, filterSessionId, filterSessionLabel, refreshKey, initialSearch }: BuildingsListProps) {
+export default function BuildingsList({ buildings, pendingBuildings, onClose, filterSessionId, filterSessionLabel, refreshKey, initialSearch, onSyncAll }: BuildingsListProps) {
+  const [syncingIndex, setSyncingIndex] = useState<number | null>(null);
   const [filter, setFilter] = useState<FilterType>('All');
   const [search, setSearch] = useState(initialSearch ?? '');
   const [serverBuildings, setServerBuildings] = useState<LocalBuilding[]>([]);
@@ -538,7 +540,18 @@ export default function BuildingsList({ buildings, pendingBuildings, onClose, fi
                       </div>
                       <div className="flex items-center gap-1.5 shrink-0">
                         {b.synced === false ? (
-                          <span className="text-xs bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded-full font-medium">Pending</span>
+                          <span className="text-xs bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded-full font-medium flex items-center gap-1">
+                            ⏳ Pending
+                            {onSyncAll && (
+                              <button
+                                type="button"
+                                onClick={async (e) => { e.stopPropagation(); await onSyncAll(); }}
+                                className="ml-1 text-yellow-800 underline text-xs font-semibold"
+                              >
+                                Retry
+                              </button>
+                            )}
+                          </span>
                         ) : (
                           <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-medium">✓ Synced</span>
                         )}

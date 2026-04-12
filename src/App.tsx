@@ -101,6 +101,17 @@ function App() {
     };
   }, []);
 
+  // Auto-retry pending buildings every 2 minutes while online
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (isOnline && pendingBuildings.length > 0 && !isSyncing) {
+        console.log('[AutoRetry] Retrying', pendingBuildings.length, 'pending building(s)...');
+        syncPendingBuildings();
+      }
+    }, 120_000); // 2 minutes
+    return () => clearInterval(interval);
+  }, [isOnline, pendingBuildings.length, isSyncing]);
+
   // Load pending buildings and recent buildings from localStorage.
   // Keys are scoped per-user (v1.55+) so multiple accounts on the same device
   // do not share each other's pending queue or recent history.
@@ -830,6 +841,7 @@ function App() {
             onClose={() => { setBuildingsInitialSearch(''); setCurrentScreen('session'); }}
             refreshKey={buildingsRefreshKey}
             initialSearch={buildingsInitialSearch}
+            onSyncAll={syncPendingBuildings}
           />
         )}
 
