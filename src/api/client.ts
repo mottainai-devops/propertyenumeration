@@ -160,12 +160,17 @@ export interface Customer {
   updatedAt?: string;
 }
 
-/** Normalise a raw customer so both old and new field names work */
+/** Normalise a raw customer so both old and new field names work.
+ * DB (customerdatas collection) stores the display name as 'fullName'.
+ * Some older API responses use 'name' or 'customerName'.
+ * Priority: fullName > name > customerName
+ */
 function normaliseCustomer(raw: any): Customer {
   return {
     ...raw,
-    name: raw.name ?? raw.customerName ?? '',
+    name: raw.fullName ?? raw.name ?? raw.customerName ?? '',
     phone: raw.phone ?? raw.phoneNumber ?? '',
+    address: raw.address ?? raw.buildingAddress ?? '',
     isDigitalized: raw.isDigitalized ?? (raw.digitalizationStatus === 'digitalized'),
   };
 }
