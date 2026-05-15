@@ -77,6 +77,7 @@ export interface Customer {
 export interface CustomerSearchParams {
   query: string;
   limit?: number;
+  lotCode?: string;  // Required for company-scoped search
   digitalizationStatus?: 'digitalized' | 'not-digitalized';
   propertyType?: string;
 }
@@ -161,9 +162,14 @@ export const buildingApi = {
 // Customer API
 export const customerApi = {
   search: async (params: CustomerSearchParams): Promise<Customer[]> => {
-    // Use /customers endpoint with search query parameter (not /customers/search)
-    const response = await apiClient.get('/api/property-enumeration/customers', { 
-      params: { search: params.query, ...params } 
+    // Use /customers/search endpoint — lotCode scopes results to the user's company/lot
+    const queryParams: Record<string, string | number | undefined> = {
+      q: params.query,
+      limit: params.limit ?? 10,
+    };
+    if (params.lotCode) queryParams.lotCode = params.lotCode;
+    const response = await apiClient.get('/api/property-enumeration/customers/search', {
+      params: queryParams,
     });
     return response.data.data.customers;
   },

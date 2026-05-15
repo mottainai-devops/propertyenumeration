@@ -487,6 +487,7 @@ export default function BuildingForm({ onSubmit, location, selectedBuilding, onB
                 <CustomerSearch
                   onSelect={handleCustomerSelect}
                   placeholder="Search by name, phone, or address"
+                  lotCode={formData.lotCode || undefined}
                 />
               </div>
             )}

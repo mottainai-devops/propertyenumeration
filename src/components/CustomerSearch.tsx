@@ -4,9 +4,10 @@ import { customerApi, type Customer } from '../api/client';
 interface CustomerSearchProps {
   onSelect: (customer: Customer) => void;
   placeholder?: string;
+  lotCode?: string; // Scopes search to the user's company/lot
 }
 
-export default function CustomerSearch({ onSelect, placeholder = 'Search customers by name, phone, or address...' }: CustomerSearchProps) {
+export default function CustomerSearch({ onSelect, placeholder = 'Search customers by name, phone, or address...', lotCode }: CustomerSearchProps) {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(false);
@@ -34,7 +35,11 @@ export default function CustomerSearch({ onSelect, placeholder = 'Search custome
       setError('');
 
       try {
-        const customers = await customerApi.search({ query: query.trim(), limit: 10 });
+        const customers = await customerApi.search({
+          query: query.trim(),
+          limit: 10,
+          lotCode: lotCode, // Pass lotCode to scope results to this company/lot
+        });
         setResults(customers);
         setShowDropdown(true);
       } catch (err: any) {
@@ -50,7 +55,7 @@ export default function CustomerSearch({ onSelect, placeholder = 'Search custome
         clearTimeout(searchTimeoutRef.current);
       }
     };
-  }, [query]);
+  }, [query, lotCode]);
 
   // Close dropdown when clicking outside
   useEffect(() => {
