@@ -34,7 +34,17 @@ export default function CustomerSearch({ onSelect, placeholder = 'Search custome
       setError('');
 
       try {
-        const customers = await customerApi.search({ query: query.trim(), limit: 10 });
+        // Read companyId from stored user to enforce data segregation
+        let companyId: string | undefined;
+        try {
+          const u = JSON.parse(localStorage.getItem('user') || '{}');
+          companyId =
+            u.companyId ||
+            u.ownerCompanyId ||
+            u.company?.companyId ||
+            undefined;
+        } catch { /* ignore */ }
+        const customers = await customerApi.search({ query: query.trim(), limit: 10, companyId });
         setResults(customers);
         setShowDropdown(true);
       } catch (err: any) {

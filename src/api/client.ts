@@ -166,11 +166,16 @@ export interface Customer {
  * Priority: fullName > name > customerName
  */
 function normaliseCustomer(raw: any): Customer {
+  // Sanitise address: some legacy records have survey payment URLs stored in the address field.
+  // These come from the old Survey123 webhook flow and should not be shown to users.
+  const rawAddress: string = raw.address ?? raw.buildingAddress ?? '';
+  const isUrl = rawAddress.startsWith('http://') || rawAddress.startsWith('https://');
+  const safeAddress = isUrl ? '' : rawAddress;
   return {
     ...raw,
     name: raw.fullName ?? raw.name ?? raw.customerName ?? '',
     phone: raw.phone ?? raw.phoneNumber ?? '',
-    address: raw.address ?? raw.buildingAddress ?? '',
+    address: safeAddress,
     isDigitalized: raw.isDigitalized ?? (raw.digitalizationStatus === 'digitalized'),
   };
 }
@@ -181,6 +186,7 @@ export interface CustomerSearchParams {
   limit?: number;
   page?: number;
   lotCode?: string;
+  companyId?: string;  // Filter to company's own records only (data segregation)
 }
 
 // ─── Auth Interfaces ───────────────────────────────────────────────────────────
@@ -458,6 +464,7 @@ export const customerApi = {
           q: params.query,          // Dedicated search endpoint uses 'q' key
           lotCode: params.lotCode,
           limit: params.limit,
+          companyId: params.companyId,  // Data segregation: filter to own company only
         },
       });
     } catch (err: any) {
