@@ -23,9 +23,8 @@ import {
 const ARCGIS_BASE_URL =
   'https://services3.arcgis.com/VYBpf26AGQNwssLH/arcgis/rest/services/New_Footprints_gdb_b1422/FeatureServer/0';
 
-// ArcGIS API Key
-const ARCGIS_API_KEY =
-  'AAPTxy8BH1VEsoebNVZXo8HurDkT4HeplNOm_pLCsV2-wHXD7esJFqWCGo3oDxTaOVO68fIzhjQ4gSKqccl-uynuHunhlN5t3E_x5N010mOKYQRyFm3vYXqvila3dJ3Ax81DMK2WyxFt6mqhwzxdkdhmm7USv7-cQi07L_22-MTRC95Rns1BHueP3kR_yXyAyh1WEFAm9Q7KFELPkRpT_5cjWvbDo2rWZhtHOb5xFr_7bOA.AT1_n5wNkDcc';
+// This Feature Service is publicly readable. Do not attach an ArcGIS token here:
+// the previous static token had become invalid and caused ArcGIS error 498.
 
 // Request timeout in milliseconds
 const REQUEST_TIMEOUT = 15000;
@@ -83,7 +82,6 @@ export async function fetchPolygonsInBounds(
         'building_id,business_name,cust_phone,customer_email,address,Zone,socio_economic_groups',
       returnGeometry: 'true',
       f: 'json',
-      token: ARCGIS_API_KEY,
     };
 
     console.log('[ArcGIS] Fetching polygons in bounds (POST):', bounds);
@@ -143,7 +141,6 @@ export async function fetchPolygonsNearLocation(
         'building_id,business_name,cust_phone,customer_email,address,Zone,socio_economic_groups',
       returnGeometry: 'true',
       f: 'json',
-      token: ARCGIS_API_KEY,
     };
 
     console.log('[ArcGIS] Fetching polygons near (POST):', { lat, lon, radiusKm });
@@ -208,7 +205,6 @@ export async function fetchPolygonByBuildingId(
         'building_id,business_name,cust_phone,customer_email,address,Zone,socio_economic_groups',
       returnGeometry: 'true',
       f: 'json',
-      token: ARCGIS_API_KEY,
     });
 
     const url = `${ARCGIS_BASE_URL}/query?${params.toString()}`;
@@ -251,16 +247,18 @@ export async function fetchPolygonByBuildingId(
  */
 export async function testArcGISConnection(): Promise<boolean> {
   try {
-    // Short metadata URL — GET is fine here
-    const url = `${ARCGIS_BASE_URL}?f=json&token=${ARCGIS_API_KEY}`;
+    // Short metadata URL — GET is fine here. The layer is publicly readable.
+    const url = `${ARCGIS_BASE_URL}?f=json`;
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 5000);
 
     try {
       const response = await fetch(url, { signal: controller.signal });
       clearTimeout(timeoutId);
-      return response.ok;
-    } catch (fetchError) {
+      if (!response.ok) return false;
+      const data: ArcGISQueryResponse = await response.json();
+      return !data.error;
+    } catch {
       clearTimeout(timeoutId);
       return false;
     }
