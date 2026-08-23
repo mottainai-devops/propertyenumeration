@@ -39,7 +39,9 @@ const ARCGIS_CUSTOMER_URL =
 // Keep the legacy alias so existing read-only callers are unaffected
 const ARCGIS_BASE_URL = ARCGIS_POLYGON_URL;
 
-// ArcGIS API Key
+// ArcGIS API Key used only by legacy ArcGIS write-back operations.
+// Public map-read requests intentionally omit this key: the Footprints layer
+// permits anonymous reads, while the previously bundled key is no longer valid.
 const ARCGIS_API_KEY =
   'AAPTxy8BH1VEsoebNVZXo8HurDkT4HeplNOm_pLCsV2-wHXD7esJFqWCGo3oDxTaOVO68fIzhjQ4gSKqccl-uynuHunhlN5t3E_x5N010mOKYQRyFm3vYXqvila3dJ3Ax81DMK2WyxFt6mqhwzxdkdhmm7USv7-cQi07L_22-MTRC95Rns1BHueP3kR_yXyAyh1WEFAm9Q7KFELPkRpT_5cjWvbDo2rWZhtHOb5xFr_7bOA.AT1_n5wNkDcc';
 
@@ -794,7 +796,6 @@ export async function fetchCustomerPointsInBounds(
       returnGeometry: 'false',
       resultRecordCount: '4000',
       f: 'json',
-      token: ARCGIS_API_KEY,
     };
 
     const body = new URLSearchParams(params);
@@ -875,7 +876,6 @@ export async function fetchCustomerPointsForLot(
       returnGeometry: 'false',
       resultRecordCount: '10000',
       f: 'json',
-      token: ARCGIS_API_KEY,
     };
 
     const body = new URLSearchParams(params);
@@ -970,7 +970,6 @@ async function fetchPolygonsByObjectIds(
       'building_id,address,Verification,Source,lga_name,lga_code,state_code,ward_name,ward_code,latitude,longitude,house_name,flat_no,Description,Enlistment',
     returnGeometry: 'true',
     f: 'json',
-    token: ARCGIS_API_KEY,
   };
   const body = new URLSearchParams(params);
   const response = await fetch(`${ARCGIS_BASE_URL}/query`, {
@@ -1028,7 +1027,6 @@ export async function fetchPolygonsForLotProgressive(
     where: `Lot_ID='${lotId}'`,
     returnIdsOnly: 'true',
     f: 'json',
-    token: ARCGIS_API_KEY,
   });
   const res1 = await fetch(`${ARCGIS_BASE_URL}/query`, {
     method: 'POST',
@@ -1116,7 +1114,6 @@ export async function fetchPolygonsInBounds(
         'building_id,address,Verification,Source,lga_name,lga_code,state_code,ward_name,ward_code,latitude,longitude,house_name,flat_no,Description,Enlistment',
       returnGeometry: 'true',
       f: 'json',
-      token: ARCGIS_API_KEY,
     };
 
     console.log('[ArcGIS] Fetching polygons in bounds (POST):', bounds);
@@ -1176,7 +1173,6 @@ export async function fetchPolygonsNearLocation(
         'building_id,address,Verification,Source,lga_name,lga_code,state_code,ward_name,ward_code,latitude,longitude,house_name,flat_no,Description,Enlistment',
       returnGeometry: 'true',
       f: 'json',
-      token: ARCGIS_API_KEY,
     };
 
     console.log('[ArcGIS] Fetching polygons near (POST):', { lat, lon, radiusKm });
@@ -1243,7 +1239,6 @@ export async function fetchPolygonByBuildingId(
         'building_id,address,Verification,Source,lga_name,lga_code,state_code,ward_name,ward_code,latitude,longitude,house_name,flat_no,Description,Enlistment',
       returnGeometry: 'true',
       f: 'json',
-      token: ARCGIS_API_KEY,
     });
 
     const url = `${ARCGIS_BASE_URL}/query?${params.toString()}`;
@@ -1287,7 +1282,7 @@ export async function fetchPolygonByBuildingId(
 export async function testArcGISConnection(): Promise<boolean> {
   try {
     // Short metadata URL — GET is fine here
-    const url = `${ARCGIS_BASE_URL}?f=json&token=${ARCGIS_API_KEY}`;
+    const url = `${ARCGIS_BASE_URL}?f=json`;
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 5000);
 

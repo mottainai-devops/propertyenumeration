@@ -7,6 +7,7 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
+    "verify:arcgis": "node scripts/verify-arcgis-public-layer.mjs",
     "preview": "vite preview"
   },
   "dependencies": {
