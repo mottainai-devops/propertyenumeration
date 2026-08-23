@@ -1,14 +1,39 @@
 # Integration State — Property Enumeration Mobile App
 
-**Last Updated:** April 13, 2026
-**Current Version:** v1.65.7 (versionCode 165007)
+**Last Updated:** August 23, 2026
+**Current Release Baseline:** June Build #209 UI/design (`f92f939`) plus Build #211 public-map token fix (`1b97fd5`)
 **GitHub Repo:** https://github.com/mottainai-devops/propertyenumeration
 **Backend Repo:** https://github.com/mottainai-devops/mottainai-platform-backend
 **Backend API Base:** https://upwork.kowope.xyz
-**Latest APK:** https://upwork.kowope.xyz/mottainai-property-enum-v1.65.7-debug.apk (8.17 MB, HTTP 200)
+**Latest Verified APK:** GitHub Actions Build #211 artifact `app-debug-v211` (6,816,673 bytes; SHA-256 `ac26bdf54350c59eec266ca659ccca78ceef9b626c976c48c5632f399deb9f0e`)
+**Artifact Run:** https://github.com/mottainai-devops/propertyenumeration/actions/runs/32626247832
+**Production Download Status:** Build #211 is verified on-device but is not copied into `/var/www/html`; the older production-hosted APK must not be treated as the current release.
 **Joint API Contract:** v1.2.0 ✅ Signed off by both teams (March 6, 2026)
 
 > **Consolidation Note (April 9, 2026):** The `mottainaisurvey/old-survey-web-app` repository has been archived and is no longer active. The authoritative backend is `mottainai-devops/mottainai-platform-backend` (https://upwork.kowope.xyz). All integration work targets that repo exclusively.
+
+---
+
+## Verified Release State — Build #211
+
+Build #210 was produced from a regressed `master` line (`package.json` version 1.24.0) and did not retain the working June design. The correct recovery was to begin from the successful June Build #209 commit `f92f939` on `main`, which preserves the current customer-ID composite, building-card, map, session, and form UX.
+
+| Item | Verified state |
+|-------|----------------|
+| Restored UX baseline | June Build #209, commit `f92f939` — `feat(identity): display ArcGIS-native Customer ID composite in building cards (v3.5.0)` |
+| Token-only follow-up | Commit `1b97fd5` — `fix: preserve June design and remove invalid ArcGIS map token` |
+| Android build | GitHub Actions Build #211 — passed on August 23, 2026 in 2m 52s |
+| Map verification | Anonymous ArcGIS public-map regression query passed with 2,475,494 footprint records available |
+| Acceptance | Field-device acceptance confirmed: June UI/design, login, and map flow working |
+| Distribution | Approval-gated; Build #211 is the artifact to distribute, not the older production-hosted APK or Build #210 |
+
+### Runtime fixes recorded
+
+- **ArcGIS map:** Public map-read requests no longer append the invalid static ArcGIS token. The `Nigeria_Building_Footprints` layer accepts anonymous read queries; the dedicated `npm run verify:arcgis` regression script verifies both source behavior and a live count query.
+- **Mobile login:** The `/api/mobile/users` Nginx location was corrected to stop adding duplicate CORS headers. Express is now the single CORS header owner. A neutral browser-origin probe receives the expected HTTP 400 authentication response for a synthetic invalid login instead of `TypeError: Failed to fetch`.
+- **Data safety:** Neither fix changed enumeration sessions, user records, credentials, database data, or existing APK artifacts.
+
+> **Follow-up boundary:** Legacy ArcGIS write-back functions remain separate from public map reads. Stale enumeration-session cleanup and Nginx duplicate-server-definition warnings remain approval-gated maintenance items; neither was changed during this release recovery.
 
 ---
 
@@ -22,7 +47,7 @@ cd /home/ubuntu/propertyenumeration
 npm run build
 npx cap sync android
 
-# 2. Fix Java version (cap sync resets capacitor.build.gradle to VERSION_21; sandbox JDK is 17)
+# 2. Local-only Java compatibility patch (cap sync resets capacitor.build.gradle to VERSION_21; this is only needed on a JDK 17 sandbox)
 sed -i 's/JavaVersion.VERSION_21/JavaVersion.VERSION_17/g' \
   android/app/capacitor.build.gradle \
   android/capacitor-cordova-android-plugins/build.gradle
@@ -30,13 +55,13 @@ sed -i 's/JavaVersion.VERSION_21/JavaVersion.VERSION_17/g' \
 # 3. Build APK
 cd android && ./gradlew assembleDebug
 
-# 4. Deploy to server
-sshpass -p '1muser123456@A' scp -o StrictHostKeyChecking=no \
+# 4. Approval-gated deployment to the production download directory
+scp -o StrictHostKeyChecking=yes \
   app/build/outputs/apk/debug/app-debug.apk \
   root@upwork.kowope.xyz:/var/www/html/mottainai-property-enum-v{VERSION}-debug.apk
 ```
 
-> **Note:** The CI GitHub Actions workflow (`.github/workflows/*.yml`) uses JDK 21 (available in CI runners) and uploads as a GitHub Actions artifact only — it does NOT deploy to the server. Server deployment is always done via SCP as above.
+> **Note:** The CI GitHub Actions workflow (`.github/workflows/*.yml`) uses JDK 21, builds the web assets, syncs Capacitor, builds the debug APK, and uploads a retained GitHub Actions artifact. It does **not** deploy to the server. Server download-directory deployment remains an explicit approval-gated SCP action.
 
 ---
 

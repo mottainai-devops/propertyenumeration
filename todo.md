@@ -293,3 +293,7 @@
 - [x] Add new fields to ArcGISFeature attributes interface
 - [x] Map new attributes in convertArcGISFeatureToBuildingPolygon
 - [ ] Build APK v1.64.0
+
+## 📚 Build #211 — June Baseline Restoration and Runtime Fixes
+
+- [x] Document Build #211: restoration of the June Build #209 design baseline, public-map ArcGIS token removal, production CORS correction, and successful on-device acceptance.
